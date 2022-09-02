@@ -151,7 +151,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalModuleDependencies>$(SolutionDir)..\metadata\vec.ixx.ifc;$(SolutionDir)..\metadata\stdx.ixx.ifc</AdditionalModuleDependencies>
+      <AdditionalModuleDependencies>$(SolutionDir)..\metadata\stdxcore.ixx.ifc;$(SolutionDir)..\metadata\vec.ixx.ifc;$(SolutionDir)..\metadata\stdx.ixx.ifc</AdditionalModuleDependencies>
     </ClCompile>
     <Link>
       <SubSystem>

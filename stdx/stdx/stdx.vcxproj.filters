@@ -9,7 +9,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="stdx.cpp">
+    <ClCompile Include="stdxcore.cpp">
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="stdx.ixx">
@@ -17,6 +17,9 @@
     </ClCompile>
     <ClCompile Include="vec\vec.ixx">
       <Filter>source\vec</Filter>
+    </ClCompile>
+    <ClCompile Include="stdxcore.ixx">
+      <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

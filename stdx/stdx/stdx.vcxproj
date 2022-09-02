@@ -19,8 +19,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="stdx.cpp" />
+    <ClCompile Include="stdxcore.cpp" />
     <ClCompile Include="stdx.ixx" />
+    <ClCompile Include="stdxcore.ixx" />
     <ClCompile Include="vec\vec.ixx" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

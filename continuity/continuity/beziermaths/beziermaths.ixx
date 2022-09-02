@@ -13,8 +13,9 @@ import <utility>;
 import <iterator>;
 import <algorithm>;
 
-import stdx;
+import stdxcore;
 import vec;
+import stdx;
 
 export namespace beziermaths
 {
@@ -223,22 +224,51 @@ constexpr beziertriangle<n + 1> elevate(beziertriangle<n> const& patch)
     return elevatedPatch;
 }
 
+// n-variate domain
+template<uint n>
+requires(n >= 0)
+struct param : public stdx::vec<n>
+{
+    // p : normalized param value, steps : steps per dimension
+    static param from1d(float p, uint steps, float step)
+    { 
+        return { stdx::grididx<n - 1>::from1d(steps, uint(p / step)).castas<float>() * step };
+    }
+};
+
 // n-variate bezier of degree d, with hyper cubic domain
 template<uint n, uint d>
 requires(n >= 0 && d >= 0)
 struct planarbezier
 {
-    using param_t = stdx::vec<n>;
+    using param_t = param<n>;
     using bezier_t = planarbezier<n, d>;
     using eval_t = std::array<vector3, n + 1>;
 
-    constexpr planarbezier() = default;
     constexpr controlpoint& operator[](uint index) { return controlnet[index]; }
     constexpr controlpoint const& operator[](uint index) const { return controlnet[index]; }
     constexpr operator controlpoint() requires(d == 0) { return controlnet[0]; }
 
     static constexpr uint numcontrolpts = stdx::pown((d + 1), n);
+    
+    // todo : use stdx::vec3
     std::array<controlpoint, numcontrolpts> controlnet;
+
+    static constexpr bezier_t identity(float dist)
+    {
+        bezier_t r;
+        for (auto i : stdx::range(numcontrolpts))
+        {
+            stdx::vec3 pos = { 0 };
+            auto const idx = stdx::grididx<n - 1>::from1d(d, i);
+            for (auto c : stdx::range(std::min(n, (uint)3)))
+                pos[c] = idx[c] * dist;
+
+            r[i] = { pos[0], pos[1], pos[2] };
+        }
+
+        return r;
+    }
 
     template<uint s>
     requires(d >= s)  // degree cannot be negative or smaller than subdivision end degree
@@ -255,8 +285,7 @@ struct planarbezier
     // │      │      │
     // o──────┴──────┘
     // (0,0)
-    // x is the new basis for the cell, to changes basis to o from x just add
-
+    // x is the new basis for the cell, to change basis to o from x just add
     static constexpr controlpoint computesubcontrolpoint(uint subidx, planarbezier<n, d> const& b, typename planarbezier<n, d>::param_t const& p)
     {
         // todo : maybe have a grid class instead of this to1d/from1d
@@ -265,10 +294,26 @@ struct planarbezier
 
         std::array<controlpoint, stdx::pown(2, n)> r;
         for (uint i(0); i < r.size(); ++i)
-            r[i] = b[hypercubeidx::to1d(d, hypercubeidx::from1d(d, i) + index)];
+            r[i] = b[hypercubeidx::to1d(d, hypercubeidx::from1d(d, i) + index)]; // can we do nothing wtf??
 
-        // todo : for some reason can't use the helper function template
         return stdx::nlerp<controlpoint, n - 1, 0>::lerp(r, p);
+    }
+
+    eval_t eval(param_t const& param) const
+    {
+        eval_t res;
+        auto const& subbezier = decasteljau<1>(*this, param);
+        res[0] = planarbezier<n, 1>::decasteljau<0>(subbezier, param);
+
+        if constexpr (n == 0)
+            return res;
+
+        // the generic expression doesn't work for first dimension
+        res[1] = vector3(subbezier[1] - subbezier[0]).Normalized();
+        for (uint i(2); i <= n; ++i)
+            res[i] = vector3(subbezier[(i - 1) * 2] - subbezier[0]).Normalized();
+
+        return res;
     }
 
 private:
@@ -294,25 +339,18 @@ private:
         using bezier_t = planarbezier<n, d>;
         static bezier_t apply(bezier_t const& b, bezier_t::param_t const& p) { return b; }
     };
-
-public:
-    eval_t eval(stdx::vec<n> const& param) const 
-    { 
-        eval_t res;
-        auto const& subbezier = decasteljau<1>(*this, param);
-        res[0] = planarbezier<n, 1>::decasteljau<0>(subbezier, param);
-
-        if constexpr (n == 0)
-            return res;
-
-        // the generic expression doesn't work for first dimension
-        res[1] = vector3(subbezier[1] - subbezier[0]).Normalized();
-        for (uint i(2); i <= n; ++i)
-            res[i] = vector3(subbezier[(i - 1) * 2] - subbezier[0]).Normalized();
-
-        return res;
-    }
 };
+
+template<uint n, uint d>
+auto tessellate(planarbezier<n, d> const& bezier, float paramsteps)
+{
+    std::vector<typename planarbezier<n, d>::eval_t> r;
+    float const step = 1.f / stdx::pown(paramsteps, n);
+    for (float t = 0.f; t <= 1.f; t += step)
+        r.push_back(bezier.eval(param<n>::from1d(t, paramsteps, step)));
+
+    return r;
+}
 
 template<uint d>
 using curve = planarbezier<1, d>;
@@ -322,22 +360,6 @@ using tensorsurface = planarbezier<2, d>;
 
 template<uint d>
 using tensorvolume = planarbezier<3, d>;
-
-// todo : create a generic rasterizer??
-template<typename b_t>
-struct rasterizer
-{
-    static std::vector<vector3> lines(b_t const& bezier)
-    {
-        static constexpr int numsteps = 10;
-        static constexpr float step = (1.f / numsteps) - 1e-5f;
-        std::vector<vector3> res;
-        for (float t = 0; t <= 1.f; t += step)
-            res.push_back(bezier.eval({ t })[0]);
-
-        return res;
-    }
-};
 
 bool firstclosest(vector3 p, vector3 p0, vector3 p1)
 {
@@ -371,8 +393,9 @@ template<uint n, uint d>
 requires(n >= 0 && d >= 0)
 struct rootfinder
 {
-    float curve(planarbezier<1, d> const& c0, planarbezier<1, d> const& c1)
-    {}
+    vector3 intersect(planarbezier<1, d> const& c0, planarbezier<1, d> const& c1)
+    {
+    }
 };
 
 }
