@@ -224,24 +224,12 @@ constexpr beziertriangle<n + 1> elevate(beziertriangle<n> const& patch)
     return elevatedPatch;
 }
 
-// n-variate domain
-template<uint n>
-requires(n >= 0)
-struct param : public stdx::vec<n>
-{
-    // p : normalized param value, steps : steps per dimension
-    static param from1d(float p, uint steps, float step)
-    { 
-        return { stdx::grididx<n - 1>::from1d(steps, uint(p / step)).castas<float>() * step };
-    }
-};
-
 // n-variate bezier of degree d, with hyper cubic domain
 template<uint n, uint d>
 requires(n >= 0 && d >= 0)
 struct planarbezier
 {
-    using param_t = param<n>;
+    using param_t = stdx::vec<n>;
     using bezier_t = planarbezier<n, d>;
     using eval_t = std::array<vector3, n + 1>;
 
@@ -288,13 +276,14 @@ struct planarbezier
     // x is the new basis for the cell, to change basis to o from x just add
     static constexpr controlpoint computesubcontrolpoint(uint subidx, planarbezier<n, d> const& b, typename planarbezier<n, d>::param_t const& p)
     {
-        // todo : maybe have a grid class instead of this to1d/from1d
-        using hypercubeidx = stdx::grididx<n - 1>;
-        auto const index = hypercubeidx::from1d(d, subidx);
+        using grididx = stdx::grididx<n - 1>;
+
+        // controlpoint idx(nd) for start of hypercube that determines subcontrolpoint is same as subcontrolpoint index
+        auto const index = grididx::from1d(d - 1, subidx);
 
         std::array<controlpoint, stdx::pown(2, n)> r;
         for (uint i(0); i < r.size(); ++i)
-            r[i] = b[hypercubeidx::to1d(d, hypercubeidx::from1d(d, i) + index)]; // can we do nothing wtf??
+            r[i] = b[grididx::to1d(d, grididx::from1d(1, i) + index)];
 
         return stdx::nlerp<controlpoint, n - 1, 0>::lerp(r, p);
     }
@@ -342,12 +331,16 @@ private:
 };
 
 template<uint n, uint d>
-auto tessellate(planarbezier<n, d> const& bezier, float paramsteps)
+auto tessellate(planarbezier<n, d> const& bezier, uint intervals)
 {
     std::vector<typename planarbezier<n, d>::eval_t> r;
-    float const step = 1.f / stdx::pown(paramsteps, n);
-    for (float t = 0.f; t <= 1.f; t += step)
-        r.push_back(bezier.eval(param<n>::from1d(t, paramsteps, step)));
+
+    uint const nsteps = stdx::pown(intervals + 1, n);
+    for (uint i(0); i < nsteps; ++i)
+    {
+        auto const p = stdx::grididx<n - 1>::from1d(intervals, i).castas<float>() / float(intervals);
+        r.push_back(bezier.eval(p));
+    }
 
     return r;
 }
