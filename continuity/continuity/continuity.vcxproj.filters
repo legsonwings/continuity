@@ -10,6 +10,9 @@
     <Filter Include="source\simplemath">
       <UniqueIdentifier>{47ec13ad-15a5-461d-8d8c-10b8c4f3dc76}</UniqueIdentifier>
     </Filter>
+    <Filter Include="source\geometry">
+      <UniqueIdentifier>{d3d3931e-99ce-4a50-866a-0a48cfa5692d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beziermaths\beziermaths.cpp">
@@ -20,6 +23,21 @@
     </ClCompile>
     <ClCompile Include="simplemath\simplemath.cpp">
       <Filter>source\simplemath</Filter>
+    </ClCompile>
+    <ClCompile Include="cursor.ixx">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="cursor.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="geometry\geocore.cpp">
+      <Filter>source\geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="core.ixx">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="geometry\geocore.ixx">
+      <Filter>source\geometry</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

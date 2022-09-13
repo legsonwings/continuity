@@ -53,18 +53,20 @@ concept samedecay_c = std::same_as<std::decay_t<t>, std::decay_t<u>>;
 
 template <typename t = float> 
 requires arithmetic_c<t>
-t constexpr tolerance = t(1e-4f);
+t constexpr tolerance = t(1e-5f);
 
 template <typename t> requires arithmetic_c<t>
 struct invalid { constexpr operator t() const { return { std::numeric_limits<t>::max() }; } };
 
 struct uminus { constexpr auto operator() (arithmeticpure_c auto v) const { return -v; }; };
 
-bool constexpr nearlyequal(arithmeticpure_c auto const& l, arithmeticpure_c auto const& r) { return l == r; }
+template<typename t>
+requires arithmeticpure_c<t>
+constexpr bool equals(t const& l, t const& r, t tol = tolerance<t>) { return std::abs(l - r) <= tol; }
 
 template <typename t>
 requires arithmetic_c<t>
-bool constexpr isvalid(t const& val) { return !nearlyequal(std::numeric_limits<t>::max(), val); }
+constexpr bool isvalid(t const& val) { return !equals(std::numeric_limits<t>::max(), val); }
 
 template<typename t>
 using containervalue_t = std::decay_t<t>::value_type;
@@ -75,6 +77,13 @@ constexpr bool isaligned(t value) { return ((uint)value & (alignment - 1)) == 0;
 constexpr bool ispowtwo(uint value);
 constexpr uint nextpowoftwomultiple(uint value, uint multipleof);
 constexpr int ceil(float value);
+
+template<indexablecontainer_c t>
+void ensuresize(t& c, uint size) {}
+
+template<typename t>
+void ensuresize(std::vector<t>& v, uint size) { v.resize(size); }
+
 constexpr auto pown(arithmeticpure_c auto v, uint n)
 {
 	decltype(v) res = 1;
@@ -83,21 +92,24 @@ constexpr auto pown(arithmeticpure_c auto v, uint n)
 	return res;
 }
 
-template<indexablecontainer_c t>
-void ensuresize(t& c, uint size) {}
-
-template<uint n>
-requires (n > 0)
-constexpr std::array<uint, n> getdigits(uint d)
+template<arithmeticpure_c t>
+constexpr bool equals(indexablecontainer_c auto const& a, t b, t tol = tolerance<t>)
 {
-	std::array<uint, n> ret{};
+	for (auto const& e : a)
+		if (!equals(e, b, tol))
+			return false;
 
-	uint i = d;
-	uint j = n - 1;
-	for (; i > 9; i /= 10, --j)
-		ret[j] = i % 10;
-	ret[j] = i;
-	return ret;
+	return true;
+}
+
+template<arithmeticpure_c t>
+constexpr bool equals(indexablecontainer_c auto const& a, indexablecontainer_c auto const& b, t tol = tolerance<t>)
+{
+	for (uint i(0); i < std::min(a.size(), b.size()); ++i)
+		if (!equals(a[i], b[i], tol))
+			return false;
+
+	return true;
 }
 
 template<typename t>
@@ -123,7 +135,7 @@ constexpr auto castas(std::array<s_t, n> a)
 }
 
 template<indexablecontainer_c l_t, indexablecontainer_c r_t>
-requires stdx::arithmeticpure_c<containervalue_t<l_t>>&& stdx::arithmeticpure_c<containervalue_t<r_t>>
+requires stdx::arithmeticpure_c<containervalue_t<l_t>> && stdx::arithmeticpure_c<containervalue_t<r_t>>
 constexpr auto dot(l_t&& a, r_t&& b)
 {
 	using v_t = containervalue_t<l_t>;

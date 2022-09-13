@@ -7,6 +7,7 @@ export module beziermaths;
 
 import <cmath>;
 import <array>;
+import <cassert>;
 import <ranges>;
 import <vector>;
 import <utility>;
@@ -206,8 +207,6 @@ constexpr vector3 evaluatefast(beziervolume<n> const& vol, vector3 const& uwv) {
 voleval evaluatefast(beziervolume<2> const& v, vector3 const& uwv);
 std::vector<vertex> bulkevaluate(beziervolume<2> const& v, std::vector<vertex> const& vertices);
 
-// LEGACY BEZIER CONSTRUCTS
-
 template<uint n>
 constexpr beziertriangle<n + 1> elevate(beziertriangle<n> const& patch)
 {
@@ -223,6 +222,8 @@ constexpr beziertriangle<n + 1> elevate(beziertriangle<n> const& patch)
     }
     return elevatedPatch;
 }
+
+// LEGACY BEZIER CONSTRUCTS
 
 // n-variate bezier of degree d, with hyper cubic domain
 template<uint n, uint d>
@@ -247,7 +248,7 @@ struct planarbezier
         bezier_t r;
         for (auto i : stdx::range(numcontrolpts))
         {
-            stdx::vec3 pos = { 0 };
+            stdx::vec3 pos{};
             auto const idx = stdx::grididx<n - 1>::from1d(d, i);
             for (auto c : stdx::range(std::min(n, (uint)3)))
                 pos[c] = idx[c] * dist;
@@ -345,15 +346,6 @@ auto tessellate(planarbezier<n, d> const& bezier, uint intervals)
     return r;
 }
 
-template<uint d>
-using curve = planarbezier<1, d>;
-
-template<uint d>
-using tensorsurface = planarbezier<2, d>;
-
-template<uint d>
-using tensorvolume = planarbezier<3, d>;
-
 bool firstclosest(vector3 p, vector3 p0, vector3 p1)
 {
     return vector3::DistanceSquared(p, p0) < vector3::DistanceSquared(p, p1);
@@ -376,19 +368,10 @@ paramandpoint closestpoint(planarbezier<1, 2> const& c, vector3 p)
         ty = ty - ((p.y - yeval[0].y) / -yeval[1].y);
     }
 
-    if (!stdx::nearlyequal(tx, ty))
+    if (!stdx::equals(tx, ty))
         return firstclosest(p, xeval, yeval) ? paramandpoint{tx, xeval} : paramandpoint{ty, yeval};
     
     return { tx, xeval };
 }
-
-template<uint n, uint d>
-requires(n >= 0 && d >= 0)
-struct rootfinder
-{
-    vector3 intersect(planarbezier<1, d> const& c0, planarbezier<1, d> const& c1)
-    {
-    }
-};
 
 }

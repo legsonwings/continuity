@@ -1,3 +1,5 @@
+module;
+
 #include "immintrin.h"
 
 module beziermaths;

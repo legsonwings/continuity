@@ -20,6 +20,20 @@ import vec;
 export namespace stdx
 {
 
+template<uint n>
+requires (n > 0)
+constexpr std::array<uint, n> getdigits(uint d)
+{
+	std::array<uint, n> ret{};
+
+	uint i = d;
+	uint j = n - 1;
+	for (; i > 9; i /= 10, --j)
+		ret[j] = i % 10;
+	ret[j] = i;
+	return ret;
+}
+
 // triangular index
 template<uint n>
 struct triindex

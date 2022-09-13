@@ -1,4 +1,3 @@
-// warning : C5201
 module stdxcore;
 
 import <cassert>;

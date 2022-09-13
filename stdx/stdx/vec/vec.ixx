@@ -1,10 +1,12 @@
 module;
+#include <cassert>
 export module vec;
 
-import <array>;
-import <functional>;
-
 import stdxcore;
+
+import <array>;
+import <ranges>;
+import <functional>;
 
 export namespace stdx
 {
@@ -18,8 +20,21 @@ struct vec : public std::array<t, d>
 	constexpr vec operator-(vec r) const { return stdx::binaryop(*this, r, std::minus<>()); }
 	constexpr vec operator*(t r) const { return stdx::unaryop(*this, std::bind(std::multiplies<>(), std::placeholders::_1, r)); }
 	constexpr vec operator/(t r) const { return stdx::unaryop(*this, std::bind(std::multiplies<>(), std::placeholders::_1, 1 / r)); }
+	constexpr bool operator==(vec r) const { return stdx::equals(*this, r, t(0)); }
+	constexpr bool operator==(t r) const { return stdx::equals(*this, r, t(0)); }
 
 	constexpr operator t() const requires (d == 1) { return (*this)[0]; }
+
+	constexpr t dot(vec const& r) const { return stdx::dot(*this, r); }
+	constexpr vec normalized() const;
+	constexpr vec cross(vec const& r) const requires (d == 3);
+	constexpr t distancesqr(vec const& r) const;
+	constexpr t distance(vec const& r) const;
+
+	static constexpr vec cross(vec const& l, vec const& r) requires (d == 3) { return l.cross(r); }
+	static constexpr t distancesqr(vec const& l, vec const& r) { return l.distancesqr(r); }
+	static constexpr t distance(vec const& l, vec const& r) { return l.distance(r); }
+
 
 	template<typename d_t>
 	constexpr vec<d, d_t> castas() const { return { stdx::castas<d_t>(*this) }; }
@@ -57,6 +72,40 @@ using veci3 = veci<3>;
 using vecui1 = vecui<1>;
 using vecui2 = vecui<2>;
 using vecui3 = vecui<3>;
+
+template<uint d, stdx::arithmeticpure_c t>
+constexpr vec<d, t> vec<d, t>::cross(vec<d, t> const& rhs) const requires (d == 3)
+{
+	vec<d, t> r;
+	auto const& lhs = *this;
+	r[0] = lhs[1] * rhs[2] - lhs[2] * rhs[1];
+	r[1] = lhs[2] * rhs[0] - lhs[0] * rhs[2];
+	r[2] = lhs[0] * rhs[1] - lhs[1] * rhs[0];
+	
+	return r;
+}
+
+template<uint d, stdx::arithmeticpure_c t>
+constexpr t vec<d, t>::distancesqr(vec const& r) const
+{
+	auto const delta = r - *this;
+	return delta.dot(delta);
+}
+
+template<uint d, stdx::arithmeticpure_c t>
+constexpr t vec<d, t>::distance(vec const& r) const
+{
+	return std::sqrt(distancesqr(r));
+}
+
+template<uint d, stdx::arithmeticpure_c t>
+constexpr vec<d, t> vec<d, t>::normalized() const
+{
+	vec r = *this;
+	assert(!(r == 0));
+	return r / static_cast<t>(std::sqrt(r.dot(r)));
+}
+
 }
 
 export namespace std
