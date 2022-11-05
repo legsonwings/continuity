@@ -5,6 +5,7 @@ export module vec;
 import stdxcore;
 
 import <array>;
+import <string>;
 import <ranges>;
 import <functional>;
 
@@ -30,14 +31,17 @@ struct vec : public std::array<t, d>
 	constexpr vec cross(vec const& r) const requires (d == 3);
 	constexpr t distancesqr(vec const& r) const;
 	constexpr t distance(vec const& r) const;
+	constexpr t length() const;
 
+	static constexpr vec unit(uint ud) { vec v{ 0 }; v[ud] = t(1); return v; }
 	static constexpr vec cross(vec const& l, vec const& r) requires (d == 3) { return l.cross(r); }
 	static constexpr t distancesqr(vec const& l, vec const& r) { return l.distancesqr(r); }
 	static constexpr t distance(vec const& l, vec const& r) { return l.distance(r); }
 
-
 	template<typename d_t>
 	constexpr vec<d, d_t> castas() const { return { stdx::castas<d_t>(*this) }; }
+
+	constexpr std::string str() const;
 };
 
 template<stdx::arithmeticpure_c t, uint d>
@@ -96,6 +100,22 @@ template<uint d, stdx::arithmeticpure_c t>
 constexpr t vec<d, t>::distance(vec const& r) const
 {
 	return std::sqrt(distancesqr(r));
+}
+
+template<uint d, stdx::arithmeticpure_c t>
+constexpr t vec<d, t>::length() const
+{
+	return std::sqrt(this->dot(*this));
+}
+
+template<uint d, stdx::arithmeticpure_c t>
+constexpr std::string vec<d, t>::str() const
+{
+	if constexpr (d == 0) return {};
+	std::string r = std::to_string((*this)[0]);
+	for (uint i(1); i < d; ++i)
+		r += std::string(", ") + std::to_string((*this)[i]);
+	return r;
 }
 
 template<uint d, stdx::arithmeticpure_c t>

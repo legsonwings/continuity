@@ -40,7 +40,8 @@ std::optional<vec2> linesegment::intersect_line2d(linesegment const& linesegment
 
     return {};
 }
-constexpr line::line(vec3 const& _point, vec3 const& _dir) : point(_point), dir(_dir) {}
+
+line::line(vec3 const& _point, vec3 const& _dir) : point(_point), dir(_dir) {}
 
 line2d line::to2d() const { return { ::to2d(point), ::to2d(dir)}; }
 
@@ -95,21 +96,7 @@ box::box(vec3 const& _center, vec3 const& _extents) : center(_center), extents(_
 
 aabb::aabb() : minpt({}), maxpt({}) {}
 
-geometry::aabb::aabb(vec3 const (&tri)[3])
-{
-    vec3 const &v0 = tri[0];
-    vec3 const &v1 = tri[1];
-    vec3 const &v2 = tri[2];
-
-    minpt[0] = std::min({ v0[0], v1[0], v2[0] });
-    maxpt[0] = std::max({ v0[0], v1[0], v2[0] });
-    minpt[1] = std::min({ v0[1], v1[1], v2[1] });
-    maxpt[1] = std::max({ v0[1], v1[1], v2[1] });
-    minpt[2] = std::min({ v0[2], v1[2], v2[2] });
-    maxpt[2] = std::max({ v0[2], v1[2], v2[2] });
-}
-
-aabb::aabb(std::vector<vec3> const& points) : aabb(points.data(), points.size()) {}
+//aabb::aabb(std::vector<vec3> const& points) : aabb(points.data(), points.size()) {}
 aabb::aabb(vec3 const& _min, vec3 const& _max) : minpt(_min), maxpt(_max) {}
 
 geometry::aabb::aabb(vec3 const* points, uint len)

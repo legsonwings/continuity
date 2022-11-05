@@ -7,12 +7,14 @@ export module beziermaths;
 
 import <cmath>;
 import <array>;
+import <string>;
 import <cassert>;
 import <ranges>;
 import <vector>;
 import <utility>;
 import <iterator>;
 import <algorithm>;
+import <functional>;
 
 import stdxcore;
 import vec;
@@ -30,6 +32,45 @@ using controlpoint = vector3;
 using curveeval = std::pair<vector3, vector3>;
 using voleval = std::pair<vector3, matrix>;
 using vertex = std::pair<vector3, vector3>;
+
+vector3 tovector3(stdx::vec3 v)
+{
+    return { v[0], v[1], v[2] };
+}
+
+// these should be moved to geometry
+// also need to create implement planar polygon
+struct quad3 : public std::array<stdx::vec3, 4>
+{
+    std::array<stdx::vec3, 6> tris() const
+    {
+        auto const& lb = (*this)[0];
+        auto const& rb = (*this)[1];
+        auto const& rt = (*this)[2];
+        auto const& lt = (*this)[3];
+        return { lb, rb, rt, lb, rt, lt };
+    }
+};
+
+struct quad2 : public std::array<stdx::vec2, 4>
+{
+    quad3 to3(uint dim, float v) const
+    {
+        quad3 r;
+        for (uint i = 0; i < size(); ++i)
+        {
+            r[i][dim] = v;
+            uint cd = 0;
+            for (uint k = 0; k < 3; ++k)
+            {
+                if (k != dim)
+                    r[i][k] = (*this)[i][cd++];
+            }
+        }
+
+        return r;
+    }
+};
 
 // LEGACY BEZIER CONSTRUCTS : ARE BEING REPLACED BY SINGLE GENERIC CLASS
 
@@ -289,7 +330,18 @@ struct planarbezier
         return stdx::nlerp<controlpoint, n - 1, 0>::lerp(r, p);
     }
 
-    eval_t eval(param_t const& param) const
+    // we can optimize this using simd
+    // todo : can recursion be avoided and still the evaluations kept generic
+    constexpr std::vector<eval_t> eval(std::vector<param_t> const& params)
+    {
+        std::vector<eval_t> r;
+        for (auto const& p : params) r.push_back(eval(p));
+        return r;
+    }
+
+    // todo : probably never constepxr unless we use std::vec3
+    // todo : implement stdx::matrix
+    constexpr eval_t eval(param_t const& param) const
     {
         eval_t res;
         auto const& subbezier = decasteljau<1>(*this, param);
@@ -331,6 +383,79 @@ private:
     };
 };
 
+template<uint d>
+auto tessellateboundary(planarbezier<3, d> const& bezier, uint intervals)
+{
+    using b_t = planarbezier<3, d>;
+    std::pair<std::vector<typename b_t::param_t>, std::vector<vector3>> r;
+    float const step = 1.f / intervals;
+    uint const nfacecells = stdx::pown(intervals, 2);
+    for (uint j(0); j < nfacecells; ++j)
+    {
+        stdx::vec2 const lb = stdx::grididx<1>::from1d(intervals - 1, j).castas<float>() / float(intervals);
+        auto const rb = lb + stdx::vec2{ step, 0.f };
+        auto const rt = rb + stdx::vec2{ 0.f, step };
+        auto const lt = lb + stdx::vec2{ 0.f, step };
+
+        quad2 q{ lb, rb, rt, lt };
+        for (uint i = 0; i < 3; ++i)
+        {
+            for (auto v : q.to3(i, 0.f).tris()) r.first.push_back(v);
+            for (auto v : q.to3(i, 1.f).tris()) r.first.push_back(v);
+
+            r.second.push_back(-tovector3(stdx::vec3::unit(i)));
+            r.second.push_back(tovector3(stdx::vec3::unit(i)));
+        }
+    }
+
+    return r;
+}
+
+//
+//template<uint d>
+//auto tessellateboundary(planarbezier<3, d> const& bezier, uint intervals)
+//{
+//    using b_t = planarbezier<3, d>;
+//    std::vector<typename b_t::eval_t> r;
+//    uint const nfacecells = stdx::pown(intervals, 2);
+//    
+//    float const step = 1.f / intervals;
+//    for (uint i = 0; i < 3; ++i)
+//    {
+//        for (uint j(0); j < nfacecells; ++j)
+//        {
+//            stdx::vec2 const lb = stdx::grididx<1>::from1d(intervals - 1, j).castas<float>() / float(intervals);
+//            auto const rb = lb + stdx::vec2{step, 0.f};
+//            auto const rt = rb + stdx::vec2{0.f, step};
+//            auto const lt = lb + stdx::vec2{0.f, step};
+//
+//            quad2 q{ lb, rb, rt, lt };
+//            auto tris = q.to3(i, 0.f).tris();
+//            for (auto v : q.to3(i, 0.f).tris())
+//            {
+//                auto eval = bezier.eval(v);
+//                eval[1] = -eval[i + 1];
+//                r.push_back(eval);
+//            }
+//
+//            /*for (int k(tris.size() - 1); k >= 0; --k)
+//            {
+//                auto eval = bezier.eval(tris[k]);
+//                eval[1] = -eval[i + 1];
+//                r.push_back(eval);
+//            }*/
+//            for (auto v : q.to3(i, 1.f).tris())
+//            {
+//                auto eval = bezier.eval(v);
+//                eval[1] = eval[i + 1];
+//                r.push_back(eval);
+//            }
+//        }
+//    }
+//
+//    return r;
+//}
+
 template<uint n, uint d>
 auto tessellate(planarbezier<n, d> const& bezier, uint intervals)
 {
@@ -339,7 +464,7 @@ auto tessellate(planarbezier<n, d> const& bezier, uint intervals)
     uint const nsteps = stdx::pown(intervals + 1, n);
     for (uint i(0); i < nsteps; ++i)
     {
-        auto const p = stdx::grididx<n - 1>::from1d(intervals, i).castas<float>() / float(intervals);
+        auto const p = stdx::grididx<n - 1>::from1d(intervals - 1, i).castas<float>() / float(intervals);
         r.push_back(bezier.eval(p));
     }
 

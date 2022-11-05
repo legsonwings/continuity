@@ -4,6 +4,8 @@ import core;
 import stdxcore;
 import vec;
 
+import <span>;
+import <string>;
 import <array>;
 import <vector>;
 import <ranges>;
@@ -29,7 +31,10 @@ struct line2d
 struct line
 {
     line() = default;
-    constexpr line(vec3 const& _point, vec3 const& _dir);
+
+    // todo : can't have this as constexpr for some reason
+    // vec needs to have constexpr constructor
+    line(vec3 const& _point, vec3 const& _dir);
 
     line2d to2d() const;
 
@@ -173,9 +178,7 @@ struct box : public continuity::tessellatable<box>
 struct aabb
 {
     aabb();
-    aabb(vec3 const (&tri)[3]);
-
-    aabb(std::vector<vec3> const& points);
+    aabb(std::span<vec3> const& points) : aabb(points.data(), points.size()) {}
     aabb(vec3 const* points, uint len);
     aabb(vec3 const& _min, vec3 const& _max);
 

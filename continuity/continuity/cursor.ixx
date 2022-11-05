@@ -6,16 +6,20 @@ module;
 export module cursor;
 
 import stdxcore;
+import geocore;
 import vec;
 
 import <array>;
+import <optional>;
 import <functional>;
 
-using vector2 = DirectX::SimpleMath::Vector2;
-using vector3 = DirectX::SimpleMath::Vector3;
 using vector4 = DirectX::SimpleMath::Vector4;
 using matrix = DirectX::SimpleMath::Matrix;
-using plane = DirectX::SimpleMath::Plane;
+
+using vec2 = stdx::vec2;
+using vec3 = stdx::vec3;
+using veci2 = stdx::veci2;
+using line = geometry::line;
 
 export namespace continuity
 {
@@ -26,16 +30,17 @@ public:
 	cursor() : _pos(pos()), _lastpos(pos()) { };
 
 	void tick(float dt);
-	vector2 pos() const;
-	vector2 vel() const;
-	stdx::veci2 posicentered() const;
-	vector3 ray(float nearp, float farp, matrix const& view, matrix const& proj) const;
-	vector3 to3d(vector3 pos, float nearp, float farp, matrix const& view, matrix const& proj) const;
+	vec2 pos() const;
+	vec2 vel() const;
+	veci2 posicentered() const;
+
+	line ray(float nearp, float farp, matrix const& view, matrix const& proj) const;
+	vec3 to3d(vec3 pos, float nearp, float farp, matrix const& view, matrix const& proj) const;
 
 private:
-	vector2 _lastpos = {};
-	vector2 _pos = {};
-	vector2 _vel = {};
+	vec2 _lastpos = {};
+	vec2 _pos = {};
+	vec2 _vel = {};
 };
 
 }
