@@ -1,13 +1,7 @@
-module;
-#include <cassert>
 export module vec;
 
 import stdxcore;
-
-import <array>;
-import <string>;
-import <ranges>;
-import <functional>;
+import std.core;
 
 export namespace stdx
 {
@@ -122,7 +116,7 @@ template<uint d, stdx::arithmeticpure_c t>
 constexpr vec<d, t> vec<d, t>::normalized() const
 {
 	vec r = *this;
-	assert(!(r == 0));
+	stdx::cassert([&]() { return !(r == 0); });
 	return r / static_cast<t>(std::sqrt(r.dot(r)));
 }
 

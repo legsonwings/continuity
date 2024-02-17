@@ -6,8 +6,7 @@ module;
 
 module engine:simplecamera;
 
-import <cmath>;
-import <algorithm>;
+import std.core;
 
 using namespace DirectX;
 

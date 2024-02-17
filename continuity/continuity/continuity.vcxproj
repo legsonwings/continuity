@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="activesample.cpp" />
     <ClCompile Include="beziermaths\beziermaths.cpp" />
     <ClCompile Include="beziermaths\beziermaths.ixx" />
     <ClCompile Include="engine\engine-simplecamera.cpp" />
@@ -36,6 +37,8 @@
     <ClCompile Include="geometry\geocore.cpp" />
     <ClCompile Include="geometry\geocore.ixx" />
     <ClCompile Include="simplemath\simplemath.cpp" />
+    <ClCompile Include="sphintro.ixx" />
+    <ClCompile Include="sphintro.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="sampleselection\activesample.ixx">
@@ -184,15 +187,16 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalModuleDependencies>$(SolutionDir)..\metadata\stdxcore.ixx.ifc;$(SolutionDir)..\metadata\vec.ixx.ifc;$(SolutionDir)..\metadata\stdx.ixx.ifc</AdditionalModuleDependencies>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <LanguageStandard_C>Default</LanguageStandard_C>
       <BuildStlModules>true</BuildStlModules>
+      <EnableModules>true</EnableModules>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -224,8 +228,9 @@
       <AdditionalModuleDependencies>$(SolutionDir)..\metadata\stdxcore.ixx.ifc;$(SolutionDir)..\metadata\vec.ixx.ifc;$(SolutionDir)..\metadata\stdx.ixx.ifc</AdditionalModuleDependencies>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <LanguageStandard_C>Default</LanguageStandard_C>
       <BuildStlModules>true</BuildStlModules>
+      <EnableModules>true</EnableModules>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -250,13 +255,13 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
       <AdditionalModuleDependencies>$(SolutionDir)..\metadata\stdxcore.ixx.ifc;$(SolutionDir)..\metadata\vec.ixx.ifc;$(SolutionDir)..\metadata\stdx.ixx.ifc</AdditionalModuleDependencies>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <LanguageStandard_C>Default</LanguageStandard_C>
       <BuildStlModules>true</BuildStlModules>
+      <EnableModules>true</EnableModules>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <PreprocessorDefinitions>_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -290,8 +295,9 @@
       <AdditionalModuleDependencies>$(SolutionDir)..\metadata\stdxcore.ixx.ifc;$(SolutionDir)..\metadata\vec.ixx.ifc;$(SolutionDir)..\metadata\stdx.ixx.ifc</AdditionalModuleDependencies>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <LanguageStandard_C>Default</LanguageStandard_C>
       <BuildStlModules>true</BuildStlModules>
+      <EnableModules>true</EnableModules>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>

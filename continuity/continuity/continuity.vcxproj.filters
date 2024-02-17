@@ -31,6 +31,12 @@
     <Filter Include="source\sampleselection">
       <UniqueIdentifier>{c049719f-bfb1-4ff9-a0cc-9e70bd05ab0f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="samples">
+      <UniqueIdentifier>{065555e3-e8e8-4813-807a-02a620c7b9c8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="samples\source">
+      <UniqueIdentifier>{bc6241a8-f001-445b-a332-51988f3033f3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beziermaths\beziermaths.cpp">
@@ -85,6 +91,15 @@
       <Filter>source\engine</Filter>
     </ClCompile>
     <ClCompile Include="sampleselection\activesample.ixx">
+      <Filter>source\sampleselection</Filter>
+    </ClCompile>
+    <ClCompile Include="sphintro.ixx">
+      <Filter>samples\source</Filter>
+    </ClCompile>
+    <ClCompile Include="sphintro.cpp">
+      <Filter>samples\source</Filter>
+    </ClCompile>
+    <ClCompile Include="activesample.cpp">
       <Filter>source\sampleselection</Filter>
     </ClCompile>
   </ItemGroup>

@@ -4,7 +4,7 @@ module;
 #include <d3d12.h>
 #include "thirdparty/d3dx12.h"
 
-// gfx core
+// create a module gfx core
 // todo : find a place for shared constants
 #include "sharedconstants.h"
 #include "simplemath/simplemath.h"
@@ -14,19 +14,7 @@ export module graphics;
 import stdxcore;
 import stdx;
 import vec;
-
-// todo : std:: library import as module works now??
-import <array>;
-import <string>;
-import <cassert>;
-import <cstddef>;
-import <concepts>;
-import <ranges>;
-import <optional>;
-import <algorithm>;
-import <functional>;
-import <unordered_map>;
-import <type_traits>;
+import std.core;
 
 using Microsoft::WRL::ComPtr;
 

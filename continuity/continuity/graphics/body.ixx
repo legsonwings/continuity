@@ -12,13 +12,7 @@ import geocore;
 import vec;
 
 import graphics;
-
-import <array>;
-import <vector>;
-import <string>;
-import <type_traits>;
-import <functional>;
-import <unordered_map>;
+import std.core;
 
 using Microsoft::WRL::ComPtr;
 

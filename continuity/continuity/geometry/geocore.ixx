@@ -2,14 +2,7 @@ export module geocore;
 
 import stdxcore;
 import vec;
-
-import <span>;
-import <string>;
-import <array>;
-import <vector>;
-import <ranges>;
-import <optional>;
-import <functional>;
+import std.core;
 
 using vec2 = stdx::vec2;
 using vec3 = stdx::vec3;

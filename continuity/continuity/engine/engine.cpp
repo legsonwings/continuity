@@ -9,21 +9,14 @@ module;
 
 #include "sharedconstants.h"
 
-// todo 
-#include <random>
-#include <cassert>
-#include <algorithm>
-
 module engine;
 
 import activesample;
 import graphics;
 
-#define CONSOLE_LOGS 0
+import std.core;
 
-#if CONSOLE_LOGS
-#include <iostream>
-#endif
+#define CONSOLE_LOGS 0
 
 using Microsoft::WRL::ComPtr;
 
@@ -55,7 +48,6 @@ continuity::continuity(view_data const& data)
     , m_fenceValues{}
 {
     sample = sample_creator::create_instance<activesample>(data);
-    assert(sample != nullptr);
 }
 
 void continuity::OnInit()
@@ -70,21 +62,21 @@ void continuity::OnInit()
     load_assetsandgeometry();
 }
 
-// Load the rendering pipeline dependencies.
+// load the rendering pipeline dependencies.
 void continuity::load_pipeline()
 {
     UINT dxgiFactoryFlags = 0;
 
 #if defined(_DEBUG)
-    // Enable the debug layer (requires the Graphics Tools "optional feature").
-    // NOTE: Enabling the debug layer after device creation will invalidate the active device.
+    // enable the debug layer (requires the Graphics Tools "optional feature").
+    // note: enabling the debug layer after device creation will invalidate the active device.
     {
         ComPtr<ID3D12Debug> debugController;
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
         {
             debugController->EnableDebugLayer();
 
-            // Enable additional debug layers.
+            // enable additional debug layers.
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
         }
     }
@@ -119,14 +111,14 @@ void continuity::load_pipeline()
         throw std::exception("Mesh Shaders aren't supported!");
     }
 
-    // Describe and create the command queue.
+    // describe and create the command queue.
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
     ThrowIfFailed(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
-    // Describe and create the swap chain.
+    // describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
     swapChainDesc.BufferCount = frame_count;
     swapChainDesc.Width = m_width;
@@ -152,9 +144,9 @@ void continuity::load_pipeline()
     ThrowIfFailed(swapChain.As(&m_swapChain));
     gfx::globalresources::get().frameindex(m_swapChain->GetCurrentBackBufferIndex());
 
-    // Create descriptor heaps.
+    // create descriptor heaps.
     {
-        // Describe and create a render target view (RTV) descriptor heap.
+        // describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
         rtvHeapDesc.NumDescriptors = frame_count;
         rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -163,7 +155,7 @@ void continuity::load_pipeline()
 
         m_rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-        // Describe and create a render target view (RTV) descriptor heap.
+        // describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
         dsvHeapDesc.NumDescriptors = 1;
         dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -173,11 +165,11 @@ void continuity::load_pipeline()
         m_dsvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     }
 
-    // Create frame resources.
+    // create frame resources.
     {
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
-        // Create a RTV and a command allocator for each frame.
+        // create a RTV and a command allocator for each frame.
         for (UINT n = 0; n < frame_count; n++)
         {
             ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
@@ -188,7 +180,7 @@ void continuity::load_pipeline()
         }
     }
 
-    // Create the depth stencil view.
+    // create the depth stencil view.
     {
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
         depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
@@ -221,8 +213,8 @@ void continuity::load_pipeline()
     pso_desc.RTVFormats[0] = m_renderTargets[0]->GetDesc().Format;
     pso_desc.DSVFormat = m_depthStencil->GetDesc().Format;
     pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);    // CW front; cull back
-    pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);         // Opaque
-    pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // Less-equal depth test w/ writes; no stencil
+    pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);         // opaque
+    pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // less-equal depth test w/ writes; no stencil
     pso_desc.SampleMask = UINT_MAX;
     pso_desc.SampleDesc = DefaultSampleDesc();
     pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -231,13 +223,13 @@ void continuity::load_pipeline()
     gfx::globalresources::get().init();
 }
 
-// Load the sample assets.
+// load the sample assets.
 void continuity::load_assetsandgeometry()
 {
     auto device = gfx::globalresources::get().device();
     auto& cmdlist = gfx::globalresources::get().cmdlist();
 
-    // Create the command list. They are created in recording state
+    // create the command list. They are created in recording state
     ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[gfx::globalresources::get().frameindex()].Get(), nullptr, IID_PPV_ARGS(&cmdlist)));
 
     // need to keep these alive till data is uploaded to gpu
@@ -247,7 +239,7 @@ void continuity::load_assetsandgeometry()
     ID3D12CommandList* ppCommandLists[] = { cmdlist.Get() };
     m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
 
-    // Create synchronization objects and wait until assets have been uploaded to the GPU.
+    // create synchronization objects and wait until assets have been uploaded to the GPU.
     {
         ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
         m_fenceValues[gfx::globalresources::get().frameindex()]++;
@@ -259,7 +251,7 @@ void continuity::load_assetsandgeometry()
             ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
         }
 
-        // Wait for the command list to execute; we are reusing the same command 
+        // wait for the command list to execute; we are reusing the same command 
         // list in our main loop but for now, we just want to wait for setup to 
         // complete before continuing.
         waitforgpu();
@@ -272,7 +264,7 @@ void continuity::OnUpdate()
 
     if (m_frameCounter++ % 30 == 0)
     {
-        // Update window text with FPS value.
+        // update window text with FPS value.
         wchar_t fps[64];
         swprintf_s(fps, L"%ufps", m_timer.GetFramesPerSecond());
 
@@ -287,36 +279,36 @@ void continuity::OnUpdate()
     sample->update(static_cast<float>(m_timer.GetElapsedSeconds()));
 }
 
-// Render the scene.
+// ender the scene.
 void continuity::OnRender()
 {
     auto const frameidx = gfx::globalresources::get().frameindex();
     auto cmdlist = gfx::globalresources::get().cmdlist();
 
-    // Command list allocators can only be reset when the associated 
+    // command list allocators can only be reset when the associated 
     // command lists have finished execution on the GPU; apps should use 
     // fences to determine GPU execution progress.
     ThrowIfFailed(m_commandAllocators[frameidx]->Reset());
 
-    // However, when ExecuteCommandList() is called on a particular command 
+    // however, when ExecuteCommandList() is called on a particular command 
     // list, that command list can then be reset at any time and must be before 
     // re-recording.
     ThrowIfFailed(cmdlist->Reset(m_commandAllocators[frameidx].Get(), nullptr));
 
-    // Set necessary state.
+    // set necessary state.
     cmdlist->RSSetViewports(1, &m_viewport);
     cmdlist->RSSetScissorRects(1, &m_scissorRect);
 
     auto resource_transition_rt = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    // Indicate that the back buffer will be used as a render target.
+    // indicate that the back buffer will be used as a render target.
     cmdlist->ResourceBarrier(1, &resource_transition_rt);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(frameidx), m_rtvDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
     cmdlist->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
-    // Record commands.
+    // record commands.
     const float clearColor[] = { 0.254901975f, 0.254901975f, 0.254901975f, 1.f };
     cmdlist->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     cmdlist->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
@@ -325,16 +317,16 @@ void continuity::OnRender()
 
     auto resource_transition_present = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[frameidx].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
-    // Indicate that the back buffer will now be used to present.
+    // indicate that the back buffer will now be used to present.
     cmdlist->ResourceBarrier(1, &resource_transition_present);
 
     ThrowIfFailed(cmdlist->Close());
 
-    // Execute the command list.
+    // execute the command list.
     ID3D12CommandList* ppCommandLists[] = { cmdlist.Get() };
     m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-    // Present the frame.
+    // present the frame.
     ThrowIfFailed(m_swapChain->Present(1, 0));
 
     moveto_nextframe();
@@ -342,7 +334,7 @@ void continuity::OnRender()
 
 void continuity::OnDestroy()
 {
-    // Ensure that the GPU is no longer referencing resources that are about to be
+    // ensure that the GPU is no longer referencing resources that are about to be
     // cleaned up by the destructor.
     waitforgpu();
 
@@ -359,47 +351,47 @@ void continuity::OnKeyUp(UINT8 key)
     sample->on_key_up(key);
 }
 
-// Wait for pending GPU work to complete.
+// wait for pending GPU work to complete.
 void continuity::waitforgpu()
 {
     auto const frameidx = gfx::globalresources::get().frameindex();
 
-    // Schedule a Signal command in the queue.
+    // schedule a Signal command in the queue.
     ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[frameidx]));
 
     // Wait until the fence has been processed.
     ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[frameidx], m_fenceEvent));
     WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 
-    // Increment the fence value for the current frame.
+    // increment the fence value for the current frame.
     m_fenceValues[frameidx]++;
 }
 
-// Prepare to render the next frame.
+// prepare to render the next frame.
 void continuity::moveto_nextframe()
 {
     auto const frameidx = gfx::globalresources::get().frameindex();
 
-    // Schedule a Signal command in the queue.
+    // schedule a Signal command in the queue.
     const UINT64 currentFenceValue = m_fenceValues[frameidx];
     ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
 
-    // Update the frame index.
+    // update the frame index.
     gfx::globalresources::get().frameindex(m_swapChain->GetCurrentBackBufferIndex());
 
-    // If the next frame is not ready to be rendered yet, wait until it is ready.
+    // if the next frame is not ready to be rendered yet, wait until it is ready.
     if (m_fence->GetCompletedValue() < m_fenceValues[frameidx])
     {
         ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[frameidx], m_fenceEvent));
         WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
     }
 
-    // Set the fence value for the next frame.
+    // set the fence value for the next frame.
     m_fenceValues[frameidx] = currentFenceValue + 1;
 }
 
-// Helper function for acquiring the first available hardware adapter that supports Direct3D 12.
-// If no such adapter can be found, *ppAdapter will be set to nullptr.
+// helper function for acquiring the first available hardware adapter that supports Direct3D 12.
+// if no such adapter can be found, *ppAdapter will be set to nullptr.
 _Use_decl_annotations_
 void continuity::GetHardwareAdapter(
     IDXGIFactory1* pFactory,
@@ -426,12 +418,12 @@ void continuity::GetHardwareAdapter(
 
             if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
             {
-                // Don't select the Basic Render Driver adapter.
-                // If you want a software adapter, pass in "/warp" on the command line.
+                // don't select the Basic Render Driver adapter.
+                // if you want a software adapter, pass in "/warp" on the command line.
                 continue;
             }
 
-            // Check to see whether the adapter supports Direct3D 12, but don't create the
+            // check to see whether the adapter supports Direct3D 12, but don't create the
             // actual device yet.
             if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
             {
@@ -453,7 +445,7 @@ void continuity::GetHardwareAdapter(
                 continue;
             }
 
-            // Check to see whether the adapter supports Direct3D 12, but don't create the
+            // check to see whether the adapter supports Direct3D 12, but don't create the
             // actual device yet.
             if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
             {
@@ -465,7 +457,7 @@ void continuity::GetHardwareAdapter(
     *ppAdapter = adapter.Detach();
 }
 
-// Helper function for setting the window's title text.
+// helper function for setting the window's title text.
 void continuity::SetCustomWindowText(std::wstring const& text)
 {
     std::wstring windowText = m_title + L": " + text;
@@ -474,7 +466,7 @@ void continuity::SetCustomWindowText(std::wstring const& text)
 
 int continuity::Run(continuity* pSample, HINSTANCE hInstance, int nCmdShow)
 {
-    // Parse the command line parameters
+    // parse the command line parameters
     int argc;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     //pSample->ParseCommandLineArgs(argv, argc);
@@ -493,7 +485,7 @@ int continuity::Run(continuity* pSample, HINSTANCE hInstance, int nCmdShow)
     RECT windowRect = { 0, 0, static_cast<LONG>(pSample->GetWidth()), static_cast<LONG>(pSample->GetHeight()) };
     AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
-    // Create the window and store a handle to it.
+    // create the window and store a handle to it.
     m_hwnd = CreateWindow(
         windowClass.lpszClassName,
         pSample->GetTitle(),
@@ -502,12 +494,12 @@ int continuity::Run(continuity* pSample, HINSTANCE hInstance, int nCmdShow)
         CW_USEDEFAULT,
         windowRect.right - windowRect.left,
         windowRect.bottom - windowRect.top,
-        nullptr,        // We have no parent window.
-        nullptr,        // We aren't using menus.
+        nullptr,        // we have no parent window.
+        nullptr,        // we aren't using menus.
         hInstance,
         pSample);
 
-    // Initialize the sample. OnInit is defined in each child-implementation of DXSample.
+    // initialize the sample. OnInit is defined in each child-implementation of DXSample.
     pSample->OnInit();
 
     ShowWindow(m_hwnd, nCmdShow);
@@ -516,7 +508,7 @@ int continuity::Run(continuity* pSample, HINSTANCE hInstance, int nCmdShow)
     MSG msg = {};
     while (msg.message != WM_QUIT)
     {
-        // Process any messages in the queue.
+        // process any messages in the queue.
         if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
             TranslateMessage(&msg);
@@ -526,11 +518,11 @@ int continuity::Run(continuity* pSample, HINSTANCE hInstance, int nCmdShow)
 
     pSample->OnDestroy();
 
-    // Return this part of the WM_QUIT message to Windows.
+    // return this part of the WM_QUIT message to Windows.
     return static_cast<char>(msg.wParam);
 }
 
-// Main message handler for the sample.
+// main message handler for the sample.
 LRESULT CALLBACK continuity::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     continuity* pSample = reinterpret_cast<continuity*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
@@ -539,7 +531,7 @@ LRESULT CALLBACK continuity::WindowProc(HWND hWnd, UINT message, WPARAM wParam, 
     {
     case WM_CREATE:
     {
-        // Save the DXSample* passed in to CreateWindow.
+        // save the sample object pointer passed in to CreateWindow.
         LPCREATESTRUCT pCreateStruct = reinterpret_cast<LPCREATESTRUCT>(lParam);
         SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pCreateStruct->lpCreateParams));
     }
@@ -572,6 +564,6 @@ LRESULT CALLBACK continuity::WindowProc(HWND hWnd, UINT message, WPARAM wParam, 
         return 0;
     }
 
-    // Handle any messages the switch statement didn't.
+    // handle any messages the switch statement didn't.
     return DefWindowProc(hWnd, message, wParam, lParam);
 }

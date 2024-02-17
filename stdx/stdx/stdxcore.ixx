@@ -1,12 +1,15 @@
 module;
+
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
+
+#include <cassert>
+
 export module stdxcore;
 
-import <array>;
-import <vector>;
-import <limits>;
-import <ranges>;
-import <concepts>;
-import <type_traits>;
+import std.core;
 
 export using uint = std::size_t;
 
@@ -73,10 +76,32 @@ using containervalue_t = std::decay_t<t>::value_type;
 template <uint alignment, typename t>
 constexpr bool isaligned(t value) { return ((uint)value & (alignment - 1)) == 0; }
 
-// todo : constepxr doesn't play nice with module based libs??
-bool ispowtwo(uint value);
+template<std::predicate t>
+void cassert(t const& expr, std::string msg = "", std::source_location loc = std::source_location::current())
+{
+	assert(expr());
+#ifdef _WIN32
+	msg += std::string("in file: ") + loc.file_name() + "(" + std::to_string(loc.line()) + ":" + std::to_string(loc.column()) + ")" + ", function : " + loc.function_name();
+	OutputDebugStringA(msg.c_str());
+#else
+#error "not implemented for this platform";
+#endif
+}
+
+void cassert(bool should_assert, std::string msg = "", std::source_location loc = std::source_location::current())
+{
+	assert(should_assert);
+#ifdef _WIN32
+	msg += std::string("in file: ") + loc.file_name() + "(" + std::to_string(loc.line()) + ":" + std::to_string(loc.column()) + ")" + ", function : " + loc.function_name();
+	OutputDebugStringA(msg.c_str());
+#else
+#error "not implemented for this platform";
+#endif
+}
+
+constexpr bool ispowtwo(uint value);
 uint nextpowoftwomultiple(uint value, uint multipleof);
-int ceil(float value);
+constexpr int ceil(float value);
 
 template<indexablecontainer_c t>
 void ensuresize(t& c, uint size) {}

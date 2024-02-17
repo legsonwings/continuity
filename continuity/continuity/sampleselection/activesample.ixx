@@ -1,24 +1,18 @@
-module;
-
-#include <cassert>
-
 export module activesample;
-
-import <string>;
-import <memory>;
 
 import engine;
 import graphics;
+import std.core;
 
 export enum class samples : int
 {
 	basic,
-	sphfluid,
+	sphintro,
 	num
 };
 
-export inline std::wstring sample_titles[int(samples::num)] = { L"Intro Sph fluid" };
-export auto constexpr activesample = samples::sphfluid;
+export inline std::wstring sample_titles[int(samples::num)] = { L"Basic ", L"Intro SPH fluid " };
+export auto constexpr activesample = samples::sphintro;
 
 export class basic_sample : public sample_base
 {
@@ -33,17 +27,8 @@ public:
 export namespace sample_creator
 {
 
+// implement a specialization for the sample
 template <samples type>
-std::unique_ptr<sample_base> create_instance(view_data const& data)
-{
-	assert(false && "shouldn't be here. create instance needs to be specailized for sample type.");
-	return nullptr;
-}
-
-template <>
-std::unique_ptr<sample_base> create_instance<samples::basic>(view_data const& data)
-{
-	return std::move(std::make_unique<basic_sample>());
-}
+std::unique_ptr<sample_base> create_instance(view_data const& data);
 
 }

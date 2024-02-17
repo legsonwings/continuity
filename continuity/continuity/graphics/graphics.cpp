@@ -1,19 +1,13 @@
 module;
 
-// why do we have to duplicate these in interface and here
 #include <wrl.h>
 #include <d3d12.h>
 #include "thirdparty/dxhelpers.h"
 #include "thirdparty/d3dx12.h"
 
-// todo: it can't find header unit for memory and random, a bug??
-#include <memory>
-#include <random>
-#include <cassert>
-
 module graphics;
 
-// why do we have to duplicate this in interface and here
+// seems like the declarations is not available across files
 using Microsoft::WRL::ComPtr;
 
 static constexpr uint frame_count = 2;
@@ -21,7 +15,7 @@ static constexpr uint frame_count = 2;
 alignedlinearallocator::alignedlinearallocator(uint alignment) : _alignment(alignment)
 {
 	std::size_t sz = buffersize;
-	assert(stdx::ispowtwo(_alignment));
+    stdx::cassert([&] { return stdx::ispowtwo(_alignment); });
 	void* ptr = _buffer;
 	_currentpos = reinterpret_cast<std::byte*>(std::align(_alignment, buffersize - alignment, ptr, sz));
 }
@@ -34,7 +28,7 @@ namespace gfx
 void texture::createresource(uint heapidx, stdx::vecui2 dims, std::vector<uint8_t> const& texturedata, ID3D12DescriptorHeap* srvheap)
 {
     // textures cannot be 0 sized
-    // todo : min/max should be specailized for stdx::vec
+    // todo : min/max should be specailized for stdx::vec0
     // perhaps we should create dummy objects
     _dims = { std::max<uint>(dims[0], 1u), std::max<uint>(dims[1], 1u) };
     _heapidx = heapidx;
@@ -55,7 +49,7 @@ void texture::createresource(uint heapidx, stdx::vecui2 dims, std::vector<uint8_
 void texture::updateresource(std::vector<uint8_t> const& texturedata)
 {
     // use 4 bytes per texel for now
-    assert(texturedata.size() == _dims[0] * _dims[1] * 4);
+    stdx::cassert([&] { return texturedata.size() == _dims[0] * _dims[1] * 4; });
     D3D12_SUBRESOURCE_DATA subresdata;
     subresdata.pData = texturedata.data();
     subresdata.RowPitch = _dims[0] * 4;
@@ -132,7 +126,7 @@ void globalresources::addpso(std::string const& name, std::wstring const& as, st
 {
     if (_psos.find(name) != _psos.cend())
     {
-        assert("trying to add pso of speciifed name when it already exists");
+        stdx::cassert(false, "trying to add pso of speciifed name when it already exists");
     }
 
     shader ampshader, meshshader, pixelshader;
@@ -247,7 +241,7 @@ ComPtr<ID3D12Resource> create_uploadbuffer(std::byte** mapped_buffer, uint const
         auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
         ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
 
-        // We do not intend to read from this resource on the CPU.
+        // we do not intend to read from this resource on the CPU.
         ThrowIfFailed(b_upload->Map(0, nullptr, reinterpret_cast<void**>(mapped_buffer)));
     }
 
@@ -297,7 +291,7 @@ default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size
     {
         auto vb_desc = CD3DX12_RESOURCE_DESC::Buffer(vb_size);
 
-        // Create vertex buffer on the default heap
+        // create vertex buffer on the default heap
         auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
         ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &vb_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(vb.ReleaseAndGetAddressOf())));
 
@@ -308,7 +302,7 @@ default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size
         {
             uint8_t* vb_upload_start = nullptr;
 
-            // We do not intend to read from this resource on the CPU.
+            // we do not intend to read from this resource on the CPU.
             vb_upload->Map(0, nullptr, reinterpret_cast<void**>(&vb_upload_start));
 
             // copy vertex data to upload heap

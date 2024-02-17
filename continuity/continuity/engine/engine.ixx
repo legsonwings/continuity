@@ -1,18 +1,17 @@
 module;
 
+// todo : anyway to avoid this?
 #define __SPECSTRINGS_STRICT_LEVEL 0
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include "thirdparty/d3dx12.h"
 
-#include "simplemath.h"
+#include "simplemath/simplemath.h"
 
 export module engine;
 export import :steptimer;
 export import :simplecamera;
 
-// todo : why do we need to import array?
-import <array>;
 import stdxcore;
 import graphics;
 
@@ -53,6 +52,9 @@ protected:
     void updateview(float dt);
 };
 
+// the "engine" class 
+// handles win32 window and inputs and dx12 object setup(device, swapchains, rendertargets)
+// todo : graphics module should handle device, swapchains, rendertargets, etc
 export class continuity
 {
 public:
@@ -77,12 +79,12 @@ private:
     void GetHardwareAdapter(_In_ IDXGIFactory1* pFactory, _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter, bool requestHighPerformanceAdapter = false);
     void SetCustomWindowText(std::wstring const& text);
 
-    // Synchronization objects.
+    // synchronization objects
     HANDLE m_fenceEvent;
     ComPtr<ID3D12Fence> m_fence;
     UINT64 m_fenceValues[frame_count];
 
-    // Pipeline objects.
+    // pipeline objects
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
@@ -101,7 +103,7 @@ private:
 
     unsigned m_frameCounter;
     
-    // Viewport dimensions.
+    // viewport dimensions
     UINT m_width;
     UINT m_height;
     std::wstring m_title;

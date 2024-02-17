@@ -1,7 +1,6 @@
 module geocore;
 
-import <cassert>;
-import <algorithm>;
+import std.core;
 
 vec2 to2d(vec3 const& v) { return { v[0], v[1] }; }
 

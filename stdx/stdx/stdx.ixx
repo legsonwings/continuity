@@ -1,21 +1,8 @@
-module;
-
 export module stdx;
-
-import <cmath>;
-import <cstddef>;
-import <cassert>;
-import <array>;
-import <vector>;
-import <limits>;
-import <ranges>;
-import <concepts>;
-import <algorithm>;
-import <concepts>;
-import <type_traits>;
 
 import stdxcore;
 import vec;
+import std.core;
 
 export namespace stdx
 {

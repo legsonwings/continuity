@@ -1,28 +1,14 @@
 ﻿module;
 
-// todo : is this needed here?
-#define __SPECSTRINGS_STRICT_LEVEL 0
-#include "../simplemath/simplemath.h"
+#include "simplemath/simplemath.h"
 
 export module beziermaths;
-
-import <cmath>;
-import <array>;
-import <string>;
-import <cassert>;
-import <ranges>;
-import <vector>;
-import <utility>;
-import <iterator>;
-import <algorithm>;
-import <functional>;
 
 import stdxcore;
 import vec;
 import stdx;
+import std.core;
 
-export namespace beziermaths
-{
 using vector2 = DirectX::SimpleMath::Vector2;
 using vector3 = DirectX::SimpleMath::Vector3;
 using vector4 = DirectX::SimpleMath::Vector4;
@@ -33,6 +19,9 @@ using controlpoint = vector3;
 using curveeval = std::pair<vector3, vector3>;
 using voleval = std::pair<vector3, matrix>;
 using vertex = std::pair<vector3, vector3>;
+
+export namespace beziermaths
+{
 
 vector3 tovector3(stdx::vec3 v)
 {
