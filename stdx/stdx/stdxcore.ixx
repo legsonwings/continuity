@@ -73,9 +73,10 @@ using containervalue_t = std::decay_t<t>::value_type;
 template <uint alignment, typename t>
 constexpr bool isaligned(t value) { return ((uint)value & (alignment - 1)) == 0; }
 
-constexpr bool ispowtwo(uint value);
-constexpr uint nextpowoftwomultiple(uint value, uint multipleof);
-constexpr int ceil(float value);
+// todo : constepxr doesn't play nice with module based libs??
+bool ispowtwo(uint value);
+uint nextpowoftwomultiple(uint value, uint multipleof);
+int ceil(float value);
 
 template<indexablecontainer_c t>
 void ensuresize(t& c, uint size) {}

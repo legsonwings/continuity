@@ -1,5 +1,6 @@
 ﻿module;
 
+// todo : is this needed here?
 #define __SPECSTRINGS_STRICT_LEVEL 0
 #include "../simplemath/simplemath.h"
 
@@ -218,9 +219,9 @@ template<uint n>
 constexpr vertex evaluate(beziertriangle<n> const& patch, vector3 const& uvw)
 {
     auto const& triangle = decasteljau<n, 1>::triangle(patch, uvw);
-    controlpoint const& p010 = triangle[triindex<n>::to1d(1, 0)];
-    controlpoint const& p100 = triangle[triindex<n>::to1d(0, 0)];
-    controlpoint const& p001 = triangle[triindex<n>::to1d(0, 1)];
+    controlpoint const& p010 = triangle[stdx::triindex<n>::to1d(1, 0)];
+    controlpoint const& p100 = triangle[stdx::triindex<n>::to1d(0, 0)];
+    controlpoint const& p001 = triangle[stdx::triindex<n>::to1d(0, 1)];
 
     return { { p100 * uvw.x + p010 * uvw.y + p001 * uvw.z }, (p100 - p010).Cross(p001 - p010).Normalized() };
 }
@@ -254,11 +255,11 @@ constexpr beziertriangle<n + 1> elevate(beziertriangle<n> const& patch)
     beziertriangle<n + 1> elevatedPatch;
     for (int i = 0; i < elevatedPatch.numcontrolpts; ++i)
     {
-        auto const& idx = triindex<n + 1>::to3d(i);
+        auto const& idx = stdx::triindex<n + 1>::to3d(i);
         // subtraction will yield negative indices at times ignore such points
-        auto const& term0 = idx.i == 0 ? vector3::Zero : patch.controlnet[triindex<n>::to1d(idx.j, idx.k)] * idx.i;
-        auto const& term1 = idx.j == 0 ? vector3::Zero : patch.controlnet[triindex<n>::to1d(idx.j - 1, idx.k)] * idx.j;
-        auto const& term2 = idx.k == 0 ? vector3::Zero : patch.controlnet[triindex<n>::to1d(idx.j, idx.k - 1)] * idx.k;
+        auto const& term0 = idx.i == 0 ? vector3::Zero : patch.controlnet[stdx::triindex<n>::to1d(idx.j, idx.k)] * idx.i;
+        auto const& term1 = idx.j == 0 ? vector3::Zero : patch.controlnet[stdx::triindex<n>::to1d(idx.j - 1, idx.k)] * idx.j;
+        auto const& term2 = idx.k == 0 ? vector3::Zero : patch.controlnet[stdx::triindex<n>::to1d(idx.j, idx.k - 1)] * idx.k;
         elevatedPatch.controlnet[i] = (term0 + term1 + term2) / (n + 1);
     }
     return elevatedPatch;

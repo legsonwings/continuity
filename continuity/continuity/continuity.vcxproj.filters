@@ -13,6 +13,24 @@
     <Filter Include="source\geometry">
       <UniqueIdentifier>{d3d3931e-99ce-4a50-866a-0a48cfa5692d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="source\graphics">
+      <UniqueIdentifier>{4bbc707f-1f44-4af6-9799-e31e36283dc4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\cursor">
+      <UniqueIdentifier>{a5663b87-b637-498e-8c3a-f9b18939aa9d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\thirdparty">
+      <UniqueIdentifier>{189cde28-9926-4bfc-b072-b3c16245d85c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{b0e19a72-bb2c-4514-a693-2874f8b0a712}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\engine">
+      <UniqueIdentifier>{533ddd05-9389-40d1-b60e-7d5593ca01c2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\sampleselection">
+      <UniqueIdentifier>{c049719f-bfb1-4ff9-a0cc-9e70bd05ab0f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beziermaths\beziermaths.cpp">
@@ -24,30 +42,102 @@
     <ClCompile Include="simplemath\simplemath.cpp">
       <Filter>source\simplemath</Filter>
     </ClCompile>
-    <ClCompile Include="cursor.ixx">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="cursor.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="geometry\geocore.cpp">
       <Filter>source\geometry</Filter>
     </ClCompile>
-    <ClCompile Include="core.ixx">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="geometry\geocore.ixx">
       <Filter>source\geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="cursor\cursor.cpp">
+      <Filter>source\cursor</Filter>
+    </ClCompile>
+    <ClCompile Include="cursor\cursor.ixx">
+      <Filter>source\cursor</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.cpp">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.ixx">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\body.ixx">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\body.cpp">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\engine.ixx">
+      <Filter>source\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\engine.cpp">
+      <Filter>source\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\engine-steptimer.ixx">
+      <Filter>source\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\engine-simplecamera.ixx">
+      <Filter>source\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\engine-simplecamera.cpp">
+      <Filter>source\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\main.cpp">
+      <Filter>source\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="sampleselection\activesample.ixx">
+      <Filter>source\sampleselection</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simplemath\simplemath.h">
       <Filter>source\simplemath</Filter>
     </ClInclude>
+    <ClInclude Include="thirdparty\d3dx12.h">
+      <Filter>source\thirdparty</Filter>
+    </ClInclude>
+    <ClInclude Include="sharedconstants.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="simplemath\simplemath.inl">
       <Filter>source\simplemath</Filter>
     </None>
+    <None Include="assets\common.hlsli">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="assets\lighting.hlsli">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="assets\basic_ps.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\default_as.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\default_ms.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\default_ps.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\instances_ms.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\instances_ps.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\lines_ms.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\linesinstances_ms.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\texturess_ms.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\texturess_ps.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

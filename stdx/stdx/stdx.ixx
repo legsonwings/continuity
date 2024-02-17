@@ -44,7 +44,7 @@ struct triindex
 
 	static triindex to3d(uint idx1d)
 	{
-		// determine which row the control point belongs to
+		// determine which row the point belongs to
 		// this was derived empirically
 		float const temp = (std::sqrt((static_cast<float>(idx1d) + 1.f) * 8.f + 1.f) - 1.f) / 2.0f - tolerance<>;
 

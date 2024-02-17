@@ -1,6 +1,5 @@
 export module geocore;
 
-import core;
 import stdxcore;
 import vec;
 
@@ -17,6 +16,16 @@ using vec3 = stdx::vec3;
 
 export namespace geometry
 {
+
+template<typename t>
+struct tessellatable
+{
+	template<typename ...args_t>
+	auto tessellate(args_t&&... args) const
+	{
+		return tessellate(*static_cast<const t*>(this), std::forward<args_t>(args)...);
+	}
+};
 
 struct line2d
 {
@@ -167,7 +176,7 @@ struct linesegment
 //    vec3 verts[3];
 //};
 
-struct box : public continuity::tessellatable<box>
+struct box : public tessellatable<box>
 {
     box() = default;
     box(vec3 const& _center, vec3 const& _extents);
