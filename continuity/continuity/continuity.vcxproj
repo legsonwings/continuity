@@ -22,9 +22,9 @@
     <ClCompile Include="activesample.cpp" />
     <ClCompile Include="beziermaths\beziermaths.cpp" />
     <ClCompile Include="beziermaths\beziermaths.ixx" />
-    <ClCompile Include="engine\engine-simplecamera.cpp" />
-    <ClCompile Include="engine\engine-simplecamera.ixx" />
-    <ClCompile Include="engine\engine-steptimer.ixx" />
+    <ClCompile Include="engine\engine.simplecamera.cpp" />
+    <ClCompile Include="engine\engine.simplecamera.ixx" />
+    <ClCompile Include="engine\engine.steptimer.ixx" />
     <ClCompile Include="engine\engine.cpp" />
     <ClCompile Include="engine\engine.ixx" />
     <ClCompile Include="engine\main.cpp" />
@@ -34,8 +34,8 @@
     <ClCompile Include="graphics\graphics.ixx" />
     <ClCompile Include="cursor\cursor.cpp" />
     <ClCompile Include="cursor\cursor.ixx" />
-    <ClCompile Include="geometry\geocore.cpp" />
-    <ClCompile Include="geometry\geocore.ixx" />
+    <ClCompile Include="geometry\geometry.cpp" />
+    <ClCompile Include="geometry\geometry.ixx" />
     <ClCompile Include="simplemath\simplemath.cpp" />
     <ClCompile Include="sphintro.ixx" />
     <ClCompile Include="sphintro.cpp" />

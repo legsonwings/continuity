@@ -1,4 +1,4 @@
-module geocore;
+module geometry;
 
 import std.core;
 

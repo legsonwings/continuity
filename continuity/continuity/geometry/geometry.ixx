@@ -1,4 +1,4 @@
-export module geocore;
+export module geometry;
 
 import stdxcore;
 import vec;

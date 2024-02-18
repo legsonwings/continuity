@@ -7,11 +7,11 @@ module;
 
 export module body;
 
-import stdxcore;
-import geocore;
 import vec;
-
+import stdxcore;
+import geometry;
 import graphics;
+
 import std.core;
 
 using Microsoft::WRL::ComPtr;

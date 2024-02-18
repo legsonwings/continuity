@@ -6,7 +6,7 @@ module;
 export module cursor;
 
 import stdxcore;
-import geocore;
+import geometry;
 import vec;
 
 import <array>;

@@ -48,10 +48,10 @@
     <ClCompile Include="simplemath\simplemath.cpp">
       <Filter>source\simplemath</Filter>
     </ClCompile>
-    <ClCompile Include="geometry\geocore.cpp">
+    <ClCompile Include="geometry\geometry.cpp">
       <Filter>source\geometry</Filter>
     </ClCompile>
-    <ClCompile Include="geometry\geocore.ixx">
+    <ClCompile Include="geometry\geometry.ixx">
       <Filter>source\geometry</Filter>
     </ClCompile>
     <ClCompile Include="cursor\cursor.cpp">
@@ -78,13 +78,13 @@
     <ClCompile Include="engine\engine.cpp">
       <Filter>source\engine</Filter>
     </ClCompile>
-    <ClCompile Include="engine\engine-steptimer.ixx">
+    <ClCompile Include="engine\engine.steptimer.ixx">
       <Filter>source\engine</Filter>
     </ClCompile>
-    <ClCompile Include="engine\engine-simplecamera.ixx">
+    <ClCompile Include="engine\engine.simplecamera.ixx">
       <Filter>source\engine</Filter>
     </ClCompile>
-    <ClCompile Include="engine\engine-simplecamera.cpp">
+    <ClCompile Include="engine\engine.simplecamera.cpp">
       <Filter>source\engine</Filter>
     </ClCompile>
     <ClCompile Include="engine\main.cpp">
