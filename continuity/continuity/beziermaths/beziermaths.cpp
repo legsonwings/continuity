@@ -1,5 +1,6 @@
 module;
 
+#include "simplemath/simplemath.h"
 #include "immintrin.h"
 
 module beziermaths;

@@ -24,7 +24,7 @@ using vec3 = stdx::vec3;
 using veci2 = stdx::veci2;
 using line = geometry::line;
 
-namespace gfx
+export namespace gfx
 {
 
 struct renderparams;
@@ -115,7 +115,6 @@ class body_dynamic : public bodyinterface
 
     vertexfetch get_vertices;
 
-    void update_constbuffer();
     uint vertexbuffersize() const { return _vertexbuffer.size(); }
 public:
     body_dynamic(rawbody_t _body, bodyparams const& _params, stdx::vecui2 texdims = {});
@@ -157,7 +156,7 @@ std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resource
     auto const vbupload = _vertexbuffer.createresources(get_vertices(body));
     _instancebuffer.createresource(get_instancedata(body));
 
-    assert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
+    stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
 
     // return the upload buffer so that engine can keep it alive until vertex data has been uploaded to gpu
     return { vbupload };
@@ -177,7 +176,7 @@ inline void body_static<body_t, prim_t>::render(float dt, renderparams const& pa
     auto const foundpso = globalresources::get().psomap().find(getparams().psoname);
     if (foundpso == globalresources::get().psomap().cend())
     {
-        assert("pso not found");
+        stdx::cassert(false, "pso not found");
         return;
     }
 
@@ -198,7 +197,7 @@ inline void body_static<body_t, prim_t>::render(float dt, renderparams const& pa
     bindings.rootconstants.values.resize(sizeof(dispatch_params));
 
     uint const numasthreads = static_cast<uint>(std::ceil(static_cast<float>(dispatch_params.numprims) / static_cast<float>(ASGROUP_SIZE * dispatch_params.maxprims_permsgroup)));
-    assert(numasthreads < 128);
+    stdx::cassert(numasthreads < 128);
     memcpy(bindings.rootconstants.values.data(), &dispatch_params, sizeof(dispatch_params));
     dispatch(bindings, params.wireframe, gfx::globalresources::get().mat(getparams().matname).ex(), numasthreads);
 }
@@ -225,7 +224,7 @@ inline std::vector<ComPtr<ID3D12Resource>> body_dynamic<body_t, prim_t>::create_
     _vertexbuffer.createresource(verts);
     _texture.createresource(0, getparams().dims, body.texturedata(), gfx::globalresources::get().srvheap().Get());
 
-    assert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
+    stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
     return {};
 }
 
@@ -242,14 +241,14 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
     auto const foundpso = globalresources::get().psomap().find(getparams().psoname);
     if (foundpso == globalresources::get().psomap().cend())
     {
-        assert("pso not found");
+        stdx::cassert(false, "pso not found");
         return;
     }
 
     _vertexbuffer.updateresource(get_vertices(body));
     _texture.updateresource(body.texturedata());
     _cbuffer.updateresource(objectconstants{ matrix::CreateTranslation(body.center()), globalresources::get().view(), globalresources::get().mat(getparams().matname) });
-    assert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
+    stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
 
     dispatchparams dispatch_params;
     dispatch_params.numverts_perprim = topologyconstants<prim_t>::numverts_perprim;

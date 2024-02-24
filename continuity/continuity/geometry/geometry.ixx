@@ -1,4 +1,5 @@
 export module geometry;
+export import :shapes;
 
 import stdxcore;
 import vec;
@@ -9,6 +10,10 @@ using vec3 = stdx::vec3;
 
 export namespace geometry
 {
+
+using vector2 = DirectX::SimpleMath::Vector2;
+using vector3 = DirectX::SimpleMath::Vector3;
+using vector4 = DirectX::SimpleMath::Vector4;
 
 template<typename t>
 struct tessellatable
@@ -169,33 +174,34 @@ struct linesegment
 //    vec3 verts[3];
 //};
 
-struct box : public tessellatable<box>
-{
-    box() = default;
-    box(vec3 const& _center, vec3 const& _extents);
-
-    vec3 center, extents;
-};
-
-struct aabb
-{
-    aabb();
-    aabb(std::span<vec3> const& points) : aabb(points.data(), points.size()) {}
-    aabb(vec3 const* points, uint len);
-    aabb(vec3 const& _min, vec3 const& _max);
-
-    vec3 center() const;
-    vec3 span() const;
-    operator box() const;
-    aabb move(vec3 const& off) const;
-
-    aabb& operator+=(vec3 const& pt);
-    std::optional<aabb> intersect(aabb const& r) const;
-
-    // top left front = min, bot right back = max
-    vec3 minpt;
-    vec3 maxpt;
-};
+// todo : eventually use this version of box and aabb which use stdx:vec
+//struct box : public tessellatable<box>
+//{
+//    box() = default;
+//    box(vec3 const& _center, vec3 const& _extents);
+//
+//    vec3 center, extents;
+//};
+//
+//struct aabb
+//{
+//    aabb();
+//    aabb(std::span<vec3> const& points) : aabb(points.data(), points.size()) {}
+//    aabb(vec3 const* points, uint len);
+//    aabb(vec3 const& _min, vec3 const& _max);
+//
+//    vec3 center() const;
+//    vec3 span() const;
+//    operator box() const;
+//    aabb move(vec3 const& off) const;
+//
+//    aabb& operator+=(vec3 const& pt);
+//    std::optional<aabb> intersect(aabb const& r) const;
+//
+//    // top left front = min, bot right back = max
+//    vec3 minpt;
+//    vec3 maxpt;
+//};
 
 
 }

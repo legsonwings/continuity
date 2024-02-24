@@ -193,6 +193,12 @@ void globalresources::addpso(std::string const& name, std::wstring const& as, st
     }
 }
 
+globalresources& globalresources::get()
+{
+    static globalresources res;
+    return res;
+}
+
 std::string generaterandom_matcolor(stdx::ext<material, bool> definition, std::optional<std::string> const& preferred_name)
 {
     std::random_device rd;

@@ -102,6 +102,12 @@
     <ClCompile Include="activesample.cpp">
       <Filter>source\sampleselection</Filter>
     </ClCompile>
+    <ClCompile Include="geometry.shapes.ixx">
+      <Filter>source\geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="geometry.shapes.cpp">
+      <Filter>source\geometry</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simplemath\simplemath.h">

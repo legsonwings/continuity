@@ -6,6 +6,7 @@ module;
 #include <d3d12.h>
 #include "thirdparty/d3dx12.h"
 #include "thirdparty/dxhelpers.h"
+#include "DirectXMath.h"
 
 #include "sharedconstants.h"
 
@@ -19,7 +20,7 @@ import std.core;
 #define CONSOLE_LOGS 0
 
 using Microsoft::WRL::ComPtr;
-
+using namespace DirectX;
 
 sample_base::sample_base(view_data const& data)
 {
@@ -34,6 +35,9 @@ void sample_base::updateview(float dt)
     camera.Update(dt);
 
     gfx::globalresources::get().view().view = camera.GetViewMatrix();
+    gfx::globalresources::get().view().proj = camera.GetProjectionMatrix(XM_PI / 3.0f);
+    gfx::globalresources::get().cbuffer().data().campos = camera.GetCurrentPosition();
+    gfx::globalresources::get().cbuffer().updateresource();
 }
 
 continuity::continuity(view_data const& data)

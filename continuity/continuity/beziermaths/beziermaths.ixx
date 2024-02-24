@@ -5,9 +5,12 @@
 export module beziermaths;
 
 import stdxcore;
-import vec;
 import stdx;
+import vec;
 import std.core;
+
+export namespace beziermaths
+{
 
 using vector2 = DirectX::SimpleMath::Vector2;
 using vector3 = DirectX::SimpleMath::Vector3;
@@ -19,14 +22,6 @@ using controlpoint = vector3;
 using curveeval = std::pair<vector3, vector3>;
 using voleval = std::pair<vector3, matrix>;
 using vertex = std::pair<vector3, vector3>;
-
-export namespace beziermaths
-{
-
-vector3 tovector3(stdx::vec3 v)
-{
-    return { v[0], v[1], v[2] };
-}
 
 // these should be moved to geometry
 // also need to create implement planar polygon
@@ -393,8 +388,8 @@ auto tessellateboundary(planarbezier<3, d> const& bezier, uint intervals)
             for (auto v : q.to3(i, 0.f).tris()) r.first.push_back(v);
             for (auto v : q.to3(i, 1.f).tris()) r.first.push_back(v);
 
-            r.second.push_back(-tovector3(stdx::vec3::unit(i)));
-            r.second.push_back(tovector3(stdx::vec3::unit(i)));
+            r.second.push_back(-vector3(i));
+            r.second.push_back(vector3(i));
         }
     }
 

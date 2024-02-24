@@ -80,7 +80,7 @@ struct grididx : public vec<n + 1, uint>
 	{
 		grididx res;
 		for (auto i(0); i < n + 1; ++i)
-			res[i] = (idx / pown((d + 1), i)) % (d + 1);
+			res[i] = (idx / pown(d + 1, i)) % (d + 1);
 		return res;
 	}
 
@@ -171,7 +171,7 @@ private:
 
 	t* get(uint idx)
 	{
-		assert(idx < calcsizes());
+		stdx::cassert([&]() { return idx < calcsizes(); });
 
 		auto const& [idxrel, idxc] = container(idx);
 		return getimpl(idxrel, idxc);
@@ -180,7 +180,7 @@ private:
 	template<uint n = 0>
 	t* getimpl(uint idx, uint idxc)
 	{
-		assert(idxc < mysize);
+		stdx::cassert(idxc < mysize);
 		if (n == idxc)
 			return static_cast<t*>(&(std::get<n>(data)[idx]));
 		if constexpr (n + 1 < mysize) return getimpl<n + 1>(idx, idxc);
@@ -190,7 +190,7 @@ private:
 	template<uint n = 0>
 	uint getsize(uint idxc) const
 	{
-		assert(idxc < mysize);
+		stdx::cassert(idxc < mysize);
 
 		if (n == idxc) return std::get<n>(data).size();
 		if constexpr (n + 1 < mysize) return getsize<n + 1>(idxc);

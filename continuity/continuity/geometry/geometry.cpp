@@ -1,5 +1,6 @@
 module geometry;
 
+import stdxcore;
 import std.core;
 
 vec2 to2d(vec3 const& v) { return { v[0], v[1] }; }
@@ -90,74 +91,72 @@ float line::getparameter(line const& line, vec3 const& point)
 
     return vec3::distance(origin, point) * (topoint.dot(line.dir) > 0.f ? 1.f : -1.f);
 }
-
-box::box(vec3 const& _center, vec3 const& _extents) : center(_center), extents(_extents) {}
-
-aabb::aabb() : minpt({}), maxpt({}) {}
-
-//aabb::aabb(std::vector<vec3> const& points) : aabb(points.data(), points.size()) {}
-aabb::aabb(vec3 const& _min, vec3 const& _max) : minpt(_min), maxpt(_max) {}
-
-geometry::aabb::aabb(vec3 const* points, uint len)
-{
-    minpt = vec3{ std::numeric_limits<float>::max() };
-    maxpt = vec3{ std::numeric_limits<float>::lowest() };
-
-    for (uint i = 0; i < len; ++i)
-    {
-        minpt[0] = std::min(points[i][0], minpt[0]);
-        minpt[1] = std::min(points[i][1], minpt[1]);
-        minpt[2] = std::min(points[i][2], minpt[2]);
-
-        maxpt[0] = std::max(points[i][0], maxpt[0]);
-        maxpt[1] = std::max(points[i][1], maxpt[1]);
-        maxpt[2] = std::max(points[i][2], maxpt[2]);
-    }
-}
-
-vec3 aabb::center() const
-{
-    return (maxpt + minpt) / 2.f;
-}
-
-vec3 aabb::span() const
-{
-    return maxpt - minpt;
-}
-
-aabb::operator box() const 
-{ 
-    return { center(), span() };
-}
-
-aabb aabb::move(vec3 const& off) const 
-{
-    return aabb(minpt + off, maxpt + off);
-}
-
-aabb& geometry::aabb::operator+=(vec3 const& pt)
-{
-    minpt[0] = std::min(pt[0], minpt[0]);
-    minpt[1] = std::min(pt[1], minpt[1]);
-    minpt[2] = std::min(pt[2], minpt[2]);
-
-    maxpt[0] = std::max(pt[0], maxpt[0]);
-    maxpt[1] = std::max(pt[1], maxpt[1]);
-    maxpt[2] = std::max(pt[2], maxpt[2]);
-
-    return *this;
-}
-
-std::optional<aabb> geometry::aabb::intersect(aabb const& r) const
-{
-    if (maxpt[0] < r.minpt[0] || minpt[0] > r.maxpt[0]) return {};
-    if (maxpt[1] < r.minpt[1] || minpt[1] > r.maxpt[1]) return {};
-    if (maxpt[2] < r.minpt[2] || minpt[2] > r.maxpt[2]) return {};
-
-    vec3 const min = { std::max(minpt[0], r.minpt[0]), std::max(minpt[1], r.minpt[1]), std::max(minpt[2], r.minpt[2]) };
-    vec3 const max = { std::min(maxpt[0], r.maxpt[0]), std::min(maxpt[1], r.maxpt[1]), std::min(maxpt[2], r.maxpt[2]) };
-
-    return { {min, max} };
-}
+//
+//box::box(vec3 const& _center, vec3 const& _extents) : center(_center), extents(_extents) {}
+//
+//aabb::aabb() : minpt({}), maxpt({}) {}
+//aabb::aabb(vec3 const& _min, vec3 const& _max) : minpt(_min), maxpt(_max) {}
+//
+//geometry::aabb::aabb(vec3 const* points, uint len)
+//{
+//    minpt = vec3{ std::numeric_limits<float>::max() };
+//    maxpt = vec3{ std::numeric_limits<float>::lowest() };
+//
+//    for (uint i = 0; i < len; ++i)
+//    {
+//        minpt[0] = std::min(points[i][0], minpt[0]);
+//        minpt[1] = std::min(points[i][1], minpt[1]);
+//        minpt[2] = std::min(points[i][2], minpt[2]);
+//
+//        maxpt[0] = std::max(points[i][0], maxpt[0]);
+//        maxpt[1] = std::max(points[i][1], maxpt[1]);
+//        maxpt[2] = std::max(points[i][2], maxpt[2]);
+//    }
+//}
+//
+//vec3 aabb::center() const
+//{
+//    return (maxpt + minpt) / 2.f;
+//}
+//
+//vec3 aabb::span() const
+//{
+//    return maxpt - minpt;
+//}
+//
+//aabb::operator box() const 
+//{ 
+//    return { center(), span() };
+//}
+//
+//aabb aabb::move(vec3 const& off) const 
+//{
+//    return aabb(minpt + off, maxpt + off);
+//}
+//
+//aabb& geometry::aabb::operator+=(vec3 const& pt)
+//{
+//    minpt[0] = std::min(pt[0], minpt[0]);
+//    minpt[1] = std::min(pt[1], minpt[1]);
+//    minpt[2] = std::min(pt[2], minpt[2]);
+//
+//    maxpt[0] = std::max(pt[0], maxpt[0]);
+//    maxpt[1] = std::max(pt[1], maxpt[1]);
+//    maxpt[2] = std::max(pt[2], maxpt[2]);
+//
+//    return *this;
+//}
+//
+//std::optional<aabb> geometry::aabb::intersect(aabb const& r) const
+//{
+//    if (maxpt[0] < r.minpt[0] || minpt[0] > r.maxpt[0]) return {};
+//    if (maxpt[1] < r.minpt[1] || minpt[1] > r.maxpt[1]) return {};
+//    if (maxpt[2] < r.minpt[2] || minpt[2] > r.maxpt[2]) return {};
+//
+//    vec3 const min = { std::max(minpt[0], r.minpt[0]), std::max(minpt[1], r.minpt[1]), std::max(minpt[2], r.minpt[2]) };
+//    vec3 const max = { std::min(maxpt[0], r.maxpt[0]), std::min(maxpt[1], r.maxpt[1]), std::min(maxpt[2], r.maxpt[2]) };
+//
+//    return { {min, max} };
+//}
 
 }

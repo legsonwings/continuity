@@ -3,6 +3,7 @@ module;
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
+#include <intrin.h>
 #endif
 
 #include <cassert>
@@ -10,6 +11,14 @@ module;
 export module stdxcore;
 
 import std.core;
+
+// unexported declarations
+namespace stdx
+{
+
+void cassertinternal(bool const passed, std::source_location loc, std::string msg = "");
+
+}
 
 export using uint = std::size_t;
 
@@ -53,21 +62,18 @@ concept indexablecontainer_c = requires(t v)
 template <typename t, typename u>
 concept samedecay_c = std::same_as<std::decay_t<t>, std::decay_t<u>>;
 
-template <typename t = float> 
-requires arithmetic_c<t>
+template <arithmetic_c t = float>
 t constexpr tolerance = t(1e-5f);
 
-template <typename t> requires arithmetic_c<t>
+template <arithmetic_c t>
 struct invalid { constexpr operator t() const { return { std::numeric_limits<t>::max() }; } };
 
 struct uminus { constexpr auto operator() (arithmeticpure_c auto v) const { return -v; }; };
 
-template<typename t>
-requires arithmeticpure_c<t>
+template<arithmeticpure_c t = float>
 constexpr bool equals(t const& l, t const& r, t tol = tolerance<t>) { return std::abs(l - r) <= tol; }
 
-template <typename t>
-requires arithmetic_c<t>
+template <arithmetic_c t>
 constexpr bool isvalid(t const& val) { return !equals(std::numeric_limits<t>::max(), val); }
 
 template<typename t>
@@ -79,23 +85,15 @@ constexpr bool isaligned(t value) { return ((uint)value & (alignment - 1)) == 0;
 template<std::predicate t>
 void cassert(t const& expr, std::string msg = "", std::source_location loc = std::source_location::current())
 {
-	assert(expr());
-#ifdef _WIN32
-	msg += std::string("in file: ") + loc.file_name() + "(" + std::to_string(loc.line()) + ":" + std::to_string(loc.column()) + ")" + ", function : " + loc.function_name();
-	OutputDebugStringA(msg.c_str());
-#else
-#error "not implemented for this platform";
+#ifndef NDEBUG
+	cassertinternal(expr(), loc, msg);
 #endif
 }
 
-void cassert(bool should_assert, std::string msg = "", std::source_location loc = std::source_location::current())
+void cassert(bool const passed, std::string msg = "", std::source_location loc = std::source_location::current())
 {
-	assert(should_assert);
-#ifdef _WIN32
-	msg += std::string("in file: ") + loc.file_name() + "(" + std::to_string(loc.line()) + ":" + std::to_string(loc.column()) + ")" + ", function : " + loc.function_name();
-	OutputDebugStringA(msg.c_str());
-#else
-#error "not implemented for this platform";
+#ifndef NDEBUG
+	cassertinternal(passed, loc, msg);
 #endif
 }
 
@@ -109,15 +107,15 @@ void ensuresize(t& c, uint size) {}
 template<typename t>
 void ensuresize(std::vector<t>& v, uint size) { v.resize(size); }
 
-constexpr auto pown(arithmeticpure_c auto v, uint n)
+constexpr auto pown(arithmeticpure_c auto const& v, uint n)
 {
-	decltype(v) res = 1;
+	std::decay_t<decltype(v)> res = 1;
 	for (auto i(0); i < n; ++i)
 		res *= v;
 	return res;
 }
 
-template<arithmeticpure_c t>
+template<arithmeticpure_c t = float>
 constexpr bool equals(indexablecontainer_c auto const& a, t b, t tol = tolerance<t>)
 {
 	for (auto const& e : a)
@@ -127,7 +125,7 @@ constexpr bool equals(indexablecontainer_c auto const& a, t b, t tol = tolerance
 	return true;
 }
 
-template<arithmeticpure_c t>
+template<arithmeticpure_c t = float>
 constexpr bool equals(indexablecontainer_c auto const& a, indexablecontainer_c auto const& b, t tol = tolerance<t>)
 {
 	for (uint i(0); i < std::min(a.size(), b.size()); ++i)
@@ -160,7 +158,7 @@ constexpr auto castas(std::array<s_t, n> a)
 }
 
 template<indexablecontainer_c l_t, indexablecontainer_c r_t>
-requires stdx::arithmeticpure_c<containervalue_t<l_t>> && stdx::arithmeticpure_c<containervalue_t<r_t>>
+requires arithmeticpure_c<containervalue_t<l_t>> && stdx::arithmeticpure_c<containervalue_t<r_t>>
 constexpr auto dot(l_t&& a, r_t&& b)
 {
 	using v_t = containervalue_t<l_t>;
@@ -170,7 +168,7 @@ constexpr auto dot(l_t&& a, r_t&& b)
 }
 
 template<indexablecontainer_c t>
-requires stdx::arithmeticpure_c<containervalue_t<t>>
+requires arithmeticpure_c<containervalue_t<t>>
 constexpr auto clamp(t&& a, containervalue_t<t> l, containervalue_t<t> h)
 {
 	std::decay_t<t> r;
@@ -180,7 +178,7 @@ constexpr auto clamp(t&& a, containervalue_t<t> l, containervalue_t<t> h)
 }
 
 template<indexablecontainer_c t>
-requires stdx::arithmeticpure_c<containervalue_t<t>>
+requires arithmeticpure_c<containervalue_t<t>>
 constexpr void clamp(t& a, containervalue_t<t> l, containervalue_t<t> h)
 {
 	for (uint i(0); i < a.size(); ++i) a[i] = (a[i] < l ? l : (a[i] > h ? h : a[i]));
@@ -207,8 +205,8 @@ constexpr auto binaryop(l_t&& a, r_t&& b, f_t f)
 }
 
 // type, lerp degree, current dimension being lerped
-template<typename t, uint n, uint d = 0>
-requires (n >= 0 && arithmetic_c<t>)
+template<arithmetic_c t, uint n, uint d = 0>
+requires (n >= 0)
 struct nlerp
 {
 	static constexpr t lerp(std::array<t, stdx::pown(2, n - d + 1)> const& data, std::array<float, n + 1> alpha)
@@ -220,8 +218,8 @@ struct nlerp
 	}
 };
 
-template<typename t, uint n, uint d>
-requires (n >= 0 && d == n + 1 && arithmetic_c<t>)
+template<arithmetic_c t, uint n, uint d>
+requires (n >= 0 && d == n + 1)
 struct nlerp<t, n, d>
 {
 	static constexpr t lerp(std::array<t, 1> const& data, std::array<float, n + 1> alpha) { return data[0]; }
@@ -229,5 +227,28 @@ struct nlerp<t, n, d>
 
 template <arithmetic_c t, uint n, uint d = 0>
 constexpr auto lerp(std::array<t, stdx::pown(2, n - d + 1)> const& data, std::array<float, n + 1> alpha) { return nlerp<t, n, d>::lerp(data, alpha); }
+
+}
+
+namespace stdx
+{
+
+void cassertinternal(bool const passed, std::source_location loc, std::string msg)
+{
+	if (!passed)
+	{
+#ifdef _WIN32
+		msg = std::string("\nAssertion failed in file: ") + loc.file_name() + "(" + std::to_string(loc.line()) + ":" + std::to_string(loc.column()) + ")" + ", function : " + loc.function_name() + "\nMsg : " + msg;
+		OutputDebugStringA(msg.c_str());
+		OutputDebugStringA("\n\n");
+		if (IsDebuggerPresent())
+		{
+			__debugbreak();
+		}
+#else
+#error "not implemented for this platform";
+#endif
+	}
+}
 
 }

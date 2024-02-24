@@ -28,10 +28,10 @@ export struct alignedlinearallocator
 	{
 		uint const alignedsize = stdx::nextpowoftwomultiple(sizeof(t), _alignment);
 
-		assert(_currentpos);
-		assert(canallocate(alignedsize));
+		stdx::cassert(_currentpos != nullptr);
+		stdx::cassert(canallocate(alignedsize));
 		t* r = reinterpret_cast<t*>(_currentpos);
-		assert(r);
+		stdx::cassert(r != nullptr);
 		*r = t{};
 		_currentpos += alignedsize;
 		return r;
@@ -206,10 +206,9 @@ concept dbodyraw_c = requires(t v)
 {
     v.vertices();
     v.update(float{});
-    {v.center()} -> std::convertible_to<vector3>;
-    {v.texturedata()} -> stdx::samedecay_c<std::vector<uint8_t>>;
 };
 
+// todo : this should just be be sbodyraw_c<std::decay<t>>
 template <typename t>
 concept sbody_c = (sbodyraw_c<t> || stdx::lvaluereference_c<t> || stdx::rvaluereference_c<t>);
 
@@ -261,7 +260,7 @@ struct constantbuffer
 	void updateresource() { update_perframebuffer(_mappeddata, _data, size()); }
 
 	template<typename u>
-		requires std::same_as<t, std::decay_t<u>>
+	requires std::same_as<t, std::decay_t<u>>
 	void updateresource(u&& data)
 	{
 		*_data = data;
@@ -271,7 +270,7 @@ struct constantbuffer
 	uint size() const { return sizeof(t); }
 	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return get_perframe_gpuaddress(_buffer->GetGPUVirtualAddress(), size()); }
 
-	t* _data;
+	t* _data = nullptr;
 	std::byte* _mappeddata = nullptr;
 	ComPtr<ID3D12Resource> _buffer;
 };
@@ -367,7 +366,8 @@ public:
 	materialcref addmat(std::string const& name, material const& mat, bool twosided = false);
 	void addpso(std::string const& name, std::wstring const& as, std::wstring const& ms, std::wstring const& ps, uint flags = psoflags::none);
 
-	static globalresources& get() { static globalresources res; return res; }
+public:
+	static globalresources& get();
 };
 
 }
