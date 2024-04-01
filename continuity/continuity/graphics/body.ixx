@@ -31,6 +31,8 @@ struct renderparams;
 
 struct bodyparams
 {
+    uint maxverts;
+    uint maxinstances;
     std::string psoname;
     std::string matname;
 
@@ -88,7 +90,7 @@ public:
     body_static(rawbody_t _body, bodyparams const& _params);
     body_static(body_t const& _body, vertexfetch_r(rawbody_t::* vfun)() const, instancedatafetch_r(rawbody_t::* ifun)() const, bodyparams const& _params);
 
-    std::vector<ComPtr<ID3D12Resource>> create_resources() override;
+    gfx::resourcelist create_resources() override;
     void render(float dt, renderparams const&) override;
 
     constexpr body_t& get() { return body; }
@@ -115,7 +117,6 @@ class body_dynamic : public bodyinterface
 
     vertexfetch get_vertices;
 
-    uint vertexbuffersize() const { return _vertexbuffer.size(); }
 public:
     body_dynamic(rawbody_t _body, bodyparams const& _params, stdx::vecui2 texdims = {});
     body_dynamic(body_t const& _body, vertexfetch_r(rawbody_t::* fun)() const, bodyparams const& _params, stdx::vecui2 texdims = {});
@@ -154,7 +155,7 @@ template<sbody_c body_t, topology prim_t>
 std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resources()
 {
     auto const vbupload = _vertexbuffer.createresources(get_vertices(body));
-    _instancebuffer.createresource(get_instancedata(body));
+    _instancebuffer.createresource(getparams().maxinstances);
 
     stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
 
@@ -221,7 +222,7 @@ inline std::vector<ComPtr<ID3D12Resource>> body_dynamic<body_t, prim_t>::create_
 {
     _cbuffer.createresource();
     auto const& verts = get_vertices(body);
-    _vertexbuffer.createresource(verts);
+    _vertexbuffer.createresource(getparams().maxverts);
     _texture.createresource(0, getparams().dims, body.texturedata(), gfx::globalresources::get().srvheap().Get());
 
     stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);

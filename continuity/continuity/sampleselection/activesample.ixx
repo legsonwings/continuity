@@ -19,7 +19,7 @@ export class basic_sample : public sample_base
 public:
 	basic_sample() : sample_base(view_data{}) {};
 
-	gfx::resourcelist load_assets_and_geometry() override { return {}; };
+	gfx::resourcelist create_resources() override { return {}; };
 	void update(float dt) override {};
 	void render(float dt) override {};
 };

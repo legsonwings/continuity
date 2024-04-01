@@ -63,7 +63,7 @@ void continuity::OnInit()
 #endif
 
     load_pipeline();
-    load_assetsandgeometry();
+    create_resources();
 }
 
 // load the rendering pipeline dependencies.
@@ -228,7 +228,7 @@ void continuity::load_pipeline()
 }
 
 // load the sample assets.
-void continuity::load_assetsandgeometry()
+void continuity::create_resources()
 {
     auto device = gfx::globalresources::get().device();
     auto& cmdlist = gfx::globalresources::get().cmdlist();
@@ -237,7 +237,7 @@ void continuity::load_assetsandgeometry()
     ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[gfx::globalresources::get().frameindex()].Get(), nullptr, IID_PPV_ARGS(&cmdlist)));
 
     // need to keep these alive till data is uploaded to gpu
-    std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->load_assets_and_geometry();
+    std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources();
     ThrowIfFailed(cmdlist->Close());
 
     ID3D12CommandList* ppCommandLists[] = { cmdlist.Get() };

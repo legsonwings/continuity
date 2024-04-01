@@ -23,7 +23,7 @@ sphfluidintro::sphfluidintro(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(10.0f);
 }
 
-gfx::resourcelist sphfluidintro::load_assets_and_geometry()
+gfx::resourcelist sphfluidintro::create_resources()
 {
     using geometry::cube;
     using geometry::sphere;
@@ -54,8 +54,9 @@ gfx::resourcelist sphfluidintro::load_assets_and_geometry()
 
     gfx::globalresources::get().cbuffer().updateresource();
 
-    boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{40.f} }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ "instanced" });
-    particles.emplace_back(sphere{ vector3{0.0f, 0.0f, 0.0f}, 8.0f }, bodyparams{ "instanced" });
+    // since these use static vertex buffers, just send 0 as maxverts
+    boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{40.f} }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });
+    particles.emplace_back(sphere{ vector3{0.0f, 0.0f, 0.0f}, 8.0f }, bodyparams{ 0, 1, "instanced" });
 
     gfx::resourcelist res;
     for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, particles)) { stdx::append(b->create_resources(), res); };

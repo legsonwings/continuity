@@ -208,7 +208,6 @@ concept dbodyraw_c = requires(t v)
     v.update(float{});
 };
 
-// todo : this should just be be sbodyraw_c<std::decay<t>>
 template <typename t>
 concept sbody_c = (sbodyraw_c<t> || stdx::lvaluereference_c<t> || stdx::rvaluereference_c<t>);
 
@@ -297,18 +296,26 @@ struct staticbuffer
 template<typename t>
 struct dynamicbuffer
 {
-	void createresource(std::vector<t> const& data)
+	void createresource(uint maxcount)
+	{
+		_maxcount = maxcount;
+		_buffer = create_uploadbuffer(&_mappeddata, buffersize());
+	}
+
+	void updateresource(std::vector<t> const& data)
 	{
 		_count = data.size();
-		_buffer = create_uploadbuffer(&_mappeddata, size());
-		updateresource(data);
+		stdx::cassert(_count <= _maxcount);
+		update_perframebuffer(_mappeddata, data.data(), datasize());
 	}
 
 	uint count() const { return _count; }
-	uint size() const { return count() * sizeof(t); }
-	void updateresource(std::vector<t> const& data) { update_perframebuffer(_mappeddata, data.data(), size()); }
-	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return get_perframe_gpuaddress(_buffer->GetGPUVirtualAddress(), size()); }
+	uint buffersize() const { return _maxcount * sizeof(t); }
+	uint datasize() const { return _count * sizeof(t); }
+	
+	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return get_perframe_gpuaddress(_buffer->GetGPUVirtualAddress(), buffersize()); }
 
+	uint _maxcount = 0;
 	uint _count = 0;
 	std::byte* _mappeddata = nullptr;
 	ComPtr<ID3D12Resource> _buffer;

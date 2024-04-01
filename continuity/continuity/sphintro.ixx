@@ -27,7 +27,7 @@ export class sphfluidintro : public sample_base
 public:
 	sphfluidintro(view_data const& viewdata);
 
-	gfx::resourcelist load_assets_and_geometry() override;
+	gfx::resourcelist create_resources() override;
 	void update(float dt) override;
 	void render(float dt) override;
 

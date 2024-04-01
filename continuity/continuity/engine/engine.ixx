@@ -38,7 +38,7 @@ public:
 
     virtual ~sample_base() {}
 
-    virtual gfx::resourcelist load_assets_and_geometry() = 0;
+    virtual gfx::resourcelist create_resources() = 0;
 
     virtual void update(float dt) { updateview(dt); };
     virtual void render(float dt) = 0;
@@ -111,7 +111,7 @@ private:
     static inline HWND m_hwnd = nullptr;
 
     void load_pipeline();
-    void load_assetsandgeometry();
+    void create_resources();
     void moveto_nextframe();
     void waitforgpu();   
 
