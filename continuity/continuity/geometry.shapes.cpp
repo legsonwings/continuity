@@ -179,6 +179,23 @@ aabb& geometry::aabb::operator+=(vector3 const& pt)
     return *this;
 }
 
+vector3 aabb::bound(vector3 const& pt) const
+{
+    auto const& localpt = pt - center();
+    auto const& halfextents = span() / 2.0f;
+
+    return vector3{ std::min(std::abs(localpt.x), halfextents.x) * stdx::sign(localpt.x), std::min(std::abs(localpt.y), halfextents.y) * stdx::sign(localpt.y), std::min(std::abs(localpt.z), halfextents.z) * stdx::sign(localpt.z) } + center();
+    // can use this once switch to stdx::vec is made
+    //return stdx::clamp(stdx::abs(localpt), halfextents) * stdx::sign(localpt);
+}
+
+bool aabb::contains(vector3 const& pt) const
+{
+    auto const& localpt = pt - center();
+    auto const& halfextents = span() / 2.0f;
+    return std::abs(localpt.x) <= halfextents.x && std::abs(localpt.y) <= halfextents.y && std::abs(localpt.z) <= halfextents.z;   
+}
+
 std::optional<aabb> geometry::aabb::intersect(aabb const& r) const
 {
     if (max_pt.x < r.min_pt.x || min_pt.x > r.max_pt.x) return {};
@@ -216,8 +233,6 @@ std::vector<gfx::vertex> cube::vertices_flipped() const
     {
         std::vector<gfx::vertex> result;
         result.reserve(verts.size());
-
-        //for (auto const& v : verts) { result.emplace_back(v.position, -v.normal); }
 
         // todo : this only works if centre is at origin
         // just flip the position to turn geometry inside out

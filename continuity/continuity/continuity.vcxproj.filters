@@ -93,9 +93,6 @@
     <ClCompile Include="sampleselection\activesample.ixx">
       <Filter>source\sampleselection</Filter>
     </ClCompile>
-    <ClCompile Include="sphintro.ixx">
-      <Filter>samples\source</Filter>
-    </ClCompile>
     <ClCompile Include="sphintro.cpp">
       <Filter>samples\source</Filter>
     </ClCompile>
@@ -107,6 +104,9 @@
     </ClCompile>
     <ClCompile Include="geometry.shapes.cpp">
       <Filter>source\geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="sphintro.ixx">
+      <Filter>samples\source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -70,6 +70,32 @@ struct invalid { constexpr operator t() const { return { std::numeric_limits<t>:
 
 struct uminus { constexpr auto operator() (arithmeticpure_c auto v) const { return -v; }; };
 
+constexpr auto sign(arithmeticpure_c auto const& v) { return std::decay_t<decltype(v)>((v > 0) - (v < 0)); }
+
+constexpr auto sign(indexablecontainer_c auto const& v)
+{
+	std::decay_t<decltype(v)> r;
+	ensuresize(r, v.size());
+	for (auto i(0); i < r.size(); ++i)
+	{
+		r[i] = sign(v[i]);
+	}
+
+	return r;
+}
+
+constexpr auto abs(indexablecontainer_c auto const& v)
+{
+	std::decay_t<decltype(v)> r;
+	ensuresize(r, v.size());
+	for (auto i(0); i < r.size(); ++i)
+	{
+		r[i] = std::abs(v[i]);
+	}
+
+	return r;
+}
+
 template<arithmeticpure_c t = float>
 constexpr bool equals(t const& l, t const& r, t tol = tolerance<t>) { return std::abs(l - r) <= tol; }
 
@@ -107,7 +133,7 @@ void ensuresize(t& c, uint size) {}
 template<typename t>
 void ensuresize(std::vector<t>& v, uint size) { v.resize(size); }
 
-constexpr auto pown(arithmeticpure_c auto const& v, uint n)
+constexpr auto pown(arithmeticpure_c auto const v, uint n)
 {
 	std::decay_t<decltype(v)> res = 1;
 	for (auto i(0); i < n; ++i)
@@ -164,6 +190,15 @@ constexpr auto dot(l_t&& a, r_t&& b)
 	using v_t = containervalue_t<l_t>;
 	v_t r = v_t(0);
 	for (uint i(0); i < std::min(a.size(), b.size()); ++i) r += a[i] * b[i];
+	return r;
+}
+
+template<indexablecontainer_c t>
+constexpr auto clamp(indexablecontainer_c auto const& v, indexablecontainer_c auto const& l, indexablecontainer_c auto const& h)
+{
+	std::decay_t<t> r;
+	ensuresize(r, v.size());
+	for (uint i(0); i < v.size(); ++i) r[i] = (v[i] < l[i] ? l[i] : (v[i] > h[i] ? h[i] : v[i]));
 	return r;
 }
 

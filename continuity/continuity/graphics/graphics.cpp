@@ -99,6 +99,7 @@ void globalresources::init()
 viewinfo& globalresources::view() { return _view; }
 psomapref globalresources::psomap() const { return _psos; }
 matmapref globalresources::matmap() const { return _materials; }
+materialcref globalresources::defaultmat() const { return _defaultmat; }
 constantbuffer<sceneconstants>& globalresources::cbuffer() { return _cbuffer; }
 ComPtr<ID3D12DescriptorHeap>& globalresources::srvheap() { return _srvheap; }
 ComPtr<ID3D12Device2>& globalresources::device() { return _device; }
@@ -203,14 +204,14 @@ std::string generaterandom_matcolor(stdx::ext<material, bool> definition, std::o
 {
     std::random_device rd;
     static std::mt19937 re(rd());
-    static constexpr uint matgenlimit = 1000u;
+    static constexpr uint matgenlimit = 10000u;
     static std::uniform_int_distribution<uint> matnumberdist(0, matgenlimit);
     static std::uniform_real_distribution<float> colordist(0.f, 1.f);
 
     vector3 const color = { colordist(re), colordist(re), colordist(re) };
-    static const std::string basename("mat");
+    std::string basename("mat");
 
-    std::string matname = preferred_name.has_value() ? preferred_name.value() : basename + std::to_string(matnumberdist(re));
+    std::string matname = (preferred_name.has_value() ? preferred_name.value() : basename) + std::to_string(matnumberdist(re));
 
     while (globalresources::get().matmap().find(matname) != globalresources::get().matmap().end()) { matname = basename + std::to_string(matnumberdist(re)); }
 
@@ -352,10 +353,10 @@ D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS star
     return start + perframe_buffersize * frame_idx;
 }
 
-void update_perframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const perframe_buffersize)
+void update_perframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize)
 {
     auto frame_idx = globalresources::get().frameindex();
-    memcpy(mapped_buffer + perframe_buffersize * frame_idx, data_start, perframe_buffersize);
+    memcpy(mapped_buffer + perframe_buffersize * frame_idx, data_start, data_size);
 }
 
 }

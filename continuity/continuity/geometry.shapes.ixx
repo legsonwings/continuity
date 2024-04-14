@@ -39,12 +39,15 @@ struct aabb
     aabb(vector3 const* points, uint len);
     aabb(vector3 const& _min, vector3 const& _max) : min_pt(_min), max_pt(_max) {}
 
+    float volume() const { auto s = span(); return s.x * s.y * s.z; }
     vector3 center() const { return (max_pt + min_pt) / 2.f; }
     vector3 span() const { return max_pt - min_pt; }
-    //operator box() const { return { center(), span() }; }
+    operator box() const { return { center(), span() }; }
     aabb move(vector3 const& off) const { return aabb(min_pt + off, max_pt + off); }
 
     aabb& operator+=(vector3 const& pt);
+    vector3 bound(vector3 const& pt) const;
+    bool contains(vector3 const& pt) const;
     std::optional<aabb> intersect(aabb const& r) const;
 
     // top left front = min, bot right back = max
@@ -77,7 +80,7 @@ struct sphere
     float radius = 1.5f;
     vector3 center = {};
 
-    static constexpr uint numsegments_longitude = 24;
+    static constexpr uint numsegments_longitude = 8;
     static constexpr uint numsegments_latitude = (numsegments_longitude / 2) + (numsegments_longitude % 2);
 
 private:

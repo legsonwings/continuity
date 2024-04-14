@@ -1,3 +1,6 @@
+module;
+
+#include "simplemath/simplemath.h"
 
 export module sphintro;
 
@@ -22,6 +25,41 @@ class body_dynamic;
 
 }
 
+using vector3 = DirectX::SimpleMath::Vector3;
+using matrix = DirectX::SimpleMath::Matrix;
+
+export class sphfluid
+{
+	struct params
+	{
+		vector3 v;
+		vector3 a;
+		vector3 vp;
+		vector3 p;
+		float c;
+		vector3 gc;
+		float rho;
+		float pr;
+		bool surf;
+		std::string matname;
+	};
+
+	geometry::aabb container;
+	std::vector<params> particleparams;
+	geometry::sphere particlegeometry;
+public:
+	sphfluid(geometry::aabb const& _bounds);
+
+	float computetimestep() const;
+
+	vector3 center();
+	std::vector<uint8_t> texturedata() const;
+	std::vector<gfx::vertex> vertices() const;
+	std::vector<gfx::instance_data> instancedata() const;
+	void update(float dt);
+	std::vector<gfx::vertex> fluidsurface;
+};
+
 export class sphfluidintro : public sample_base
 {
 public:
@@ -29,11 +67,12 @@ public:
 
 	gfx::resourcelist create_resources() override;
 	void update(float dt) override;
-	void render(float dt) override;
+	void render(float dt) override;  
 
 private:
+
 	std::vector<gfx::body_static<geometry::cube>> boxes;
-	std::vector<gfx::body_static<geometry::sphere>> particles;
+	std::vector<gfx::body_static<sphfluid>> fluid;
 };
 
 

@@ -27,6 +27,47 @@ using line = geometry::line;
 export namespace gfx
 {
 
+struct instances_data
+{
+    std::vector<instance_data> data;
+};
+
+template<typename t>
+concept hasvertices = requires(t v)
+{
+    { v.vertices() } -> std::same_as<std::vector<gfx::vertex>>;
+};
+
+template<typename t>
+concept hasupdate = requires(t v)
+{
+    v.update(float{});
+};
+
+template<typename t>
+concept hasinstancedata = requires(t v)
+{
+    { v.instancedata() } -> std::same_as<std::vector<instance_data>>;
+};
+
+template<typename t>
+concept hastexturedata = requires(t v)
+{
+    { v.texturedata() } -> std::same_as<std::vector<uint8_t>>;
+};
+
+template <typename t>
+concept sbodyraw_c = hasvertices<t> && hasinstancedata<t>;
+
+template <typename t>
+concept dbodyraw_c = hasvertices<t> && hasupdate<t> && hastexturedata<t>;
+
+template <typename t>
+concept sbody_c = (sbodyraw_c<t> || ((stdx::lvaluereference_c<t> || stdx::rvaluereference_c<t>) && sbodyraw_c<std::decay<t>>));
+
+template <typename t>
+concept dbody_c = (dbodyraw_c<t> || ((stdx::lvaluereference_c<t> || stdx::rvaluereference_c<t>) && dbodyraw_c<std::decay<t>>));
+
 struct renderparams;
 
 struct bodyparams
@@ -87,10 +128,15 @@ class body_static : public bodyinterface
     instancedatafetch get_instancedata;
 
 public:
-    body_static(rawbody_t _body, bodyparams const& _params);
-    body_static(body_t const& _body, vertexfetch_r(rawbody_t::* vfun)() const, instancedatafetch_r(rawbody_t::* ifun)() const, bodyparams const& _params);
+
+    template<typename body_c_t = body_t>
+    body_static(body_c_t&& _body, bodyparams const& _params);
+
+    template<typename body_c_t = body_t>
+    body_static(body_c_t&& _body, vertexfetch_r(rawbody_t::* vfun)() const, instancedatafetch_r(rawbody_t::* ifun)() const, bodyparams const& _params);
 
     gfx::resourcelist create_resources() override;
+    void update(float dt) override;
     void render(float dt, renderparams const&) override;
 
     constexpr body_t& get() { return body; }
@@ -118,8 +164,12 @@ class body_dynamic : public bodyinterface
     vertexfetch get_vertices;
 
 public:
-    body_dynamic(rawbody_t _body, bodyparams const& _params, stdx::vecui2 texdims = {});
-    body_dynamic(body_t const& _body, vertexfetch_r(rawbody_t::* fun)() const, bodyparams const& _params, stdx::vecui2 texdims = {});
+
+    template<typename body_c_t = body_t>
+    body_dynamic(body_c_t&& _body, bodyparams const& _params, stdx::vecui2 texdims = {});
+
+    template<typename body_c_t = body_t>
+    body_dynamic(body_c_t&& _body, vertexfetch_r(rawbody_t::* fun)() const, bodyparams const& _params, stdx::vecui2 texdims = {});
 
     gfx::resourcelist create_resources() override;
 
@@ -138,14 +188,16 @@ public:
 void dispatch(resource_bindings const& bindings, bool wireframe = false, bool twosided = false, uint dispatchx = 1);
 
 template<sbody_c body_t, topology prim_t>
-inline body_static<body_t, prim_t>::body_static(rawbody_t _body, bodyparams const& _params) : bodyinterface(_params), body(std::move(_body))
+template<typename body_c_t>
+inline body_static<body_t, prim_t>::body_static(body_c_t&& _body, bodyparams const& _params) : bodyinterface(_params), body(std::forward<body_c_t>(_body))
 {
     get_vertices = [](body_t const& geom) { return geom.vertices(); };
     get_instancedata = [](body_t const& geom) { return geom.instancedata(); };
 }
 
 template<sbody_c body_t, topology prim_t>
-inline body_static<body_t, prim_t>::body_static(body_t const& _body, vertexfetch_r(rawbody_t::* vfun)() const, instancedatafetch_r(rawbody_t::* ifun)() const, bodyparams const& _params) : bodyinterface(_params), body(_body)
+template<typename body_c_t>
+inline body_static<body_t, prim_t>::body_static(body_c_t&& _body, vertexfetch_r(rawbody_t::* vfun)() const, instancedatafetch_r(rawbody_t::* ifun)() const, bodyparams const& _params) : bodyinterface(_params), body(std::forward<body_c_t>(_body))
 {
     get_vertices = [vfun](body_t const& geom) { return std::invoke(vfun, geom); };
     get_instancedata = [ifun](body_t const& geom) { return std::invoke(ifun, geom); };
@@ -161,6 +213,13 @@ std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resource
 
     // return the upload buffer so that engine can keep it alive until vertex data has been uploaded to gpu
     return { vbupload };
+}
+
+template<sbody_c body_t, topology prim_t>
+void body_static<body_t, prim_t>::update(float dt)
+{
+    // update only if we own this body
+    if constexpr (std::is_same_v<body_t, rawbody_t> && hasupdate<rawbody_t>) body.update(dt);
 }
 
 struct dispatchparams
@@ -204,14 +263,16 @@ inline void body_static<body_t, prim_t>::render(float dt, renderparams const& pa
 }
 
 template<dbody_c body_t, topology prim_t>
-inline body_dynamic<body_t, prim_t>::body_dynamic(rawbody_t _body, bodyparams const& _params, stdx::vecui2 texdims) : bodyinterface(_params), body(std::move(_body))
+template<typename body_c_t>
+inline body_dynamic<body_t, prim_t>::body_dynamic(body_c_t&& _body, bodyparams const& _params, stdx::vecui2 texdims) : bodyinterface(_params), body(std::forward<body_c_t>(_body))
 {
     _texture._dims = texdims;
     get_vertices = [](body_t const& geom) { return geom.vertices(); };
 }
 
 template<dbody_c body_t, topology prim_t>
-inline body_dynamic<body_t, prim_t>::body_dynamic(body_t const& _body, vertexfetch_r(rawbody_t::* fun)() const, bodyparams const& _params, stdx::vecui2 texdims) : bodyinterface(_params), body(_body)
+template<typename body_c_t>
+inline body_dynamic<body_t, prim_t>::body_dynamic(body_c_t&& _body, vertexfetch_r(rawbody_t::* fun)() const, bodyparams const& _params, stdx::vecui2 texdims) : bodyinterface(_params), body(std::forward<body_c_t>(_body))
 {
     _texture._dims = texdims;
     get_vertices = [fun](body_t const& geom) { return std::invoke(fun, geom); };

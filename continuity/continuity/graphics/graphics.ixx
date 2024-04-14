@@ -77,9 +77,6 @@ struct vertex
 	vector3 position = {};
 	vector3 normal = {};
 	vector2 texcoord = {};
-
-	constexpr vertex() = default;
-	constexpr vertex(vector3 const& pos, vector3 const& norm, vector2 txcoord = {}) : position(pos), normal(norm), texcoord(txcoord) {}
 };
 
 struct color
@@ -194,25 +191,6 @@ struct alignas(256) sceneconstants
     uint32_t numpointlights;
 };
 
-template <typename t>
-concept sbodyraw_c = requires(t v)
-{
-    v.vertices();
-    {v.instancedata()} -> std::same_as<std::vector<instance_data>>;
-};
-
-template <typename t>
-concept dbodyraw_c = requires(t v)
-{
-    v.vertices();
-    v.update(float{});
-};
-
-template <typename t>
-concept sbody_c = (sbodyraw_c<t> || stdx::lvaluereference_c<t> || stdx::rvaluereference_c<t>);
-
-template <typename t>
-concept dbody_c = (dbodyraw_c<t> || stdx::lvaluereference_c<t> || stdx::rvaluereference_c<t>);
 // gfx core
 
 using psomapref = std::unordered_map<std::string, pipeline_objects> const&;
@@ -235,7 +213,7 @@ default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size
 ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format);
 uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata);
 D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, UINT64 perframe_buffersize);
-void update_perframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const perframe_buffersize);
+void update_perframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize);
 void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, uint const perframe_buffersize);
 // helpers
 
@@ -256,14 +234,14 @@ struct constantbuffer
 	}
 
 	t& data() const { return *_data; }
-	void updateresource() { update_perframebuffer(_mappeddata, _data, size()); }
+	void updateresource() { update_perframebuffer(_mappeddata, _data, size(), size()); }
 
 	template<typename u>
 	requires std::same_as<t, std::decay_t<u>>
 	void updateresource(u&& data)
 	{
 		*_data = data;
-		update_perframebuffer(_mappeddata, _data, size());
+		update_perframebuffer(_mappeddata, _data, size(), size());
 	}
 
 	uint size() const { return sizeof(t); }
@@ -306,13 +284,13 @@ struct dynamicbuffer
 	{
 		_count = data.size();
 		stdx::cassert(_count <= _maxcount);
-		update_perframebuffer(_mappeddata, data.data(), datasize());
+		update_perframebuffer(_mappeddata, data.data(), datasize(), buffersize());
 	}
 
 	uint count() const { return _count; }
 	uint buffersize() const { return _maxcount * sizeof(t); }
 	uint datasize() const { return _count * sizeof(t); }
-	
+
 	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return get_perframe_gpuaddress(_buffer->GetGPUVirtualAddress(), buffersize()); }
 
 	uint _maxcount = 0;
@@ -361,6 +339,7 @@ public:
 	viewinfo& view();
 	psomapref psomap() const;
 	matmapref matmap() const;
+	materialcref defaultmat() const;
 	constantbuffer<sceneconstants>& cbuffer();
 	ComPtr<ID3D12Device2>& device();
 	ComPtr<ID3D12DescriptorHeap>& srvheap();
@@ -373,7 +352,6 @@ public:
 	materialcref addmat(std::string const& name, material const& mat, bool twosided = false);
 	void addpso(std::string const& name, std::wstring const& as, std::wstring const& ms, std::wstring const& ps, uint flags = psoflags::none);
 
-public:
 	static globalresources& get();
 };
 
