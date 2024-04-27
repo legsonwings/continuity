@@ -84,6 +84,7 @@ struct color
     static inline vector4 red = vector4{ 1.f, 0.f, 0.f, 1.f };
     static inline vector4 black = vector4{ 0.f, 0.f, 0.f, 1.f };
     static inline vector4 white = vector4{ 1.f, 1.f, 1.f, 1.f };
+	static inline vector4 water = vector4{ 0.2f, 0.4f, 0.6f, 0.7f };
 };
 
 struct shader

@@ -38,7 +38,7 @@ void main(
         int v2idx = v0idx + 2;
 
         tris[gtid] = uint3(v0idx, v1idx, v2idx);
-        int in_vertstart = payload.data[gid].start + gtid * 3;
+        int in_vertstart = (payload.data[gid].start + gtid) * 3;
         
         verts[v0idx] = getvertattribute(triangle_verts[in_vertstart]);
         verts[v1idx] = getvertattribute(triangle_verts[in_vertstart + 1]);

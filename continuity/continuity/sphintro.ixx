@@ -26,6 +26,7 @@ class body_dynamic;
 }
 
 using vector3 = DirectX::SimpleMath::Vector3;
+using vector4 = DirectX::SimpleMath::Vector4;
 using matrix = DirectX::SimpleMath::Matrix;
 
 export class sphfluid
@@ -56,6 +57,7 @@ public:
 	std::vector<uint8_t> texturedata() const;
 	std::vector<gfx::vertex> vertices() const;
 	std::vector<gfx::instance_data> instancedata() const;
+	std::vector<gfx::vertex> particlevertices() const;
 	void update(float dt);
 	std::vector<gfx::vertex> fluidsurface;
 };
@@ -72,7 +74,8 @@ public:
 private:
 
 	std::vector<gfx::body_static<geometry::cube>> boxes;
-	std::vector<gfx::body_static<sphfluid>> fluid;
+	std::vector<gfx::body_dynamic<sphfluid>> fluid;
+	std::vector<gfx::body_static<sphfluid const&>> fluidparticles;
 };
 
 

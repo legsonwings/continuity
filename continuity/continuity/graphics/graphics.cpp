@@ -76,6 +76,7 @@ void globalresources::init()
 
     addpso("lines", L"default_as.cso", L"lines_ms.cso", L"basic_ps.cso");
     addpso("default", L"default_as.cso", L"default_ms.cso", L"default_ps.cso");
+    addpso("default_twosided", L"default_as.cso", L"default_ms.cso", L"default_ps.cso", psoflags::twosided | psoflags::transparent);
     addpso("texturess", L"", L"texturess_ms.cso", L"texturess_ps.cso");
     addpso("instancedlines", L"default_as.cso", L"linesinstances_ms.cso", L"basic_ps.cso");
     addpso("instanced", L"default_as.cso", L"instances_ms.cso", L"instances_ps.cso");
@@ -84,9 +85,11 @@ void globalresources::init()
     addpso("wireframe", L"default_as.cso", L"default_ms.cso", L"default_ps.cso", psoflags::wireframe | psoflags::transparent);
     addpso("instancedtransparent", L"default_as.cso", L"instances_ms.cso", L"instances_ps.cso", psoflags::transparent);
 
-    addmat("black", material().diffuse(color::black));
+    addmat("black", material().diffuse(color::black));  
+
     addmat("white", material().diffuse(color::white));
     addmat("red", material().diffuse(color::red));
+    addmat("water", material().diffuse(color::water));
 
     D3D12_DESCRIPTOR_HEAP_DESC srvheapdesc = {};
     srvheapdesc.NumDescriptors = 1;
@@ -173,6 +176,7 @@ void globalresources::addpso(std::string const& name, std::wstring const& as, st
     {
         D3DX12_MESH_SHADER_PIPELINE_STATE_DESC wireframepso = pso_desc;
         wireframepso.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+        wireframepso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
         auto psostream = CD3DX12_PIPELINE_MESH_STATE_STREAM(wireframepso);
         D3D12_PIPELINE_STATE_STREAM_DESC stream_desc;
@@ -183,7 +187,7 @@ void globalresources::addpso(std::string const& name, std::wstring const& as, st
 
     if (flags & psoflags::twosided)
     {
-        pso_desc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+        pso_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         auto psostream_twosides = CD3DX12_PIPELINE_MESH_STATE_STREAM(pso_desc);
 
         D3D12_PIPELINE_STATE_STREAM_DESC stream_desc_twosides;

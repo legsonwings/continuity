@@ -7,7 +7,7 @@ module body;
 namespace gfx
 {
 
-void dispatch(resource_bindings const& bindings, bool wireframe, bool twosided, uint dispatchx)
+void dispatch(resource_bindings const& bindings, bool wireframe, uint dispatchx)
 {
     auto cmd_list = gfx::globalresources::get().cmdlist();
 
@@ -28,7 +28,7 @@ void dispatch(resource_bindings const& bindings, bool wireframe, bool twosided, 
 
     if (wireframe && bindings.pipelineobjs.pso_wireframe)
         cmd_list->SetPipelineState(bindings.pipelineobjs.pso_wireframe.Get());
-    else if (twosided && bindings.pipelineobjs.pso_twosided)
+    else if (bindings.pipelineobjs.pso_twosided)
         cmd_list->SetPipelineState(bindings.pipelineobjs.pso_twosided.Get());
     else
         cmd_list->SetPipelineState(bindings.pipelineobjs.pso.Get());

@@ -185,7 +185,7 @@ public:
 };
 
 // bodyimpl
-void dispatch(resource_bindings const& bindings, bool wireframe = false, bool twosided = false, uint dispatchx = 1);
+void dispatch(resource_bindings const& bindings, bool wireframe = false, uint dispatchx = 1);
 
 template<sbody_c body_t, topology prim_t>
 template<typename body_c_t>
@@ -259,7 +259,7 @@ inline void body_static<body_t, prim_t>::render(float dt, renderparams const& pa
     uint const numasthreads = static_cast<uint>(std::ceil(static_cast<float>(dispatch_params.numprims) / static_cast<float>(ASGROUP_SIZE * dispatch_params.maxprims_permsgroup)));
     stdx::cassert(numasthreads < 128);
     memcpy(bindings.rootconstants.values.data(), &dispatch_params, sizeof(dispatch_params));
-    dispatch(bindings, params.wireframe, gfx::globalresources::get().mat(getparams().matname).ex(), numasthreads);
+    dispatch(bindings, params.wireframe, numasthreads);
 }
 
 template<dbody_c body_t, topology prim_t>
@@ -328,8 +328,11 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
     if (_texture.size() > 0)
         bindings.texture = { 5, _texture.deschandle() };
 
+
+    uint const numasthreads = static_cast<uint>(std::ceil(static_cast<float>(dispatch_params.numprims) / static_cast<float>(ASGROUP_SIZE * dispatch_params.maxprims_permsgroup)));
+    stdx::cassert(numasthreads < 128);
     memcpy(bindings.rootconstants.values.data(), &dispatch_params, sizeof(dispatch_params));
-    dispatch(bindings, params.wireframe, gfx::globalresources::get().mat(getparams().matname).ex());
+    dispatch(bindings, params.wireframe, numasthreads);
 }
 // bodyimpl
 
