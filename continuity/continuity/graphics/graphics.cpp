@@ -126,6 +126,36 @@ materialcref globalresources::mat(std::string const& name)
     return _defaultmat;
 }
 
+void globalresources::addcomputepso(std::string const& name, std::wstring const& cs)
+{
+    if (_psos.find(name) != _psos.cend())
+    {
+        stdx::cassert(false, "trying to add pso of speciifed name when it already exists");
+    }
+
+    shader computeshader;
+    if (!cs.empty())
+        ReadDataFromFile(assetfullpath(cs).c_str(), &computeshader.data, &computeshader.size);
+
+    // pull root signature from the precompiled compute shader
+    // todo : share root signatures?
+    ComPtr<ID3D12RootSignature>& rootsig = _rootsig.emplace_back();
+    ThrowIfFailed(_device->CreateRootSignature(0, computeshader.data, computeshader.size, IID_PPV_ARGS(rootsig.GetAddressOf())));
+    _psos[name].root_signature = rootsig;
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psodesc = {};
+    psodesc.pRootSignature = rootsig.Get();
+    psodesc.CS = { computeshader.data, computeshader.size };
+
+    auto psostream = CD3DX12_PIPELINE_STATE_STREAM2(psodesc);
+
+    D3D12_PIPELINE_STATE_STREAM_DESC stream_desc;
+    stream_desc.pPipelineStateSubobjectStream = &psostream;
+    stream_desc.SizeInBytes = sizeof(psostream);
+
+    ThrowIfFailed(_device->CreatePipelineState(&stream_desc, IID_PPV_ARGS(_psos[name].pso.GetAddressOf())));
+}
+
 void globalresources::addpso(std::string const& name, std::wstring const& as, std::wstring const& ms, std::wstring const& ps, uint flags)
 {
     if (_psos.find(name) != _psos.cend())
@@ -140,10 +170,12 @@ void globalresources::addpso(std::string const& name, std::wstring const& as, st
 
     ReadDataFromFile(assetfullpath(ms).c_str(), &meshshader.data, &meshshader.size);
     ReadDataFromFile(assetfullpath(ps).c_str(), &pixelshader.data, &pixelshader.size);
-
+    
     // pull root signature from the precompiled mesh shaders.
-    if (!_rootsig) ThrowIfFailed(_device->CreateRootSignature(0, meshshader.data, meshshader.size, IID_PPV_ARGS(_rootsig.GetAddressOf())));
-    _psos[name].root_signature = _rootsig;
+    // todo : share root signatures?
+    ComPtr<ID3D12RootSignature>& rootsig = _rootsig.emplace_back();
+    ThrowIfFailed(_device->CreateRootSignature(0, meshshader.data, meshshader.size, IID_PPV_ARGS(rootsig.GetAddressOf())));
+    _psos[name].root_signature = rootsig;
 
     D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pso_desc = _psodesc;
     pso_desc.pRootSignature = _psos[name].root_signature.Get();
@@ -291,47 +323,61 @@ void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource
     device->CreateShaderResourceView(resource, &srvdesc, deschandle);
 }
 
-default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const vb_size)
+// todo : rename this to uav
+ComPtr<ID3D12Resource> create_defaultbuffer(std::size_t const b_size)
+{
+    auto device = globalresources::get().device();
+    auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+    ComPtr<ID3D12Resource> b;
+
+    // create buffer on the default heap
+    auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
+    return b;
+}
+
+default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const b_size)
 {
     auto device = globalresources::get().device();
 
-    ComPtr<ID3D12Resource> vb;
-    ComPtr<ID3D12Resource> vb_upload;
+    ComPtr<ID3D12Resource> b;
+    ComPtr<ID3D12Resource> b_upload;
 
-    if (vb_size > 0)
+    if (b_size > 0)
     {
-        auto vb_desc = CD3DX12_RESOURCE_DESC::Buffer(vb_size);
+        auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size);
 
-        // create vertex buffer on the default heap
+        // create buffer on the default heap
         auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &vb_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(vb.ReleaseAndGetAddressOf())));
+        ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
 
-        // Create vertex resource on the upload heap
+        // create resource on the upload heap
         auto uploadheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        ThrowIfFailed(device->CreateCommittedResource(&uploadheap_desc, D3D12_HEAP_FLAG_NONE, &vb_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(vb_upload.GetAddressOf())));
+        ThrowIfFailed(device->CreateCommittedResource(&uploadheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
 
         {
-            uint8_t* vb_upload_start = nullptr;
+            uint8_t* b_upload_start = nullptr;
 
             // we do not intend to read from this resource on the CPU.
-            vb_upload->Map(0, nullptr, reinterpret_cast<void**>(&vb_upload_start));
+            b_upload->Map(0, nullptr, reinterpret_cast<void**>(&b_upload_start));
 
-            // copy vertex data to upload heap
-            memcpy(vb_upload_start, datastart, vb_size);
+            // copy data to upload heap
+            memcpy(b_upload_start, datastart, b_size);
 
-            vb_upload->Unmap(0, nullptr);
+            b_upload->Unmap(0, nullptr);
         }
 
-        auto resource_transition = CD3DX12_RESOURCE_BARRIER::Transition(vb.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+        auto resource_transition = CD3DX12_RESOURCE_BARRIER::Transition(b.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
         auto cmdlist = globalresources::get().cmdlist();
 
-        // copy vertex data from upload heap to default heap
-        cmdlist->CopyResource(vb.Get(), vb_upload.Get());
+        // copy data from upload heap to default heap
+        cmdlist->CopyResource(b.Get(), b_upload.Get());
         cmdlist->ResourceBarrier(1, &resource_transition);
     }
 
-    return { vb, vb_upload };
+    return { b, b_upload };
 }
 
 ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format)

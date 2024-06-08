@@ -34,8 +34,14 @@
     <Filter Include="samples">
       <UniqueIdentifier>{065555e3-e8e8-4813-807a-02a620c7b9c8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="samples\source">
-      <UniqueIdentifier>{bc6241a8-f001-445b-a332-51988f3033f3}</UniqueIdentifier>
+    <Filter Include="samples\sphintro">
+      <UniqueIdentifier>{76cb267e-5c60-4807-936f-5c50c4586448}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="samples\sphgpu">
+      <UniqueIdentifier>{9e721b7a-eb39-49a7-9a93-d56ac823273a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="samples\sphgpu\shaders">
+      <UniqueIdentifier>{31d2d8b3-2e06-4f44-8e12-8d953080fb94}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -93,9 +99,6 @@
     <ClCompile Include="sampleselection\activesample.ixx">
       <Filter>source\sampleselection</Filter>
     </ClCompile>
-    <ClCompile Include="sphintro.cpp">
-      <Filter>samples\source</Filter>
-    </ClCompile>
     <ClCompile Include="activesample.cpp">
       <Filter>source\sampleselection</Filter>
     </ClCompile>
@@ -105,8 +108,17 @@
     <ClCompile Include="geometry.shapes.cpp">
       <Filter>source\geometry</Filter>
     </ClCompile>
-    <ClCompile Include="sphintro.ixx">
-      <Filter>samples\source</Filter>
+    <ClCompile Include="samples\sphintro\sphintro.cpp">
+      <Filter>samples\sphintro</Filter>
+    </ClCompile>
+    <ClCompile Include="samples\sphintro\sphintro.ixx">
+      <Filter>samples\sphintro</Filter>
+    </ClCompile>
+    <ClCompile Include="samples\sphgpu\sphgpu.cpp">
+      <Filter>samples\sphgpu</Filter>
+    </ClCompile>
+    <ClCompile Include="samples\sphgpu\sphgpu.ixx">
+      <Filter>samples\sphgpu</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -127,6 +139,9 @@
     </None>
     <None Include="assets\lighting.hlsli">
       <Filter>shaders</Filter>
+    </None>
+    <None Include="samples\sphgpu\shaders\sphcommon.hlsli">
+      <Filter>samples\sphgpu\shaders</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -159,6 +174,18 @@
     </FxCompile>
     <FxCompile Include="assets\texturess_ps.hlsl">
       <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sphgpu_densitypressure_cs.hlsl">
+      <Filter>samples\sphgpu\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sphgpuinit_cs.hlsl">
+      <Filter>samples\sphgpu\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sphgpu_position_cs.hlsl">
+      <Filter>samples\sphgpu\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sph_render_particles_ms.hlsl">
+      <Filter>samples\sphgpu\shaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

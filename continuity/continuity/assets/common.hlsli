@@ -81,6 +81,7 @@ struct sceneconstants
     uint padding0;
     float4 ambient;
     light lights[MAX_NUM_LIGHTS];
+    float4x4 viewproj;
     uint numdirlights;
     uint numpointlights;
 };

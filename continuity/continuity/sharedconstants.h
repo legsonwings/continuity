@@ -7,3 +7,5 @@
 #define NUM_INSTANCES 50
 
 #define MAX_NUM_LIGHTS 5
+
+#define FLT_EPSILON 1e-10f

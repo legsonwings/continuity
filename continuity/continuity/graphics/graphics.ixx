@@ -130,6 +130,7 @@ struct resource_bindings
     rootbuffer objectconstant;
     rootbuffer vertex;
     rootbuffer instance;
+	rootbuffer customdata;
     buffer texture;
     rootconstants rootconstants;
     pipeline_objects pipelineobjs;
@@ -163,7 +164,7 @@ struct instance_data
     material mat;
     instance_data() = default;
     instance_data(matrix const& m, viewinfo const& v, material const& _material)
-        : matx(m.Transpose()), normalmatx(m.Invert()), mvpmatx((m* v.view* v.proj).Transpose()), mat(_material) {}
+        : matx(m.Transpose()), normalmatx(m.Invert()), mvpmatx((m * v.view * v.proj).Transpose()), mat(_material) {}
 };
 
 struct alignas(256) objectconstants : public instance_data
@@ -188,6 +189,7 @@ struct alignas(256) sceneconstants
     uint8_t padding[4];
     vector4 ambient;
     light lights[MAX_NUM_LIGHTS];
+	matrix viewproj;
     uint32_t numdirlights = 0;
     uint32_t numpointlights;
 };
@@ -210,7 +212,8 @@ ComPtr<ID3D12Resource> create_uploadbuffer(std::byte** mapped_buffer, uint const
 ComPtr<ID3D12Resource> create_uploadbufferunmapped(uint const buffersize);
 ComPtr<ID3D12DescriptorHeap> createsrvdescriptorheap(D3D12_DESCRIPTOR_HEAP_DESC heapdesc);
 void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* srvheap, uint heapslot = 0);
-default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const vb_size);
+ComPtr<ID3D12Resource> create_defaultbuffer(std::size_t const b_size);
+default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const b_size);
 ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format);
 uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata);
 D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, UINT64 perframe_buffersize);
@@ -272,6 +275,21 @@ struct staticbuffer
 	ComPtr<ID3D12Resource> _buffer;
 };
 
+// buffer for use by gpu only
+struct staticgpubuffer
+{
+	void createresources(uint buffersize)
+	{
+		_size = buffersize;
+		_buffer = create_defaultbuffer(buffersize);
+	}
+
+	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return _buffer->GetGPUVirtualAddress(); }
+
+	uint _size = 0;
+	ComPtr<ID3D12Resource> _buffer;
+};
+
 template<typename t>
 struct dynamicbuffer
 {
@@ -325,7 +343,7 @@ class globalresources
 	constantbuffer<sceneconstants> _cbuffer;
 	ComPtr<ID3D12DescriptorHeap> _srvheap;
 	ComPtr<ID3D12Device2> _device;
-	ComPtr<ID3D12RootSignature> _rootsig;
+	std::vector<ComPtr<ID3D12RootSignature>> _rootsig;
 	ComPtr<ID3D12GraphicsCommandList6> _commandlist;
 	std::unordered_map<std::string, pipeline_objects> _psos;
 	std::unordered_map<std::string, stdx::ext<material, bool>> _materials;
@@ -351,6 +369,7 @@ public:
 	materialcref mat(std::string const& name);
 	void psodesc(D3DX12_MESH_SHADER_PIPELINE_STATE_DESC const& psodesc);
 	materialcref addmat(std::string const& name, material const& mat, bool twosided = false);
+	void addcomputepso(std::string const& name, std::wstring const& cs);
 	void addpso(std::string const& name, std::wstring const& as, std::wstring const& ms, std::wstring const& ps, uint flags = psoflags::none);
 
 	static globalresources& get();

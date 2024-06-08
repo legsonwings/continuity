@@ -38,9 +38,11 @@
     <ClCompile Include="cursor\cursor.ixx" />
     <ClCompile Include="geometry\geometry.cpp" />
     <ClCompile Include="geometry\geometry.ixx" />
+    <ClCompile Include="samples\sphgpu\sphgpu.cpp" />
+    <ClCompile Include="samples\sphgpu\sphgpu.ixx" />
+    <ClCompile Include="samples\sphintro\sphintro.cpp" />
+    <ClCompile Include="samples\sphintro\sphintro.ixx" />
     <ClCompile Include="simplemath\simplemath.cpp" />
-    <ClCompile Include="sphintro.ixx" />
-    <ClCompile Include="sphintro.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="sampleselection\activesample.ixx">
@@ -53,6 +55,7 @@
   <ItemGroup>
     <None Include="assets\common.hlsli" />
     <None Include="assets\lighting.hlsli" />
+    <None Include="samples\sphgpu\shaders\sphcommon.hlsli" />
     <None Include="simplemath\simplemath.inl" />
   </ItemGroup>
   <ItemGroup>
@@ -115,6 +118,54 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sphgpuinit_cs.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</AllResourcesBound>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sphgpu_densitypressure_cs.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</AllResourcesBound>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sphgpu_position_cs.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</AllResourcesBound>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</AllResourcesBound>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</AllResourcesBound>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</AllResourcesBound>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sph_render_particles_ms.hlsl">
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</AllResourcesBound>
+      <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</AllResourcesBound>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Mesh</ShaderType>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

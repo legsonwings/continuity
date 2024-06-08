@@ -477,7 +477,7 @@ std::vector<vector3> fillwithspheres(geometry::aabb const& box, uint count, floa
 }
 
 // params
-static constexpr uint numparticles = 216;
+static constexpr uint numparticles = 1;
 static constexpr float roomextents = 1.6f;
 static constexpr float particleradius = 0.1f;
 static constexpr float h = 0.2f; // smoothing kernel constant
@@ -612,10 +612,10 @@ constexpr float viscositylaplaciancoeff()
 void sphfluid::update(float dt)
 {
     float remainingtime = dt;
-    while (remainingtime > 0.0f)
+    //while (remainingtime > 0.0f)
     {
-        float timestep = std::min(computetimestep(), remainingtime);
-        remainingtime -= timestep;
+        float timestep = dt;// std::min(computetimestep(), remainingtime);
+        //remainingtime -= timestep;
 
         // compute pressure and densities
         for (auto& particleparam : particleparams)
@@ -632,21 +632,25 @@ void sphfluid::update(float dt)
                 }
             }
 
-            // prevent denity smaller than reference density to avoid negative pressure
+            // prevent density smaller than reference density to avoid negative pressure
             particleparam.rho = std::max(particleparam.rho, rho0);
             particleparam.pr = k * (particleparam.rho - rho0);
         }
+        
+        static constexpr float repulsion_force = 1.0f;
+        auto const& containercenter = container.center();
+        auto const& halfextents = container.span() / 2.0f;
 
         // compute acceleration
         for (auto& particleparam : particleparams)
         {
             auto const& v = particleparam.v;
-            auto const& d = particleparam.rho;
+            auto const& rho = particleparam.rho;
             auto const& pr = particleparam.pr;
 
             particleparam.a = vector3::Zero;
 
-            for (auto neighbourparam : particleparams)
+            for (auto const& neighbourparam : particleparams)
             {
                 auto const& nv = neighbourparam.v;
                 auto const& nrho = neighbourparam.rho;
@@ -655,14 +659,17 @@ void sphfluid::update(float dt)
                 auto toneighbour = neighbourparam.p - particleparam.p;
                 float const dist = toneighbour.Length();
 
-                float const diff = std::max(0.0f, h - dist);
+                float const diff = h - dist;
 
                 if (diff > 0)
                 {
-                    toneighbour.Normalize();
+                    if (dist > 0)
+                    {
+                        toneighbour.Normalize();
+                    }
 
                     // acceleration due to pressure
-                    particleparam.a += (spikykernelcoeff() * (pr + npr) * stdx::pown(diff, 2u) / (2.0f * d * nrho)) * toneighbour;
+                    particleparam.a += (spikykernelcoeff() * (pr + npr) * stdx::pown(diff, 2u) / (2.0f * rho * nrho)) * toneighbour;
 
                     // accleration due to viscosity
                     particleparam.a += (viscosityconstant * (nv - v) * viscositylaplaciancoeff() * diff) / nrho;
@@ -671,16 +678,8 @@ void sphfluid::update(float dt)
 
             // add gravity
             particleparam.a += vector3(0.0f, -2.0f, 0.0f);
-        }
 
-        // collisions
-        // just reflect velocity
-        {
-            static constexpr float repulsion_force = 1.0f;
-            auto const& containercenter = container.center();
-            auto const& halfextents = container.span() / 2.0f;
-
-            for (auto& particleparam : particleparams)
+            // collisions(just reflect velocity) and leap frog integration
             {
                 auto const& localpt = particleparam.p - containercenter;
                 auto const localpt_abs = vector3{ std::abs(localpt.x), std::abs(localpt.y), std::abs(localpt.z) };
@@ -722,18 +721,12 @@ void sphfluid::update(float dt)
                 {
                     particleparam.v = particleparam.v.Normalized() * maxspeed;
                 }
+
+                particleparam.vp = particleparam.v + particleparam.a * timestep;
+                particleparam.p += particleparam.vp * timestep;
+                particleparam.v = particleparam.vp + particleparam.a * (0.5f * timestep);
             }
         }
-
-        // compute positions
-        for (auto& particleparam : particleparams)
-            particleparam.vp = particleparam.v + particleparam.a * timestep;
-
-        for (auto& particleparam : particleparams)
-            particleparam.p += particleparam.vp * timestep;
-
-        for (auto& particleparam : particleparams)
-            particleparam.v = particleparam.vp + particleparam.a * (0.5f * timestep);
     }
 
     fluidsurface.clear();

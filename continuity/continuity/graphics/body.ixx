@@ -328,7 +328,6 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
     if (_texture.size() > 0)
         bindings.texture = { 5, _texture.deschandle() };
 
-
     uint const numasthreads = static_cast<uint>(std::ceil(static_cast<float>(dispatch_params.numprims) / static_cast<float>(ASGROUP_SIZE * dispatch_params.maxprims_permsgroup)));
     stdx::cassert(numasthreads < 128);
     memcpy(bindings.rootconstants.values.data(), &dispatch_params, sizeof(dispatch_params));
