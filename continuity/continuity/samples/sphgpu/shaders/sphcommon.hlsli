@@ -1,8 +1,6 @@
 #pragma once
 #include "assets/common.hlsli"
 
-#define FLT_EPSILON 1e-9f
-
 // globals
 // various dispatch params(numprims, etc)
 // particle data buffer
@@ -23,6 +21,7 @@ struct sphgpu_dispatch_params
     float poly6gradcoeff;
     float spikycoeff;
     float viscositylapcoeff;
+    float isolevel;
 };
 
 struct particle_data
@@ -39,8 +38,14 @@ struct particle_data
 
 #define ROOTSIG_SPHGPU "CBV(b0), \
                         UAV(u0), \
+                        UAV(u1), \
+                        UAV(u2), \
+                        UAV(u3), \
                         RootConstants(b1, num32bitconstants=20), \
                         "
 
 ConstantBuffer<sphgpu_dispatch_params> sph_dispatch_params : register(b1);
 RWStructuredBuffer<particle_data> particledata: register(u0);
+RWStructuredBuffer<uint> isosurface_vertices_counter : register(u2);
+RWStructuredBuffer<uint3> render_dipatchargs : register(u1);
+RWStructuredBuffer<float3> isosurface_vertices : register(u3);

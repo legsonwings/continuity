@@ -18,4 +18,13 @@ void main(uint dtid : SV_DispatchThreadID)
  
     particledata[dtid].rho = max(particledata[dtid].rho, sph_dispatch_params.rho0);
     particledata[dtid].pr = sph_dispatch_params.k * (particledata[dtid].rho - sph_dispatch_params.rho0);
+    
+    if(dtid == 0)
+    {
+        // reset vertices count here and render dispatch args
+        isosurface_vertices_counter[0] = 0;
+        render_dipatchargs[0][0] = 0;
+        render_dipatchargs[0][1] = 1;
+        render_dipatchargs[0][2] = 1;
+    }
 }

@@ -3,6 +3,7 @@ module;
 #include "simplemath/simplemath.h"
 #include <d3d12.h>
 #include "thirdparty/d3dx12.h"
+#include "thirdparty/dxhelpers.h"
 
 module sphgpu;
 
@@ -92,6 +93,11 @@ float sphgpu::computetimestep() const
     //return std::max(mintimestep, std::min({ counrant_safetyconst * h / maxv, std::sqrt(h / maxa), counrant_safetyconst * h / maxc }));
 }
 
+UINT dispatchsize(uint total_workitems, uint threads_pergroup)
+{
+    return static_cast<UINT>((total_workitems + threads_pergroup - 1) / threads_pergroup);
+}
+
 gfx::resourcelist sphgpu::create_resources()
 {
     using geometry::cube;
@@ -121,21 +127,49 @@ gfx::resourcelist sphgpu::create_resources()
     globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Transpose();
     globalres.cbuffer().updateresource();
 
-    globalres.addpso("sphgpu_render_particles", L"", L"sph_render_particles_ms.cso", L"default_ps.cso");
+    globalres.addpso("sphgpu_render_particles", L"", L"sph_render_particles_ms.cso", L"sph_render_particles_ps.cso");
     globalres.addcomputepso("sphgpuinit", L"sphgpuinit_cs.cso");
     globalres.addcomputepso("sphgpudensitypressure", L"sphgpu_densitypressure_cs.cso");
     globalres.addcomputepso("sphgpuposition", L"sphgpu_position_cs.cso");
+    globalres.addcomputepso("marchingcubes", L"marchingcubes_cs.cso");
+
+    //auto const& render_pso = globalres.psomap().find("sphgpu_render_particles")->second;
+
+     // todo : add engine support for indirect dispatch
+     // command signature used for indirect drawing.
+    {
+        D3D12_INDIRECT_ARGUMENT_DESC argumentDesc;
+        argumentDesc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH;
+
+        D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
+        commandSignatureDesc.pArgumentDescs = &argumentDesc;
+        commandSignatureDesc.NumArgumentDescs = 1u;
+        commandSignatureDesc.ByteStride = sizeof(D3D12_DISPATCH_ARGUMENTS);
+
+        ThrowIfFailed(globalres.device()->CreateCommandSignature(&commandSignatureDesc, nullptr, IID_PPV_ARGS(&render_commandsig)));
+        NAME_D3D12_OBJECT(render_commandsig);
+    }
 
     // since these use static vertex buffers, just send 0 as maxverts
     boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{ roomextents } }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });
 
     gfx::resourcelist res;
-
     for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) { stdx::append(b->create_resources(), res); };
 
     // todo : is there a way to know exactly size of particle data in cpu
+    // todo : there is, use common header for cpp and hlsl struct, take care of padding
     static constexpr uint particle_datasize = 72;
-    databuffer.createresources(numparticles * particle_datasize);
+
+    databuffer.createresources("particledata", numparticles * particle_datasize);
+
+    // todo : creating the counter before vertices buffer causes a crash
+    // what the fuck
+
+    // each marching cube can write upto 5 triangles(15 float3's)
+    // this should be enough for a marching cube volume of 20x20x20(assuming iso surface is a cube)
+    isosurface_vertices.createresources("isosurface_vertices", 10000);
+    isosurface_vertices_counter.createresources("isosurface_vertices_counter", sizeof(uint32_t));
+    render_args.createresources("render_dispatch_args", sizeof(D3D12_DISPATCH_ARGUMENTS));
 
     // dispatch initialization compute shader
     {
@@ -162,12 +196,12 @@ gfx::resourcelist sphgpu::create_resources()
         cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
         cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
         cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetComputeRoot32BitConstants(2, 11, &rootconstants, 0);
+        cmd_list->SetComputeRoot32BitConstants(5, 11, &rootconstants, 0);
 
-        uint const dispatchx = stdx::ceil(float(numparticles) / 64.0f);
+        UINT const dispatchx = dispatchsize(numparticles, 64);
         cmd_list->Dispatch(dispatchx, 1, 1);
 
-        auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(databuffer._buffer.Get());
+        auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(databuffer.d3dresource.Get());
         cmd_list->ResourceBarrier(1, &uavBarrier);
     }
 
@@ -223,7 +257,7 @@ void sphgpu::render(float dt)
     rootconstants.spikycoeff = spikykernelcoeff();
     rootconstants.viscositylapcoeff = viscositylaplaciancoeff();
 
-    uint const dispatchx = stdx::ceil(float(numparticles) / 64.0f);
+    UINT const dispatchx = dispatchsize(numparticles, 64);
 
     auto cmd_list = globalres.cmdlist();
 
@@ -237,7 +271,7 @@ void sphgpu::render(float dt)
         cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
         cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
         cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetComputeRoot32BitConstants(2, 18, &rootconstants, 0);
+        cmd_list->SetComputeRoot32BitConstants(5, 18, &rootconstants, 0);
 
         // todo : handle time step 
 
@@ -245,10 +279,12 @@ void sphgpu::render(float dt)
         // density and pressure
         {
             cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-            cmd_list->Dispatch(dispatchx, 1, 1);
+            cmd_list->SetComputeRootUnorderedAccessView(3, isosurface_vertices_counter.gpuaddress());
+            cmd_list->SetComputeRootUnorderedAccessView(2, render_args.gpuaddress());
+            
+            gfx::uav_barrier(cmd_list, databuffer, isosurface_vertices_counter,render_args);
 
-            auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(databuffer._buffer.Get());
-            cmd_list->ResourceBarrier(1, &uavBarrier);
+            cmd_list->Dispatch(dispatchx, 1, 1);
         }
 
         // acceleration, velocity and position
@@ -256,10 +292,24 @@ void sphgpu::render(float dt)
             auto const& pipelineobjects = globalres.psomap().find("sphgpuposition")->second;
 
             cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-            cmd_list->Dispatch(dispatchx, 1, 1);
 
-            auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(databuffer._buffer.Get());
-            cmd_list->ResourceBarrier(1, &uavBarrier);
+            gfx::uav_barrier(cmd_list, databuffer);
+
+            cmd_list->Dispatch(dispatchx, 1, 1);
+        }
+
+        // polygonization
+        {
+            auto const& pipelineobjects = globalres.psomap().find("marchingcubes")->second;
+
+            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+            cmd_list->SetComputeRootUnorderedAccessView(3, isosurface_vertices_counter.gpuaddress());
+            cmd_list->SetComputeRootUnorderedAccessView(2, render_args.gpuaddress());
+            cmd_list->SetComputeRootUnorderedAccessView(4, isosurface_vertices.gpuaddress());
+
+            gfx::uav_barrier(cmd_list, databuffer, isosurface_vertices, isosurface_vertices_counter, render_args);
+
+            cmd_list->Dispatch(dispatchx, 1, 1);
         }
     }
 
@@ -271,10 +321,11 @@ void sphgpu::render(float dt)
         cmd_list->SetGraphicsRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
         cmd_list->SetPipelineState(pipelineobjects.pso.Get());
         cmd_list->SetGraphicsRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetGraphicsRoot32BitConstants(2, 18, &rootconstants, 0);
+        cmd_list->SetComputeRootUnorderedAccessView(4, isosurface_vertices.gpuaddress());
+        cmd_list->SetGraphicsRoot32BitConstants(5, 18, &rootconstants, 0);
 
-        uint const dispatchx = stdx::ceil(float(numparticles) / 128.0f);
-        stdx::cassert(dispatchx < 65536u, "Dispatch dimentsion limit reached");
-        cmd_list->DispatchMesh(dispatchx, 1, 1);
+        gfx::uav_barrier(cmd_list, isosurface_vertices, isosurface_vertices, isosurface_vertices_counter, render_args);
+
+        cmd_list->ExecuteIndirect(render_commandsig.Get(), 1u, render_args.d3dresource.Get(), 0u, nullptr, 0u);
     }
 }

@@ -3,6 +3,8 @@ module;
 #include <wrl.h>
 #include <d3d12.h>
 #include "thirdparty/d3dx12.h"
+#include <atlbase.h>
+#include <atlconv.h>
 
 // create a module gfx core
 // todo : find a place for shared constants
@@ -194,6 +196,8 @@ struct alignas(256) sceneconstants
     uint32_t numpointlights;
 };
 
+struct resource;
+
 // gfx core
 
 using psomapref = std::unordered_map<std::string, pipeline_objects> const&;
@@ -212,13 +216,32 @@ ComPtr<ID3D12Resource> create_uploadbuffer(std::byte** mapped_buffer, uint const
 ComPtr<ID3D12Resource> create_uploadbufferunmapped(uint const buffersize);
 ComPtr<ID3D12DescriptorHeap> createsrvdescriptorheap(D3D12_DESCRIPTOR_HEAP_DESC heapdesc);
 void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* srvheap, uint heapslot = 0);
-ComPtr<ID3D12Resource> create_defaultbuffer(std::size_t const b_size);
+ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size);
 default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const b_size);
 ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format);
 uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata);
 D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, UINT64 perframe_buffersize);
 void update_perframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize);
 void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, uint const perframe_buffersize);
+
+template<typename... args>
+void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... resources)
+{
+	constexpr int num_var_args = sizeof ... (args);
+	static_assert(num_var_args > 0);
+
+	// we could have done this using tuple, but unfortunately tuple::get<i> is not constexpr so we need to allocate an array
+	// maybe use a custom tuple?
+	// auto tuple = std::tie(resources...);
+	resource resources_array[num_var_args] = { resources... };
+
+	std::array<CD3DX12_RESOURCE_BARRIER, num_var_args> barriers;
+	for (auto i : stdx::range(num_var_args))
+		barriers[i] = CD3DX12_RESOURCE_BARRIER::UAV(resources_array[i].d3dresource.Get());
+
+	cmdlist->ResourceBarrier(barriers.size(), barriers.data());
+}
+
 // helpers
 
 struct cballocationhelper
@@ -275,19 +298,25 @@ struct staticbuffer
 	ComPtr<ID3D12Resource> _buffer;
 };
 
-// buffer for use by gpu only
-struct staticgpubuffer
+// todo : make other classes use this
+struct resource
 {
-	void createresources(uint buffersize)
+	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return d3dresource->GetGPUVirtualAddress(); }
+
+	uint ressize = 0;
+	ComPtr<ID3D12Resource> d3dresource;
+};
+
+// todo : specify type using a template
+struct structuredbuffer : public resource
+{
+	void createresources(std::string name, uint buffersize)
 	{
-		_size = buffersize;
-		_buffer = create_defaultbuffer(buffersize);
+		ressize = buffersize;
+		d3dresource = create_default_uavbuffer(buffersize);
+		stdx::cassert(d3dresource != nullptr);
+		d3dresource->SetName(CA2W(name.c_str()));
 	}
-
-	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return _buffer->GetGPUVirtualAddress(); }
-
-	uint _size = 0;
-	ComPtr<ID3D12Resource> _buffer;
 };
 
 template<typename t>

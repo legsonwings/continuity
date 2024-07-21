@@ -187,5 +187,11 @@
     <FxCompile Include="samples\sphgpu\shaders\sph_render_particles_ms.hlsl">
       <Filter>samples\sphgpu\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\marchingcubes_cs.hlsl">
+      <Filter>samples\sphgpu\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sph_render_particles_ps.hlsl">
+      <Filter>samples\sphgpu\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

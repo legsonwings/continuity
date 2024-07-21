@@ -323,8 +323,7 @@ void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource
     device->CreateShaderResourceView(resource, &srvdesc, deschandle);
 }
 
-// todo : rename this to uav
-ComPtr<ID3D12Resource> create_defaultbuffer(std::size_t const b_size)
+ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size)
 {
     auto device = globalresources::get().device();
     auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);

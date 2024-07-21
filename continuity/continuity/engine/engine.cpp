@@ -221,7 +221,6 @@ void continuity::load_pipeline()
     pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // less-equal depth test w/ writes; no stencil
     pso_desc.SampleMask = UINT_MAX;
     pso_desc.SampleDesc = DefaultSampleDesc();
-    pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
     gfx::globalresources::get().psodesc(pso_desc);
     gfx::globalresources::get().init();

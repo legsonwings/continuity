@@ -1,6 +1,7 @@
 module;
 
 #include "simplemath/simplemath.h"
+#include "thirdparty/d3dx12.h"
 
 export module sphgpu;
 
@@ -39,7 +40,12 @@ private:
 
 	float computetimestep() const;
 
-	gfx::staticgpubuffer databuffer;
+	gfx::structuredbuffer databuffer;
+	gfx::structuredbuffer isosurface_vertices_counter;
+	gfx::structuredbuffer isosurface_vertices;
+	gfx::structuredbuffer render_args;
+
+	Microsoft::WRL::ComPtr<ID3D12CommandSignature> render_commandsig;
 
 	std::vector<gfx::body_static<geometry::cube>> boxes;
 };
