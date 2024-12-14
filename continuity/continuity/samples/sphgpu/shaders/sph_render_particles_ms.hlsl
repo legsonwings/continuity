@@ -1,7 +1,20 @@
 #include "sphcommon.hlsli"
 
+// todo : do this per vert?
 #define TRIANGLES_PER_GROUP 85
 #define THREADGROUP_X TRIANGLES_PER_GROUP
+
+//meshshadervertex getvertattribute(vertexin vertex)
+//{
+//    meshshadervertex outvert;
+    
+//    float4 const pos = float4(vertex.position, 1.f);
+//    outvert.position = mul(pos, objectconstants.matx).xyz;
+//    outvert.positionh = mul(pos, objectconstants.mvpmatx);
+//    outvert.normal = normalize(mul(float4(vertex.normal, 0), objectconstants.normalmatx).xyz);
+    
+//    return outvert;
+//}
 
 [RootSignature(ROOTSIG_SPHGPU)]
 [NumThreads(THREADGROUP_X, 1, 1)]
@@ -14,42 +27,35 @@ void main(
     out vertices meshshadervertex verts[TRIANGLES_PER_GROUP * 3]
 )
 {
-    uint const numprims = min(sph_dispatch_params.numparticles - gid * THREADGROUP_X, THREADGROUP_X);
+    uint const numprims = min((isosurface_vertices_counter[0] / 3u) - (gid * TRIANGLES_PER_GROUP), TRIANGLES_PER_GROUP);
     SetMeshOutputCounts(numprims * 3, numprims);
 
     meshshadervertex v0, v1, v2;
     
-    if (gtid < sph_dispatch_params.numparticles)
+    if (dtid < numprims)
     {
-        float const triradius = 0.25f;
-        float3 const center = particledata[dtid].p;
-
-        float4 v0p = float4(center + float3(triradius * float2(0.0f, 1.0f), 0.0f), 1.0f);
-        float4 v1p = float4(center + float3(triradius * float2(0.866f, -0.5f), 0.0f), 1.0f);
-        float4 v2p = float4(center + float3(triradius * float2(-0.866f, -0.5f), 0.0f), 1.0f);
-
-        v0.instanceid = 0u;
-        v1.instanceid = 0u;
-        v2.instanceid = 0u;
-
-        v0.position = v0p.xyz;
-        v1.position = v1p.xyz;
-        v2.position = v2p.xyz;
-        v0.positionh = mul(v0p, globals.viewproj);
-        v1.positionh = mul(v1p, globals.viewproj);
-        v2.positionh = mul(v2p, globals.viewproj);
-   
-        v0.normal = float3(0.0, 0.0, 1.0);
-        v1.normal = float3(0.0, 0.0, 1.0);
-        v2.normal = float3(0.0, 0.0, 1.0);
-    
-        // out buffers are local to group
-        int v0idx = gtid * 3;
-        int v1idx = v0idx + 1;
-        int v2idx = v0idx + 2;
+        // the out buffers are local to group but input buffer is global
+        uint v0idx = gtid * 3;
+        uint v1idx = v0idx + 1;
+        uint v2idx = v0idx + 2;
 
         tris[gtid] = uint3(v0idx, v1idx, v2idx);
+        uint in_vertstart = (gid * TRIANGLES_PER_GROUP + gtid) * 3;
 
+        v0.position = isosurface_vertices[in_vertstart];
+        v1.position = isosurface_vertices[in_vertstart + 1];
+        v2.position = isosurface_vertices[in_vertstart + 2];        
+
+        float3 const trinormal = normalize(cross(v1.position - v0.position, v2.position - v1.position));
+
+        v0.normal = trinormal;
+        v1.normal = trinormal;
+        v2.normal = trinormal;
+
+        v0.positionh = mul(float4(v0.position, 1.0f), globals.viewproj);
+        v1.positionh = mul(float4(v1.position, 1.0f), globals.viewproj);
+        v2.positionh = mul(float4(v2.position, 1.0f), globals.viewproj);
+        
         verts[v0idx] = v0;
         verts[v1idx] = v1;
         verts[v2idx] = v2;

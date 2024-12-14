@@ -477,7 +477,7 @@ std::vector<vector3> fillwithspheres(geometry::aabb const& box, uint count, floa
 }
 
 // params
-static constexpr uint numparticles = 1;
+static constexpr uint numparticles = 3;
 static constexpr float roomextents = 1.6f;
 static constexpr float particleradius = 0.1f;
 static constexpr float h = 0.2f; // smoothing kernel constant
@@ -608,6 +608,42 @@ constexpr float viscositylaplaciancoeff()
 {
     return 45.0f / (XM_PI * stdx::pown(h, 6u));
 }
+
+// optimized distance computation that exploits symmetry of square
+//void computegridval(std::vector<sphfluid::params> const& particleparams, vector3* pos, float* o_val)
+//{
+//    static constexpr float halfextent = 0.1f / 2.0f;
+//    static constexpr float a2 = 3.0f * halfextent * halfextent;
+//    vector3 const cellcenter = pos[0] + vector3(halfextent);
+//
+//    for (auto param : particleparams)
+//    {
+//        float rcp_rho = 1.0f / param.rho;
+//        vector3 const c = param.p - cellcenter;
+//        float const c2 = c.LengthSquared();
+//
+//        float const t0 = a2 + c2;
+//        static constexpr float t1 = 2.0f;
+//
+//        vector3 ac = c * halfextent;
+//
+//        // note : the vertices should be sorted to form a rectangular contour
+//        o_val[0] += stdx::pown(std::max(0.0f, hsqr - (t0 + t1 * (ac.x + ac.y + ac.z))), 3) * rcp_rho;
+//        o_val[1] += stdx::pown(std::max(0.0f, hsqr - (t0 - t1 * (ac.x - ac.y - ac.z))), 3) * rcp_rho;
+//        o_val[2] += stdx::pown(std::max(0.0f, hsqr - (t0 - t1 * (ac.x + ac.y - ac.z))), 3) * rcp_rho;
+//        o_val[3] += stdx::pown(std::max(0.0f, hsqr - (t0 - t1 * (ac.y - ac.z - ac.x))), 3) * rcp_rho;
+//
+//        o_val[4] += stdx::pown(std::max(0.0f, hsqr - (t0 - t1 * (ac.z - ac.x - ac.y))), 3) * rcp_rho;
+//        o_val[5] += stdx::pown(std::max(0.0f, hsqr - (t0 - t1 * (ac.x - ac.y + ac.z))), 3) * rcp_rho;
+//        o_val[6] += stdx::pown(std::max(0.0f, hsqr - (t0 - t1 * (ac.x + ac.y + ac.z))), 3) * rcp_rho;
+//        o_val[7] += stdx::pown(std::max(0.0f, hsqr - (t0 - t1 * (ac.y + ac.z - ac.x))), 3) * rcp_rho;
+//    }
+//
+//    for (uint j(0u); j < 8; ++j)
+//    {
+//        o_val[j] *= poly6kernelcoeff();
+//    }
+//}
 
 void sphfluid::update(float dt)
 {

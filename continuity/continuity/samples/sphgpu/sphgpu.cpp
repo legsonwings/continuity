@@ -25,7 +25,7 @@ std::unique_ptr<sample_base> create_instance<samples::sphgpu>(view_data const& d
 using namespace DirectX;
 
 // params
-static constexpr uint numparticles = 49;
+static constexpr uint numparticles = 2;
 static constexpr float roomextents = 1.6f;
 static constexpr float particleradius = 0.1f;
 static constexpr float h = 0.2f; // smoothing kernel constant
@@ -41,6 +41,7 @@ static constexpr float isolevelsqr = isolevel * isolevel;
 static constexpr float maxacc = 100.0;
 static constexpr float maxspeed = 20.0f;
 static constexpr float sqrt2 = 1.41421356237f;
+static constexpr float marchingcube_size = 0.1f;
 
 constexpr float poly6kernelcoeff()
 {
@@ -127,7 +128,8 @@ gfx::resourcelist sphgpu::create_resources()
     globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Transpose();
     globalres.cbuffer().updateresource();
 
-    globalres.addpso("sphgpu_render_particles", L"", L"sph_render_particles_ms.cso", L"sph_render_particles_ps.cso");
+    globalres.addpso("sphgpu_render_particles", L"", L"sph_render_particles_ms.cso", L"sph_render_particles_ps.cso", gfx::psoflags::transparent | gfx::psoflags::twosided);
+    globalres.addpso("sphgpu_render_debugparticles", L"", L"sph_render_debugparticles_ms.cso", L"sph_render_particles_ps.cso");
     globalres.addcomputepso("sphgpuinit", L"sphgpuinit_cs.cso");
     globalres.addcomputepso("sphgpudensitypressure", L"sphgpu_densitypressure_cs.cso");
     globalres.addcomputepso("sphgpuposition", L"sphgpu_position_cs.cso");
@@ -166,8 +168,8 @@ gfx::resourcelist sphgpu::create_resources()
     // what the fuck
 
     // each marching cube can write upto 5 triangles(15 float3's)
-    // this should be enough for a marching cube volume of 20x20x20(assuming iso surface is a cube)
-    isosurface_vertices.createresources("isosurface_vertices", 10000);
+    // this can store 66,660 vertices
+    isosurface_vertices.createresources("isosurface_vertices", 1000000);
     isosurface_vertices_counter.createresources("isosurface_vertices_counter", sizeof(uint32_t));
     render_args.createresources("render_dispatch_args", sizeof(D3D12_DISPATCH_ARGUMENTS));
 
@@ -222,7 +224,15 @@ void sphgpu::render(float dt)
     globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Transpose();
     globalres.cbuffer().updateresource();
 
+    // render the room inner walls
     for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) b->render(dt, { false });
+    
+    // we need two additional marches in each dimensions so that we don't miss isosurface really close to the wall due to precision issues
+    // because of particles near the walls we can have isosurfaces outside the bounds
+    // in this case just two marches is not enough in each dimension as for large 'h' the additional cubes might never intersect surface of a sphere of radius 'h'
+    static constexpr bool collect_isosurfaces_outside_bounds = true;
+    uint const additional_marches_perdim = (collect_isosurfaces_outside_bounds ? stdx::ceil(h / marchingcube_size) : 1u) * 2u;
+    uint const marches_perdim = stdx::ceil(roomextents / marchingcube_size) + additional_marches_perdim;
 
     struct
     {
@@ -230,21 +240,27 @@ void sphgpu::render(float dt)
         float dt;
         float particleradius;
         float h;
-        float containerorigin[3];
+        stdx::vec3 containerorigin; // todo : is anything going to need this?
         float hsqr;
-        float containerextents[3];
+        stdx::vec3 containerextents;
         float k;
+        stdx::vec3 marchingcubeoffset;
         float rho0;
         float viscosityconstant;
         float poly6coeff;
         float poly6gradcoeff;
         float spikycoeff;
         float viscositylapcoeff;
+        float isolevel;
+        float marchingcubesize;
     } rootconstants;
 
+    constexpr auto halfextents = roomextents / 2.0f;
+
     rootconstants.numparticles = numparticles;
-    rootconstants.containerorigin[0] = rootconstants.containerorigin[1] = rootconstants.containerorigin[2] = 0.0f;
-    rootconstants.containerextents[0] = rootconstants.containerextents[1] = rootconstants.containerextents[2] = roomextents;
+    rootconstants.containerorigin = stdx::vec3::fill(0.0f);
+    rootconstants.containerextents = stdx::vec3::fill(roomextents);
+    rootconstants.marchingcubeoffset = rootconstants.containerorigin - stdx::vec3::fill(halfextents + (additional_marches_perdim / 2u) * marchingcube_size);
     rootconstants.dt = dt;
     rootconstants.particleradius = particleradius;
     rootconstants.h = h;
@@ -256,8 +272,11 @@ void sphgpu::render(float dt)
     rootconstants.poly6gradcoeff = poly6gradcoeff();
     rootconstants.spikycoeff = spikykernelcoeff();
     rootconstants.viscositylapcoeff = viscositylaplaciancoeff();
+    rootconstants.isolevel = isolevel;
+    rootconstants.marchingcubesize = marchingcube_size;
 
-    UINT const dispatchx = dispatchsize(numparticles, 64);
+    UINT const simdispatchx = dispatchsize(numparticles, 64);
+    UINT const marchingcubesdispatch = UINT(marches_perdim);
 
     auto cmd_list = globalres.cmdlist();
 
@@ -271,10 +290,9 @@ void sphgpu::render(float dt)
         cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
         cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
         cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetComputeRoot32BitConstants(5, 18, &rootconstants, 0);
+        cmd_list->SetComputeRoot32BitConstants(5, 23, &rootconstants, 0);
 
         // todo : handle time step 
-
         // simulation passes
         // density and pressure
         {
@@ -284,7 +302,7 @@ void sphgpu::render(float dt)
             
             gfx::uav_barrier(cmd_list, databuffer, isosurface_vertices_counter,render_args);
 
-            cmd_list->Dispatch(dispatchx, 1, 1);
+            cmd_list->Dispatch(simdispatchx, 1, 1);
         }
 
         // acceleration, velocity and position
@@ -295,7 +313,7 @@ void sphgpu::render(float dt)
 
             gfx::uav_barrier(cmd_list, databuffer);
 
-            cmd_list->Dispatch(dispatchx, 1, 1);
+            cmd_list->Dispatch(simdispatchx, 1, 1);
         }
 
         // polygonization
@@ -309,23 +327,42 @@ void sphgpu::render(float dt)
 
             gfx::uav_barrier(cmd_list, databuffer, isosurface_vertices, isosurface_vertices_counter, render_args);
 
-            cmd_list->Dispatch(dispatchx, 1, 1);
+            cmd_list->Dispatch(marchingcubesdispatch, marchingcubesdispatch, marchingcubesdispatch);
         }
     }
 
     // rendering
     {
-        auto const& pipelineobjects = globalres.psomap().find("sphgpu_render_particles")->second;
+        bool debugp = true;
+        if (debugp)
+        {
+            auto const& pipelineobjects = globalres.psomap().find("sphgpu_render_debugparticles")->second;
 
-        cmd_list->SetGraphicsRootSignature(pipelineobjects.root_signature.Get());
-        cmd_list->SetGraphicsRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
-        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-        cmd_list->SetGraphicsRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetComputeRootUnorderedAccessView(4, isosurface_vertices.gpuaddress());
-        cmd_list->SetGraphicsRoot32BitConstants(5, 18, &rootconstants, 0);
+            cmd_list->SetGraphicsRootSignature(pipelineobjects.root_signature.Get());
+            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+            cmd_list->SetGraphicsRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
+            cmd_list->SetGraphicsRootUnorderedAccessView(1, databuffer.gpuaddress());
+            cmd_list->SetGraphicsRoot32BitConstants(5, 23, &rootconstants, 0);
 
-        gfx::uav_barrier(cmd_list, isosurface_vertices, isosurface_vertices, isosurface_vertices_counter, render_args);
+            UINT const dispatchdebugx = dispatchsize(numparticles, 85);
+            stdx::cassert(dispatchdebugx < 65536u, "Dispatch dimentsion limit reached");
+            cmd_list->DispatchMesh(dispatchdebugx, 1, 1);
+        }
 
-        cmd_list->ExecuteIndirect(render_commandsig.Get(), 1u, render_args.d3dresource.Get(), 0u, nullptr, 0u);
+        {
+            auto const& pipelineobjects = globalres.psomap().find("sphgpu_render_particles")->second;
+
+            cmd_list->SetGraphicsRootSignature(pipelineobjects.root_signature.Get());
+            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+            cmd_list->SetGraphicsRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
+            cmd_list->SetGraphicsRootUnorderedAccessView(1, databuffer.gpuaddress());
+            cmd_list->SetGraphicsRootUnorderedAccessView(3, isosurface_vertices_counter.gpuaddress());
+            cmd_list->SetGraphicsRootUnorderedAccessView(4, isosurface_vertices.gpuaddress());
+            cmd_list->SetGraphicsRoot32BitConstants(5, 23, &rootconstants, 0);
+
+            gfx::uav_barrier(cmd_list, isosurface_vertices, isosurface_vertices_counter, render_args);
+
+            cmd_list->ExecuteIndirect(render_commandsig.Get(), 1u, render_args.d3dresource.Get(), 0u, nullptr, 0u);
+        }
     }
 }

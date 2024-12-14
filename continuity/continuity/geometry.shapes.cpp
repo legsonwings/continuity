@@ -224,7 +224,7 @@ aabb const& cube::bbox() const
 
 std::vector<gfx::vertex> cube::vertices() const
 {
-    return create_cube(center, extents);
+    return create_cube(vector3::Zero, extents);
 }
 
 std::vector<gfx::vertex> cube::vertices_flipped() const

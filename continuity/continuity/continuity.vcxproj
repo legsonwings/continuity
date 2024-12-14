@@ -123,6 +123,7 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">6.7</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">6.7</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
     </FxCompile>
     <FxCompile Include="samples\sphgpu\shaders\sphgpuinit_cs.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
@@ -161,6 +162,12 @@
       <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</AllResourcesBound>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</AllResourcesBound>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sph_render_debugparticles_ms.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Mesh</ShaderType>
     </FxCompile>
     <FxCompile Include="samples\sphgpu\shaders\sph_render_particles_ms.hlsl">
       <AllResourcesBound Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</AllResourcesBound>

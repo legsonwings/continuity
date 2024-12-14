@@ -230,7 +230,7 @@ void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... res
 	constexpr int num_var_args = sizeof ... (args);
 	static_assert(num_var_args > 0);
 
-	// we could have done this using tuple, but unfortunately tuple::get<i> is not constexpr so we need to allocate an array
+	// could have done this using tuple, but unfortunately tuple::get<i> is not constexpr so we need to allocate an array
 	// maybe use a custom tuple?
 	// auto tuple = std::tie(resources...);
 	resource resources_array[num_var_args] = { resources... };
@@ -239,7 +239,7 @@ void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... res
 	for (auto i : stdx::range(num_var_args))
 		barriers[i] = CD3DX12_RESOURCE_BARRIER::UAV(resources_array[i].d3dresource.Get());
 
-	cmdlist->ResourceBarrier(barriers.size(), barriers.data());
+	cmdlist->ResourceBarrier((UINT)barriers.size(), barriers.data());
 }
 
 // helpers
@@ -371,7 +371,7 @@ class globalresources
 	std::wstring _assetspath;
 	constantbuffer<sceneconstants> _cbuffer;
 	ComPtr<ID3D12DescriptorHeap> _srvheap;
-	ComPtr<ID3D12Device2> _device;
+	ComPtr<ID3D12Device5> _device;
 	std::vector<ComPtr<ID3D12RootSignature>> _rootsig;
 	ComPtr<ID3D12GraphicsCommandList6> _commandlist;
 	std::unordered_map<std::string, pipeline_objects> _psos;
@@ -389,7 +389,7 @@ public:
 	matmapref matmap() const;
 	materialcref defaultmat() const;
 	constantbuffer<sceneconstants>& cbuffer();
-	ComPtr<ID3D12Device2>& device();
+	ComPtr<ID3D12Device5>& device();
 	ComPtr<ID3D12DescriptorHeap>& srvheap();
 	ComPtr<ID3D12GraphicsCommandList6>& cmdlist();
 	void frameindex(uint idx);

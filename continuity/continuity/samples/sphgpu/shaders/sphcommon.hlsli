@@ -15,6 +15,7 @@ struct sphgpu_dispatch_params
     float hsqr;
     float3 containerextents;
     float k;  // pressure constant
+    float3 marchingcubeoffset;
     float rho0; // reference density
     float viscosityconstant;
     float poly6coeff;
@@ -22,6 +23,7 @@ struct sphgpu_dispatch_params
     float spikycoeff;
     float viscositylapcoeff;
     float isolevel;
+    float marchingcubesize;
 };
 
 struct particle_data
@@ -41,7 +43,7 @@ struct particle_data
                         UAV(u1), \
                         UAV(u2), \
                         UAV(u3), \
-                        RootConstants(b1, num32bitconstants=20), \
+                        RootConstants(b1, num32bitconstants=23), \
                         "
 
 ConstantBuffer<sphgpu_dispatch_params> sph_dispatch_params : register(b1);

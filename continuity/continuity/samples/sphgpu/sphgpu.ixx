@@ -48,6 +48,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12CommandSignature> render_commandsig;
 
 	std::vector<gfx::body_static<geometry::cube>> boxes;
+
+	bool debugmarch = false;
 };
 
 

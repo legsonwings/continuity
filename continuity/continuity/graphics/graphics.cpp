@@ -105,7 +105,7 @@ matmapref globalresources::matmap() const { return _materials; }
 materialcref globalresources::defaultmat() const { return _defaultmat; }
 constantbuffer<sceneconstants>& globalresources::cbuffer() { return _cbuffer; }
 ComPtr<ID3D12DescriptorHeap>& globalresources::srvheap() { return _srvheap; }
-ComPtr<ID3D12Device2>& globalresources::device() { return _device; }
+ComPtr<ID3D12Device5>& globalresources::device() { return _device; }
 ComPtr<ID3D12GraphicsCommandList6>& globalresources::cmdlist() { return _commandlist; }
 void globalresources::frameindex(uint idx) { _frameindex = idx; }
 uint globalresources::frameindex() const { return _frameindex; }

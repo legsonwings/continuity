@@ -327,85 +327,148 @@ uint2 edgevertexpair(uint index)
 
 [RootSignature(ROOTSIG_SPHGPU)]
 [numthreads(64, 1, 1)]
-void main(uint dtid : SV_DispatchThreadID)
+void main(uint3 dtid : SV_DispatchThreadID)
 {
-    // todo : send these as params
-    // todo : srv buffer
-    // todo : uav tri buffer
-    float3 container_minpt = (float3)0.0f;
-    float marchingcubesize = 1.0f;
-    uint nummarches_perdim = 100u;
-    uint3 const cell = uint3(dtid % nummarches_perdim, (dtid / nummarches_perdim) % nummarches_perdim, dtid / (nummarches_perdim * nummarches_perdim));
+    uint3 const cell = dtid;
+    
+    float const marchingcubesize = sph_dispatch_params.marchingcubesize;
+    
+    
+    //float3 cellverts[8];
+    //float cellval[8] = (float [8])0.0f;
+    //cellverts[0] = (cell * marchingcubesize) + sph_dispatch_params.marchingcubeoffset;
+    //cellverts[1] = cellverts[0] + float3(marchingcubesize, 0.0f, 0.0f);
+    //cellverts[2] = cellverts[0] + float3(marchingcubesize, marchingcubesize, 0.0f);
+    //cellverts[3] = cellverts[0] + float3(0.0f, marchingcubesize, 0.0f);
+    
+    //cellverts[4] = cellverts[0] + float3(0.0f, 0.0f, marchingcubesize);
+    //cellverts[5] = cellverts[0] + float3(marchingcubesize, 0.0f, marchingcubesize);
+    //cellverts[6] = cellverts[0] + float3(marchingcubesize, marchingcubesize, marchingcubesize);
+    //cellverts[7] = cellverts[0] + float3(0.0f, marchingcubesize, marchingcubesize);
+
+    //for (uint j = 0; j < sph_dispatch_params.numparticles; ++j)
+    //{
+    //    float const rcprho = rcp(particledata[j].rho);
+    //    for (uint i = 0; i < 8; ++i)
+    //    {
+    //        float3 const diff = particledata[j].p - cellverts[i];
+    //        float const distsqr = dot(diff, diff);
+        
+    //        cellval[i] += pow(max(0.0f, sph_dispatch_params.hsqr - distsqr), 3u) * rcprho;
+    //    }
+    //}
+    
+    //for (uint i = 0; i < 8; ++i)
+    //{
+    //    cellval[i] *= sph_dispatch_params.poly6coeff;
+    //}
+    
+    // optimzied?
+    // extent of the cube
+
+    // todo : pass this as param?
+    // should be optimzied?
+    float const machingcube_halfextent = marchingcubesize / 2.0f;
 
     float3 cellverts[8];
-    float cellval[8];
-    cellverts[0] = cell.x * marchingcubesize + container_minpt;
+    float cellval[8] = (float[8])0.0f;
+    
+    // note : the vertices order is important(should be sorted to form a rectangular contour)
+    // tdoo : maybe can change this
+    cellverts[0] = (cell * marchingcubesize) + sph_dispatch_params.marchingcubeoffset;
     cellverts[1] = cellverts[0] + float3(marchingcubesize, 0.0f, 0.0f);
     cellverts[2] = cellverts[0] + float3(marchingcubesize, marchingcubesize, 0.0f);
     cellverts[3] = cellverts[0] + float3(0.0f, marchingcubesize, 0.0f);
-    
+
     cellverts[4] = cellverts[0] + float3(0.0f, 0.0f, marchingcubesize);
     cellverts[5] = cellverts[0] + float3(marchingcubesize, 0.0f, marchingcubesize);
     cellverts[6] = cellverts[0] + float3(marchingcubesize, marchingcubesize, marchingcubesize);
     cellverts[7] = cellverts[0] + float3(0.0f, marchingcubesize, marchingcubesize);
 
-    for (uint i = 0; i < 8; ++i)
+    float3 const cellcenter = cellverts[0] + machingcube_halfextent.xxx;
+
+    // d is length of corner of square from p
+    // c is length of center of square from p
+
+    //       p
+    //      /|
+    //    d/ |
+    //    /  | c
+    //    ---|----
+    //    |\a|   |
+    //    | \|   |
+    //    |      |
+    //    --------
+
+    // d = a2 + c2 - 2ac * cost(theta)
+    // d = a2 + c2 - 2 * dot(a, c), since cost(theta) = dota(a, c) / (ac) 
+    // a and c are same for all 8 vertices
+    float const a2 = 3.0f * machingcube_halfextent * machingcube_halfextent;
+
+    for (uint j = 0; j < sph_dispatch_params.numparticles; ++j)
     {
-        float c = 0.000000001f;
-        // todo : evaluate colour field
-        cellval[i] = c;
+        float3 const c = particledata[j].p - cellcenter;
+        float const rcprho = rcp(particledata[j].rho);
+        float const c2 = dot(c, c);
+
+        float const t0 = a2 + c2;
+        float const t1 = 2.0f;
+
+        float3 const ac = c * machingcube_halfextent;
+        
+        // note : the vertices order is important(should be sorted to form a rectangular contour)
+        cellval[0] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 + t1 * (ac.x + ac.y + ac.z))), 3) * rcprho;
+        cellval[1] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 - t1 * (ac.x - ac.y - ac.z))), 3) * rcprho;
+        cellval[2] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 - t1 * (ac.x + ac.y - ac.z))), 3) * rcprho;
+        cellval[3] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 - t1 * (ac.y - ac.z - ac.x))), 3) * rcprho;
+
+        cellval[4] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 - t1 * (ac.z - ac.x - ac.y))), 3) * rcprho;
+        cellval[5] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 - t1 * (ac.x - ac.y + ac.z))), 3) * rcprho;
+        cellval[6] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 - t1 * (ac.x + ac.y + ac.z))), 3) * rcprho;
+        cellval[7] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 - t1 * (ac.y + ac.z - ac.x))), 3) * rcprho;
     }
     
-    // todo : use isolevel
+    for (uint i = 0; i < 8; ++i)
+    {
+        cellval[i] *= sph_dispatch_params.poly6coeff;
+    }
+
     uint cubeindex = 0;
     for (uint i = 0; i < 8; ++i)
     {
-        cubeindex |= (1u << i) * (i < 6); // * uint(cellval[i] < sph_dispatch_params.isolevel);
+        cubeindex |= (1u << i) * uint(cellval[i] < sph_dispatch_params.isolevel);
     }
-    
-    uint ntriang = 0;
-    uint vert_start = 0;
-    float3 verts[12];
 
-    // cube is entirely in/out of the surface 
+    uint num_verts = 0;
+    
+    // make sure cube is not entirely in/out of the surface 
     if (edgetable[cubeindex] != -1)
     {
-        // todo : move this below during vertex write, so that we only compute vertices that are needed
-        for (uint i = 0; i < 12; ++i)
+        // todo : we can precompute num_verts for the cube index.
+        for (uint i = 0; tritable[cubeindex][i] != -1; i++)
         {
-            uint2 vpair = edgevertexpair(i);
-            verts[i] = vertexinterp(sph_dispatch_params.isolevel, cellverts[vpair.x], cellverts[vpair.y], cellval[vpair.x], cellval[vpair.y]);
+            num_verts++;
         }
     
-        // todo : we can precompute ntriag(or nverts) for the cube index.
-        for (uint i = 0; tritable[cubeindex][i] != -1; i += 3)
-        {
-            ntriang++;
-        }
-
-        uint const num_verts = ntriang * 3u;
-        
-        uint const wave_total_verts = WaveActiveSum(num_verts);
-    
+        uint wave_vertstart;
+        uint const wave_totalverts = WaveActiveSum(num_verts);
         if (WaveIsFirstLane())
         {
-            InterlockedAdd(isosurface_vertices_counter[0], num_verts, vert_start);
-        
+            InterlockedAdd(isosurface_vertices_counter[0], wave_totalverts, wave_vertstart);
+
             // each thread group can handle 85 tris(255 verts)
             // sadly we have to limit ourselves to this number as each threadgroup can only write a max of 256 verts
             // this means we cannot have a threadgroup size of multiple of wave size, without complicating some logic
-            uint const total_tris_till_wave = (vert_start + wave_total_verts) / 3u;
-            InterlockedMax(render_dipatchargs[0][0], (total_tris_till_wave + 85u - 1u) / 85u);
+            uint const totaltris_till_wave = (wave_vertstart + wave_totalverts) / 3u;
+            InterlockedMax(render_dipatchargs[0][0], (totaltris_till_wave + 85u - 1u) / 85u);
         }
 
-        uint const lane_vert_start = WaveReadLaneFirst(vert_start) + WavePrefixSum(num_verts);
-        
-        // todo : simplify this?
-        for (uint i = 0; tritable[cubeindex][i] != -1; i += 3)
+        uint const lane_vertstart = WaveReadLaneFirst(wave_vertstart) + WavePrefixSum(num_verts);
+
+        for (uint i = 0; tritable[cubeindex][i] != -1; i++)
         {
-            isosurface_vertices[lane_vert_start + i] = verts[tritable[cubeindex][i]];
-            isosurface_vertices[lane_vert_start + i + 1u] = verts[tritable[cubeindex][i + 1]];
-            isosurface_vertices[lane_vert_start + i + 2u] = verts[tritable[cubeindex][i + 2]];
+            uint2 const vpair = edgevertexpair(tritable[cubeindex][i]);
+            isosurface_vertices[lane_vertstart + i] = vertexinterp(sph_dispatch_params.isolevel, cellverts[vpair[0]], cellverts[vpair[1]], cellval[vpair[0]], cellval[vpair[1]]);
         }
     }
 }

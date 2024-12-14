@@ -12,7 +12,7 @@ float4 main(meshshadervertex input) : SV_TARGET
     float3 finalcolor = color;
     
     // todo : alpha should come from material
-    float const alpha = 0.8f;
+    float const alpha = 0.5f;
 
     return float4(finalcolor, alpha);
 }

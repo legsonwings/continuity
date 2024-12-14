@@ -115,6 +115,13 @@ void continuity::load_pipeline()
         throw std::exception("Mesh Shaders aren't supported!");
     }
 
+    D3D12_FEATURE_DATA_D3D12_OPTIONS5 featureSupportData = {};
+    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &featureSupportData, sizeof(featureSupportData))) || featureSupportData.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
+    {
+        OutputDebugStringA("ERROR: Raytracing is not supported!\n");
+        throw std::exception("Raytracing is not supported!");
+    }
+
     // describe and create the command queue.
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
