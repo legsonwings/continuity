@@ -70,20 +70,20 @@ uint texture::size() const
 
 void globalresources::init()
 {
-    WCHAR assetsPath[512];
+    CHAR assetsPath[512];
     GetAssetsPath(assetsPath, _countof(assetsPath));
     _assetspath = assetsPath;
 
-    addpso("lines", L"default_as.cso", L"lines_ms.cso", L"basic_ps.cso");
-    addpso("default", L"default_as.cso", L"default_ms.cso", L"default_ps.cso");
-    addpso("default_twosided", L"default_as.cso", L"default_ms.cso", L"default_ps.cso", psoflags::twosided | psoflags::transparent);
-    addpso("texturess", L"", L"texturess_ms.cso", L"texturess_ps.cso");
-    addpso("instancedlines", L"default_as.cso", L"linesinstances_ms.cso", L"basic_ps.cso");
-    addpso("instanced", L"default_as.cso", L"instances_ms.cso", L"instances_ps.cso");
-    addpso("transparent", L"default_as.cso", L"default_ms.cso", L"default_ps.cso", psoflags::transparent);
-    addpso("transparent_twosided", L"default_as.cso", L"default_ms.cso", L"default_ps.cso", psoflags::transparent | psoflags::twosided);
-    addpso("wireframe", L"default_as.cso", L"default_ms.cso", L"default_ps.cso", psoflags::wireframe | psoflags::transparent);
-    addpso("instancedtransparent", L"default_as.cso", L"instances_ms.cso", L"instances_ps.cso", psoflags::transparent);
+    addpso("lines", "default_as.cso", "lines_ms.cso", "basic_ps.cso");
+    addpso("default", "default_as.cso", "default_ms.cso", "default_ps.cso");
+    addpso("default_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::twosided | psoflags::transparent);
+    addpso("texturess", "", "texturess_ms.cso", "texturess_ps.cso");
+    addpso("instancedlines", "default_as.cso", "linesinstances_ms.cso", "basic_ps.cso");
+    addpso("instanced", "default_as.cso", "instances_ms.cso", "instances_ps.cso");
+    addpso("transparent", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent);
+    addpso("transparent_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent | psoflags::twosided);
+    addpso("wireframe", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::wireframe | psoflags::transparent);
+    addpso("instancedtransparent", "default_as.cso", "instances_ms.cso", "instances_ps.cso", psoflags::transparent);
 
     addmat("black", material().diffuse(color::black));  
 
@@ -109,7 +109,7 @@ ComPtr<ID3D12Device5>& globalresources::device() { return _device; }
 ComPtr<ID3D12GraphicsCommandList6>& globalresources::cmdlist() { return _commandlist; }
 void globalresources::frameindex(uint idx) { _frameindex = idx; }
 uint globalresources::frameindex() const { return _frameindex; }
-std::wstring globalresources::assetfullpath(std::wstring const& path) const { return _assetspath + path; }
+std::string globalresources::assetfullpath(std::string const& path) const { return _assetspath + path; }
 void globalresources::psodesc(D3DX12_MESH_SHADER_PIPELINE_STATE_DESC const& psodesc) { _psodesc = psodesc; }
 materialcref globalresources::addmat(std::string const& name, material const& mat, bool twosided) { return _materials.insert({ name, {mat, twosided} }).first->second; }
 
@@ -126,7 +126,7 @@ materialcref globalresources::mat(std::string const& name)
     return _defaultmat;
 }
 
-void globalresources::addcomputepso(std::string const& name, std::wstring const& cs)
+void globalresources::addcomputepso(std::string const& name, std::string const& cs)
 {
     if (_psos.find(name) != _psos.cend())
     {
@@ -156,7 +156,7 @@ void globalresources::addcomputepso(std::string const& name, std::wstring const&
     ThrowIfFailed(_device->CreatePipelineState(&stream_desc, IID_PPV_ARGS(_psos[name].pso.GetAddressOf())));
 }
 
-void globalresources::addpso(std::string const& name, std::wstring const& as, std::wstring const& ms, std::wstring const& ps, uint flags)
+void globalresources::addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags)
 {
     if (_psos.find(name) != _psos.cend())
     {
@@ -228,6 +228,10 @@ void globalresources::addpso(std::string const& name, std::wstring const& as, st
 
         ThrowIfFailed(_device->CreatePipelineState(&stream_desc_twosides, IID_PPV_ARGS(_psos[name].pso_twosided.GetAddressOf())));
     }
+}
+
+void addraytracingpso(std::string const& libname)
+{
 }
 
 globalresources& globalresources::get()

@@ -128,12 +128,12 @@ gfx::resourcelist sphgpu::create_resources()
     globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Transpose();
     globalres.cbuffer().updateresource();
 
-    globalres.addpso("sphgpu_render_particles", L"", L"sph_render_particles_ms.cso", L"sph_render_particles_ps.cso", gfx::psoflags::transparent | gfx::psoflags::twosided);
-    globalres.addpso("sphgpu_render_debugparticles", L"", L"sph_render_debugparticles_ms.cso", L"sph_render_particles_ps.cso");
-    globalres.addcomputepso("sphgpuinit", L"sphgpuinit_cs.cso");
-    globalres.addcomputepso("sphgpudensitypressure", L"sphgpu_densitypressure_cs.cso");
-    globalres.addcomputepso("sphgpuposition", L"sphgpu_position_cs.cso");
-    globalres.addcomputepso("marchingcubes", L"marchingcubes_cs.cso");
+    globalres.addpso("sphgpu_render_particles", "", "sph_render_particles_ms.cso", "sph_render_particles_ps.cso", gfx::psoflags::transparent | gfx::psoflags::twosided);
+    globalres.addpso("sphgpu_render_debugparticles", "", "sph_render_debugparticles_ms.cso", "sph_render_particles_ps.cso");
+    globalres.addcomputepso("sphgpuinit", "sphgpuinit_cs.cso");
+    globalres.addcomputepso("sphgpudensitypressure", "sphgpu_densitypressure_cs.cso");
+    globalres.addcomputepso("sphgpuposition", "sphgpu_position_cs.cso");
+    globalres.addcomputepso("marchingcubes", "marchingcubes_cs.cso");
 
     //auto const& render_pso = globalres.psomap().find("sphgpu_render_particles")->second;
 

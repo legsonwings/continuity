@@ -123,6 +123,7 @@ struct pipeline_objects
     ComPtr<ID3D12PipelineState> pso;
     ComPtr<ID3D12PipelineState> pso_wireframe;
     ComPtr<ID3D12PipelineState> pso_twosided;
+	ComPtr<ID3D12StateObject>	pso_raytracing;
     ComPtr<ID3D12RootSignature> root_signature;
 };
 
@@ -368,7 +369,7 @@ class globalresources
 {
 	viewinfo _view;
 	uint _frameindex{ 0 };
-	std::wstring _assetspath;
+	std::string _assetspath;
 	constantbuffer<sceneconstants> _cbuffer;
 	ComPtr<ID3D12DescriptorHeap> _srvheap;
 	ComPtr<ID3D12Device5> _device;
@@ -380,7 +381,7 @@ class globalresources
 	std::unordered_map<DXGI_FORMAT, uint> _dxgisizes{ {DXGI_FORMAT_R8G8B8A8_UNORM, 4} };
 	D3DX12_MESH_SHADER_PIPELINE_STATE_DESC _psodesc{};
 
-	std::wstring assetfullpath(std::wstring const& path) const;
+	std::string assetfullpath(std::string const& path) const;
 public:
 	void init();
 
@@ -398,8 +399,9 @@ public:
 	materialcref mat(std::string const& name);
 	void psodesc(D3DX12_MESH_SHADER_PIPELINE_STATE_DESC const& psodesc);
 	materialcref addmat(std::string const& name, material const& mat, bool twosided = false);
-	void addcomputepso(std::string const& name, std::wstring const& cs);
-	void addpso(std::string const& name, std::wstring const& as, std::wstring const& ms, std::wstring const& ps, uint flags = psoflags::none);
+	void addcomputepso(std::string const& name, std::string const& cs);
+	void addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags = psoflags::none);
+	void addraytracingpso(std::string const& libname);
 
 	static globalresources& get();
 };

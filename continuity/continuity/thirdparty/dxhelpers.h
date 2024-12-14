@@ -48,7 +48,7 @@ inline void ThrowIfFailed(HRESULT hr)
     }
 }
 
-inline void GetAssetsPath(_Out_writes_(pathSize) WCHAR* path, UINT pathSize)
+inline void GetAssetsPath(_Out_writes_(pathSize) CHAR* path, UINT pathSize)
 {
     if (path == nullptr)
     {
@@ -62,16 +62,27 @@ inline void GetAssetsPath(_Out_writes_(pathSize) WCHAR* path, UINT pathSize)
         throw std::exception();
     }
 
-    WCHAR* lastSlash = wcsrchr(path, L'\\');
+    CHAR* lastSlash = strrchr(path, '\\');
     if (lastSlash)
     {
-        *(lastSlash + 1) = L'\0';
+        *(lastSlash + 1) = '\0';
     }
 }
 
-inline HRESULT ReadDataFromFile(LPCWSTR filename, byte** data, UINT* size)
+inline HRESULT ReadDataFromFile(LPCSTR filename, byte** data, UINT* size)
 {
     using namespace Microsoft::WRL;
+
+    // hope 200 is enough for all strings we need
+    constexpr size_t charbufsize = 200;
+    wchar_t filename_wide[charbufsize];
+
+    int ret = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, filename, -1, filename_wide, charbufsize);
+
+    if (ret == 0)
+    {
+        throw std::exception();
+    }
 
 #if WINVER >= _WIN32_WINNT_WIN8
     CREATEFILE2_EXTENDED_PARAMETERS extendedParams = {};
@@ -82,9 +93,9 @@ inline HRESULT ReadDataFromFile(LPCWSTR filename, byte** data, UINT* size)
     extendedParams.lpSecurityAttributes = nullptr;
     extendedParams.hTemplateFile = nullptr;
 
-    Wrappers::FileHandle file(CreateFile2(filename, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, &extendedParams));
+    Wrappers::FileHandle file(CreateFile2(filename_wide, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, &extendedParams));
 #else
-    Wrappers::FileHandle file(CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN | SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, nullptr));
+    Wrappers::FileHandle file(CreateFile(filename_wide, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN | SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, nullptr));
 #endif
     if (file.Get() == INVALID_HANDLE_VALUE)
     {
@@ -109,64 +120,6 @@ inline HRESULT ReadDataFromFile(LPCWSTR filename, byte** data, UINT* size)
     {
         throw std::exception();
     }
-
-    return S_OK;
-}
-
-inline HRESULT ReadDataFromDDSFile(LPCWSTR filename, byte** data, UINT* offset, UINT* size)
-{
-    if (FAILED(ReadDataFromFile(filename, data, size)))
-    {
-        return E_FAIL;
-    }
-
-    // DDS files always start with the same magic number.
-    static const UINT DDS_MAGIC = 0x20534444;
-    UINT magicNumber = *reinterpret_cast<const UINT*>(*data);
-    if (magicNumber != DDS_MAGIC)
-    {
-        return E_FAIL;
-    }
-
-    struct DDS_PIXELFORMAT
-    {
-        UINT size;
-        UINT flags;
-        UINT fourCC;
-        UINT rgbBitCount;
-        UINT rBitMask;
-        UINT gBitMask;
-        UINT bBitMask;
-        UINT aBitMask;
-    };
-
-    struct DDS_HEADER
-    {
-        UINT size;
-        UINT flags;
-        UINT height;
-        UINT width;
-        UINT pitchOrLinearSize;
-        UINT depth;
-        UINT mipMapCount;
-        UINT reserved1[11];
-        DDS_PIXELFORMAT ddsPixelFormat;
-        UINT caps;
-        UINT caps2;
-        UINT caps3;
-        UINT caps4;
-        UINT reserved2;
-    };
-
-    auto ddsHeader = reinterpret_cast<const DDS_HEADER*>(*data + sizeof(UINT));
-    if (ddsHeader->size != sizeof(DDS_HEADER) || ddsHeader->ddsPixelFormat.size != sizeof(DDS_PIXELFORMAT))
-    {
-        return E_FAIL;
-    }
-
-    const ptrdiff_t ddsDataOffset = sizeof(UINT) + sizeof(DDS_HEADER);
-    *offset = ddsDataOffset;
-    *size = *size - ddsDataOffset;
 
     return S_OK;
 }
