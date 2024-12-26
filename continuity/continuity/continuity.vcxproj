@@ -27,6 +27,7 @@
     <ClCompile Include="engine\engine.steptimer.ixx" />
     <ClCompile Include="engine\engine.cpp" />
     <ClCompile Include="engine\engine.ixx" />
+    <ClCompile Include="engine\engine.utils.ixx" />
     <ClCompile Include="engine\main.cpp" />
     <ClCompile Include="geometry.shapes.cpp" />
     <ClCompile Include="geometry.shapes.ixx" />
@@ -51,6 +52,7 @@
     <ClInclude Include="sharedconstants.h" />
     <ClInclude Include="simplemath\simplemath.h" />
     <ClInclude Include="thirdparty\d3dx12.h" />
+    <ClInclude Include="thirdparty\dxhelpers.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\common.hlsli" />
@@ -359,6 +361,8 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>
+      </AdditionalLibraryDirectories>
     </Link>
     <Lib />
     <Lib />
@@ -399,6 +403,8 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>
+      </AdditionalLibraryDirectories>
     </Link>
     <Lib />
     <Lib />

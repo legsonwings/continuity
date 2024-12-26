@@ -45,7 +45,16 @@ private:
 	gfx::structuredbuffer isosurface_vertices;
 	gfx::structuredbuffer render_args;
 
-	Microsoft::WRL::ComPtr<ID3D12CommandSignature> render_commandsig;
+    // ray trace stuff
+	ComPtr<ID3D12Resource> bottomlevelaccelerationstructure;
+	ComPtr<ID3D12Resource> toplevelaccelerationstructure;
+    ComPtr<ID3D12Resource> missShaderTable;
+    ComPtr<ID3D12Resource> hitGroupShaderTable;
+    ComPtr<ID3D12Resource> rayGenShaderTable;
+	ComPtr<ID3D12Resource> raytracingOutput;
+	D3D12_GPU_DESCRIPTOR_HANDLE raytracingOutputResourceUAVGpuDescriptor;
+
+	ComPtr<ID3D12CommandSignature> render_commandsig;
 
 	std::vector<gfx::body_static<geometry::cube>> boxes;
 

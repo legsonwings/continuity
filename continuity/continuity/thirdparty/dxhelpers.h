@@ -73,6 +73,11 @@ inline HRESULT ReadDataFromFile(LPCSTR filename, byte** data, UINT* size)
 {
     using namespace Microsoft::WRL;
 
+    if (size == 0)
+    {
+        throw std::exception();
+    }
+
     // hope 200 is enough for all strings we need
     constexpr size_t charbufsize = 200;
     wchar_t filename_wide[charbufsize];

@@ -3,8 +3,6 @@ module;
 #include <wrl.h>
 #include <d3d12.h>
 #include "thirdparty/d3dx12.h"
-#include <atlbase.h>
-#include <atlconv.h>
 
 // create a module gfx core
 // todo : find a place for shared constants
@@ -95,6 +93,15 @@ struct shader
     uint32_t size;
 };
 
+struct raytraceshaders
+{
+	std::string raygen;
+	std::string miss;
+	std::string anyhit;
+	std::string closesthit;
+	std::string intersection;
+};
+
 struct renderparams
 {
     bool wireframe = false;
@@ -125,6 +132,24 @@ struct pipeline_objects
     ComPtr<ID3D12PipelineState> pso_twosided;
 	ComPtr<ID3D12StateObject>	pso_raytracing;
     ComPtr<ID3D12RootSignature> root_signature;
+
+	// local root signature used in ray tracing, only one is supported right now
+	ComPtr<ID3D12RootSignature> rootsignature_local;
+};
+
+// todo : these are sample specific and should be moved to relevant sample files
+struct raytaceviewport
+{
+	float left;
+	float top;
+	float right;
+	float bottom;
+};
+
+struct raygenconstbuffer
+{
+	raytaceviewport viewport;
+	raytaceviewport stencil;
 };
 
 struct resource_bindings
@@ -212,17 +237,22 @@ std::string generaterandom_matcolor(stdx::ext<material, bool> definition, std::o
 using default_and_upload_buffers = std::pair<ComPtr<ID3D12Resource>, ComPtr<ID3D12Resource>>;
 
 uint dxgiformatsize(DXGI_FORMAT format);
-uint srvsbvuav_descincrementsize();
+uint srvcbvuav_descincrementsize();
+
+// todo : create buffer structs/classes
 ComPtr<ID3D12Resource> create_uploadbuffer(std::byte** mapped_buffer, uint const buffersize);
-ComPtr<ID3D12Resource> create_uploadbufferunmapped(uint const buffersize);
-ComPtr<ID3D12DescriptorHeap> createsrvdescriptorheap(D3D12_DESCRIPTOR_HEAP_DESC heapdesc);
+ComPtr<ID3D12Resource> create_perframeuploadbuffers(std::byte** mapped_buffer, uint const buffersize);
+ComPtr<ID3D12Resource> create_uploadbufferwithdata(void const* data_start, uint const buffersize);
+ComPtr<ID3D12Resource> create_perframeuploadbufferunmapped(uint const buffersize);
+ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap();
 void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* srvheap, uint heapslot = 0);
 ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size);
+ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size);
 default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const b_size);
 ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format);
 uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata);
 D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, UINT64 perframe_buffersize);
-void update_perframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize);
+void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize);
 void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, uint const perframe_buffersize);
 
 template<typename... args>
@@ -258,18 +288,18 @@ struct constantbuffer
 	void createresource()
 	{
 		_data = cballocationhelper::allocator().allocate<t>();
-		_buffer = create_uploadbuffer(&_mappeddata, size());
+		_buffer = create_perframeuploadbuffers(&_mappeddata, size());
 	}
 
 	t& data() const { return *_data; }
-	void updateresource() { update_perframebuffer(_mappeddata, _data, size(), size()); }
+	void updateresource() { update_currframebuffer(_mappeddata, _data, size(), size()); }
 
 	template<typename u>
 	requires std::same_as<t, std::decay_t<u>>
 	void updateresource(u&& data)
 	{
 		*_data = data;
-		update_perframebuffer(_mappeddata, _data, size(), size());
+		update_currframebuffer(_mappeddata, _data, size(), size());
 	}
 
 	uint size() const { return sizeof(t); }
@@ -311,12 +341,10 @@ struct resource
 // todo : specify type using a template
 struct structuredbuffer : public resource
 {
-	void createresources(std::string name, uint buffersize)
+	void createresources(uint buffersize)
 	{
 		ressize = buffersize;
 		d3dresource = create_default_uavbuffer(buffersize);
-		stdx::cassert(d3dresource != nullptr);
-		d3dresource->SetName(CA2W(name.c_str()));
 	}
 };
 
@@ -326,14 +354,14 @@ struct dynamicbuffer
 	void createresource(uint maxcount)
 	{
 		_maxcount = maxcount;
-		_buffer = create_uploadbuffer(&_mappeddata, buffersize());
+		_buffer = create_perframeuploadbuffers(&_mappeddata, buffersize());
 	}
 
 	void updateresource(std::vector<t> const& data)
 	{
 		_count = data.size();
 		stdx::cassert(_count <= _maxcount);
-		update_perframebuffer(_mappeddata, data.data(), datasize(), buffersize());
+		update_currframebuffer(_mappeddata, data.data(), datasize(), buffersize());
 	}
 
 	uint count() const { return _count; }
@@ -361,6 +389,8 @@ struct texture
 	stdx::vecui2 _dims;
 	ComPtr<ID3D12Resource> _texture;
 	ComPtr<ID3D12Resource> _bufferupload;
+
+	// todo : why is this here?
 	ComPtr<ID3D12DescriptorHeap> _srvheap;
 };
 
@@ -373,7 +403,10 @@ class globalresources
 	constantbuffer<sceneconstants> _cbuffer;
 	ComPtr<ID3D12DescriptorHeap> _srvheap;
 	ComPtr<ID3D12Device5> _device;
+
+	// todo : o we need to store root signature twice?
 	std::vector<ComPtr<ID3D12RootSignature>> _rootsig;
+	ComPtr<ID3D12Resource> _rendertarget;
 	ComPtr<ID3D12GraphicsCommandList6> _commandlist;
 	std::unordered_map<std::string, pipeline_objects> _psos;
 	std::unordered_map<std::string, stdx::ext<material, bool>> _materials;
@@ -390,6 +423,8 @@ public:
 	matmapref matmap() const;
 	materialcref defaultmat() const;
 	constantbuffer<sceneconstants>& cbuffer();
+	void rendertarget(ComPtr<ID3D12Resource>& rendertarget);
+	ComPtr<ID3D12Resource>& rendertarget();
 	ComPtr<ID3D12Device5>& device();
 	ComPtr<ID3D12DescriptorHeap>& srvheap();
 	ComPtr<ID3D12GraphicsCommandList6>& cmdlist();
@@ -401,7 +436,7 @@ public:
 	materialcref addmat(std::string const& name, material const& mat, bool twosided = false);
 	void addcomputepso(std::string const& name, std::string const& cs);
 	void addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags = psoflags::none);
-	void addraytracingpso(std::string const& libname);
+	pipeline_objects& addraytracingpso(std::string const& name, std::string const& libname, std::string const& hitgroupname, raytraceshaders const& shaders);
 
 	static globalresources& get();
 };

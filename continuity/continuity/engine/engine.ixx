@@ -9,6 +9,7 @@ module;
 #include "simplemath/simplemath.h"
 
 export module engine;
+export import :utils;
 export import :steptimer;
 export import :simplecamera;
 
@@ -18,7 +19,6 @@ import graphics;
 export constexpr uint frame_count = 2;
 
 using namespace DirectX;
-using Microsoft::WRL::ComPtr;
 
 export struct view_data
 {

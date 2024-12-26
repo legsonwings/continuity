@@ -8,6 +8,9 @@ module;
 #include "thirdparty/dxhelpers.h"
 #include "DirectXMath.h"
 
+#include <shlobj.h>
+#include <strsafe.h>
+
 #include "sharedconstants.h"
 
 module engine;
@@ -16,10 +19,10 @@ import activesample;
 import graphics;
 
 import std.core;
+import std;
 
 #define CONSOLE_LOGS 0
 
-using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
 sample_base::sample_base(view_data const& data)
@@ -54,6 +57,25 @@ continuity::continuity(view_data const& data)
     sample = sample_creator::create_instance<activesample>(data);
 }
 
+static std::wstring getlatest_winpixgpucapturer_path()
+{
+    LPWSTR programfilespath = nullptr;
+    SHGetKnownFolderPath(FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, NULL, &programfilespath);
+
+    std::filesystem::path pixinstallationpath = programfilespath;
+    pixinstallationpath /= "Microsoft PIX";
+
+    std::wstring newestversionfound;
+
+    for (auto const& directory_entry : std::filesystem::directory_iterator(pixinstallationpath))
+        if (directory_entry.is_directory())
+            if (newestversionfound.empty() || newestversionfound < directory_entry.path().filename().c_str())
+                newestversionfound = directory_entry.path().filename().c_str();
+
+    stdx::cassert(!newestversionfound.empty());
+    return pixinstallationpath / newestversionfound / L"WinPixGpuCapturer.dll";
+}
+
 void continuity::OnInit()
 {
 #if CONSOLE_LOGS
@@ -70,19 +92,32 @@ void continuity::OnInit()
 void continuity::load_pipeline()
 {
     UINT dxgiFactoryFlags = 0;
-
+ 
 #if defined(_DEBUG)
     // enable the debug layer (requires the Graphics Tools "optional feature").
     // note: enabling the debug layer after device creation will invalidate the active device.
     {
-        ComPtr<ID3D12Debug> debugController;
+        ComPtr<ID3D12Debug5> debugController;
         if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
         {
-            debugController->EnableDebugLayer();
-
             // enable additional debug layers.
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+
+            debugController->EnableDebugLayer();
+            debugController->SetEnableAutoName(true);
+            debugController->SetEnableGPUBasedValidation(true);
         }
+    }
+#else
+
+    static constexpr auto allowpixattach = false;
+
+    // todo : this should be turned based on a based on a commmand line flag
+    // WinPixGpuCapturer is not compatible with debug builds(debug layer conflicts?)
+    
+    if (allowpixattach && GetModuleHandleA("WinPixGpuCapturer.dll") == 0)
+    {
+        LoadLibrary(getlatest_winpixgpucapturer_path().c_str());
     }
 #endif
 
@@ -242,6 +277,9 @@ void continuity::create_resources()
     // create the command list. They are created in recording state
     ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[gfx::globalresources::get().frameindex()].Get(), nullptr, IID_PPV_ARGS(&cmdlist)));
 
+    // intitialize render target
+    gfx::globalresources::get().rendertarget(m_renderTargets[gfx::globalresources::get().frameindex()]);
+
     // need to keep these alive till data is uploaded to gpu
     std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources();
     ThrowIfFailed(cmdlist->Close());
@@ -286,6 +324,8 @@ void continuity::OnUpdate()
         SetCustomWindowText(title);
     }
 
+    // update render target for current frame
+    gfx::globalresources::get().rendertarget(m_renderTargets[gfx::globalresources::get().frameindex()]);
     sample->update(static_cast<float>(m_timer.GetElapsedSeconds()));
 }
 

@@ -120,6 +120,9 @@
     <ClCompile Include="samples\sphgpu\sphgpu.ixx">
       <Filter>samples\sphgpu</Filter>
     </ClCompile>
+    <ClCompile Include="engine\engine.utils.ixx">
+      <Filter>source\engine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simplemath\simplemath.h">
@@ -129,6 +132,9 @@
       <Filter>source\thirdparty</Filter>
     </ClInclude>
     <ClInclude Include="sharedconstants.h" />
+    <ClInclude Include="thirdparty\dxhelpers.h">
+      <Filter>source\thirdparty</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="simplemath\simplemath.inl">
@@ -195,6 +201,9 @@
     </FxCompile>
     <FxCompile Include="samples\sphgpu\shaders\sph_render_debugparticles_ms.hlsl">
       <Filter>samples\sphgpu\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="assets\hellotriangle_rs.hlsl">
+      <Filter>shaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

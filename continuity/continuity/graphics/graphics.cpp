@@ -7,10 +7,10 @@ module;
 
 module graphics;
 
+import engine;
+
 // seems like the declarations is not available across files
 using Microsoft::WRL::ComPtr;
-
-static constexpr uint frame_count = 2;
 
 alignedlinearallocator::alignedlinearallocator(uint alignment) : _alignment(alignment)
 {
@@ -33,7 +33,7 @@ void texture::createresource(uint heapidx, stdx::vecui2 dims, std::vector<uint8_
     _dims = { std::max<uint>(dims[0], 1u), std::max<uint>(dims[1], 1u) };
     _heapidx = heapidx;
     _srvheap = srvheap;
-    _bufferupload = create_uploadbufferunmapped(size());
+    _bufferupload = create_perframeuploadbufferunmapped(size());
     _texture = createtexture_default(_dims[0], _dims[1], _format);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
@@ -60,7 +60,7 @@ void texture::updateresource(std::vector<uint8_t> const& texturedata)
 
 D3D12_GPU_DESCRIPTOR_HANDLE texture::deschandle() const
 {
-    return CD3DX12_GPU_DESCRIPTOR_HANDLE(_srvheap->GetGPUDescriptorHandleForHeapStart(), static_cast<INT>(_heapidx * srvsbvuav_descincrementsize()));
+    return CD3DX12_GPU_DESCRIPTOR_HANDLE(_srvheap->GetGPUDescriptorHandleForHeapStart(), static_cast<INT>(_heapidx * srvcbvuav_descincrementsize()));
 }
 
 uint texture::size() const
@@ -91,11 +91,7 @@ void globalresources::init()
     addmat("red", material().diffuse(color::red));
     addmat("water", material().diffuse(color::water));
 
-    D3D12_DESCRIPTOR_HEAP_DESC srvheapdesc = {};
-    srvheapdesc.NumDescriptors = 1;
-    srvheapdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    srvheapdesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    _srvheap = createsrvdescriptorheap(srvheapdesc);
+    _srvheap = createresourcedescriptorheap();
     _cbuffer.createresource();
 }
 
@@ -104,6 +100,8 @@ psomapref globalresources::psomap() const { return _psos; }
 matmapref globalresources::matmap() const { return _materials; }
 materialcref globalresources::defaultmat() const { return _defaultmat; }
 constantbuffer<sceneconstants>& globalresources::cbuffer() { return _cbuffer; }
+void globalresources::rendertarget(ComPtr<ID3D12Resource>& rendertarget) { _rendertarget = rendertarget; }
+ComPtr<ID3D12Resource>& globalresources::rendertarget() { return _rendertarget; }
 ComPtr<ID3D12DescriptorHeap>& globalresources::srvheap() { return _srvheap; }
 ComPtr<ID3D12Device5>& globalresources::device() { return _device; }
 ComPtr<ID3D12GraphicsCommandList6>& globalresources::cmdlist() { return _commandlist; }
@@ -230,8 +228,120 @@ void globalresources::addpso(std::string const& name, std::string const& as, std
     }
 }
 
-void addraytracingpso(std::string const& libname)
+void SerializeAndCreateRaytracingRootSignature(Microsoft::WRL::ComPtr<ID3D12Device5>& device, D3D12_ROOT_SIGNATURE_DESC& desc, Microsoft::WRL::ComPtr<ID3D12RootSignature>* rootSig)
 {
+    Microsoft::WRL::ComPtr<ID3DBlob> blob;
+    Microsoft::WRL::ComPtr<ID3DBlob> error;
+
+    ThrowIfFailed(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error));
+    ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
+}
+
+gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name, std::string const& libname, std::string const& hitgroupname, raytraceshaders const& shaders)
+{
+    if (auto existing = _psos.find(name); existing != _psos.cend())
+    {
+        stdx::cassert(false, "trying to add pso of speciifed name when it already exists");
+        return _psos[name];
+    }
+
+    // Global Root Signature
+    // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+    {
+        Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
+
+        CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
+        UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+        CD3DX12_ROOT_PARAMETER rootParameters[2];
+        rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);
+        rootParameters[1].InitAsShaderResourceView(0);
+        CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
+        SerializeAndCreateRaytracingRootSignature(_device, globalRootSignatureDesc, &rootSig);
+
+        _psos[name].root_signature = rootSig;
+    }
+
+    // Local Root Signature
+    // This is a root signature that enables a shader to have unique arguments that come from shader tables.
+    {
+        Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
+
+        CD3DX12_ROOT_PARAMETER rootParameters[1];
+        rootParameters[0].InitAsConstants(8, 0, 0);
+        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
+        localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+        SerializeAndCreateRaytracingRootSignature(_device, localRootSignatureDesc, &rootSig);
+
+        _psos[name].rootsignature_local = rootSig;
+    }
+
+    shader raytracinglib;
+    ReadDataFromFile(assetfullpath(libname).c_str(), &raytracinglib.data, &raytracinglib.size);
+
+    // Create 7 subobjects that combine into a RTPSO:
+   // Subobjects need to be associated with DXIL exports (i.e. shaders) either by way of default or explicit associations.
+   // Default association applies to every exported shader entrypoint that doesn't have any of the same type of subobject associated with it.
+   // This simple sample utilizes default shader association except for local root signature subobject
+   // which has an explicit association specified purely for demonstration purposes.
+   // 1 - DXIL library
+   // 1 - Triangle hit group
+   // 1 - Shader config
+   // 2 - Local root signature and association
+   // 1 - Global root signature
+   // 1 - Pipeline config
+    CD3DX12_STATE_OBJECT_DESC raytracingpipeline{ D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE };
+
+    // DXIL library
+    // This contains the shaders and their entrypoints for the state object.
+    // Since shaders are not considered a subobject, they need to be passed in via DXIL library subobjects.
+    auto lib = raytracingpipeline.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
+    D3D12_SHADER_BYTECODE libdxil = CD3DX12_SHADER_BYTECODE((void*)raytracinglib.data, raytracinglib.size);
+    lib->SetDXILLibrary(&libdxil);
+    // we do not define any exports so all shaders will be exported
+
+    lib->DefineExport(utils::strtowstr(shaders.raygen).c_str());
+    lib->DefineExport(utils::strtowstr(shaders.closesthit).c_str());
+    lib->DefineExport(utils::strtowstr(shaders.miss).c_str());
+
+    // Triangle hit group
+    // A hit group specifies closest hit, any hit and intersection shaders to be executed when a ray intersects the geometry's triangle/AABB.
+    // In this sample, we only use triangle geometry with a closest hit shader, so others are not set.
+    auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
+    hitGroup->SetClosestHitShaderImport(utils::strtowstr(shaders.closesthit).data());
+    hitGroup->SetHitGroupExport(utils::strtowstr(hitgroupname).data());
+
+    // todo : should be procedural hitgroup
+    hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
+
+    // Shader config
+    // Defines the maximum sizes in bytes for the ray payload and attribute structure.
+    auto shaderConfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
+    UINT payloadSize = 4 * sizeof(float);   // float4 color
+    UINT attributeSize = 2 * sizeof(float); // float2 barycentrics
+    shaderConfig->Config(payloadSize, attributeSize);
+
+    // hit group and miss shaders in this sample are not using a local root signature and thus one is not associated with them.
+    // local root signature to be used in a ray gen shader.
+    auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
+    localrootsignature->SetRootSignature(_psos[name].rootsignature_local.Get());
+        
+    // shader association
+    auto rootsignatureassociation = raytracingpipeline.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
+    rootsignatureassociation->SetSubobjectToAssociate(*localrootsignature);
+    rootsignatureassociation->AddExport(utils::strtowstr(shaders.raygen).data());
+
+    // global root signature
+    // this is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+    auto globalrootsig = raytracingpipeline.CreateSubobject<CD3DX12_GLOBAL_ROOT_SIGNATURE_SUBOBJECT>();
+    globalrootsig->SetRootSignature(_psos[name].root_signature.Get());
+
+    auto pipelineconfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_PIPELINE_CONFIG_SUBOBJECT>();
+    pipelineconfig->Config(1); // primary rays only. 
+
+    // Create the state object.
+    ThrowIfFailed(_device->CreateStateObject(raytracingpipeline, IID_PPV_ARGS(&_psos[name].pso_raytracing)));
+
+    return _psos[name];
 }
 
 globalresources& globalresources::get()
@@ -266,7 +376,7 @@ void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, ui
         memcpy(mapped_buffer + perframe_buffersize * i, data_start, perframe_buffersize);
 }
 
-uint srvsbvuav_descincrementsize()
+uint srvcbvuav_descincrementsize()
 {
     auto device = globalresources::get().device();
     return static_cast<uint>(device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
@@ -284,6 +394,24 @@ ComPtr<ID3D12Resource> create_uploadbuffer(std::byte** mapped_buffer, uint const
     ComPtr<ID3D12Resource> b_upload;
     if (buffersize > 0)
     {
+        auto resource_desc = CD3DX12_RESOURCE_DESC::Buffer(buffersize);
+        auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
+
+        // we do not intend to read from this resource on the CPU.
+        ThrowIfFailed(b_upload->Map(0, nullptr, reinterpret_cast<void**>(mapped_buffer)));
+    }
+
+    return b_upload;
+}
+
+ComPtr<ID3D12Resource> create_perframeuploadbuffers(std::byte** mapped_buffer, uint const buffersize)
+{
+    auto device = globalresources::get().device();
+
+    ComPtr<ID3D12Resource> b_upload;
+    if (buffersize > 0)
+    {
         auto resource_desc = CD3DX12_RESOURCE_DESC::Buffer(frame_count * buffersize);
         auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
         ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
@@ -295,7 +423,17 @@ ComPtr<ID3D12Resource> create_uploadbuffer(std::byte** mapped_buffer, uint const
     return b_upload;
 }
 
-ComPtr<ID3D12Resource> create_uploadbufferunmapped(uint const buffersize)
+ComPtr<ID3D12Resource> create_uploadbufferwithdata(void const* data_start, uint const buffersize)
+{
+    // create upload buffer and copy data into it
+    std::byte* _mappeddata = nullptr;
+    ComPtr<ID3D12Resource> uploadresource = create_uploadbuffer(&_mappeddata, buffersize);
+    memcpy(_mappeddata, data_start, buffersize);
+
+    return uploadresource;
+}
+
+ComPtr<ID3D12Resource> create_perframeuploadbufferunmapped(uint const buffersize)
 {
     auto device = globalresources::get().device();
 
@@ -310,9 +448,14 @@ ComPtr<ID3D12Resource> create_uploadbufferunmapped(uint const buffersize)
     return b_upload;
 }
 
-ComPtr<ID3D12DescriptorHeap> createsrvdescriptorheap(D3D12_DESCRIPTOR_HEAP_DESC heapdesc)
+ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap()
 {
     auto device = globalresources::get().device();
+
+    D3D12_DESCRIPTOR_HEAP_DESC heapdesc = {};
+    heapdesc.NumDescriptors = 100; // todo : arbitrary limit, make a class for resource heap
+    heapdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    heapdesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
     ComPtr<ID3D12DescriptorHeap> heap;
     ThrowIfFailed(device->CreateDescriptorHeap(&heapdesc, IID_PPV_ARGS(heap.ReleaseAndGetAddressOf())));
@@ -323,7 +466,7 @@ void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource
 {
     auto device = globalresources::get().device();
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(srvheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(heapslot * srvsbvuav_descincrementsize()));
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(srvheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(heapslot * srvcbvuav_descincrementsize()));
     device->CreateShaderResourceView(resource, &srvdesc, deschandle);
 }
 
@@ -336,7 +479,20 @@ ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size)
 
     // create buffer on the default heap
     auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
+    return b;
+}
+
+ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size)
+{
+    auto device = globalresources::get().device();
+    auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+    ComPtr<ID3D12Resource> b;
+
+    // create buffer on the default heap
+    auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
     return b;
 }
 
@@ -353,7 +509,7 @@ default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size
 
         // create buffer on the default heap
         auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
+        ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
 
         // create resource on the upload heap
         auto uploadheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -406,7 +562,7 @@ D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS star
     return start + perframe_buffersize * frame_idx;
 }
 
-void update_perframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize)
+void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize)
 {
     auto frame_idx = globalresources::get().frameindex();
     memcpy(mapped_buffer + perframe_buffersize * frame_idx, data_start, data_size);
