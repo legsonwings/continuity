@@ -47,6 +47,7 @@ private:
 
     // ray trace stuff
 	ComPtr<ID3D12Resource> bottomlevelaccelerationstructure;
+	ComPtr<ID3D12Resource> bottomlevelprocaccelerationstructure;
 	ComPtr<ID3D12Resource> toplevelaccelerationstructure;
     ComPtr<ID3D12Resource> missShaderTable;
     ComPtr<ID3D12Resource> hitGroupShaderTable;

@@ -48,9 +48,11 @@ static constexpr float marchingcube_size = 0.1f;
 
 // raytracing stuff
 constexpr char const* hitGroupName = "MyHitGroup";
+constexpr char const* hitGroupName = "MyHitGroup_AABB_AnalyticPrimitive";
 constexpr char const* raygenShaderName = "MyRaygenShader";
-constexpr char const* closestHitShaderName = "MyClosestHitShader";
+constexpr char const* closestHitShaderName = "MyClosestHitShader_Triangle";
 constexpr char const* missShaderName = "MyMissShader";
+constexpr char const* intersectionShaderName = "MyIntersectionShader_AnalyticPrimitive";
 
 struct Viewport
 {
@@ -235,10 +237,15 @@ gfx::resourcelist sphgpu::create_resources()
     {
         gfx::raytraceshaders rtshaders;
         rtshaders.raygen = raygenShaderName;
+
+        // todo : procedural hit group needs its own closest hit shader
         rtshaders.closesthit = closestHitShaderName;
         rtshaders.miss = missShaderName;
+        rtshaders.intersection = intersectionShaderName;
+        rtshaders.hitgroup = hitGroupName;
+        rtshaders.proceduralhitgroup = "MyHitGroup_AABB_AnalyticPrimitive";
 
-        auto& raytraceipelinepipeline_objs = globalres.addraytracingpso("hellotriangle", "hellotriangle_rs.cso", hitGroupName, rtshaders);
+        auto& raytraceipelinepipeline_objs = globalres.addraytracingpso("procraytrace", "raytracetrisphere_rs.cso", rtshaders);
 
         auto& device = globalres.device();
         auto& cmdlist = globalres.cmdlist();
@@ -263,6 +270,26 @@ gfx::resourcelist sphgpu::create_resources()
         namkaran(vertexbuffer);
         namkaran(indexbuffer);
 
+        const stdx::vec3 basePosition = { 0, 0, 0 };
+
+        auto InitializeAABB = [&](auto& size)
+        {
+            return D3D12_RAYTRACING_AABB{
+                basePosition.x
+                basePosition.y
+                basePosition.z
+                basePosition.x + size.x,
+                basePosition.y + size.y,
+                basePosition.z + size.z,
+            };
+        };
+
+        auto sphereaabb = InitializeAABB(XMFLOAT3(3, 3, 3));;
+
+        ComPtr<ID3D12Resource> sphereaabbres = gfx::create_uploadbufferwithdata(&sphereaabb, sizeof(sphereaabb));
+        namkaran(sphereaabbres);
+        res.push_back(sphereaabbres);
+
         // todo : vertex and index buffer descriptors to be passed using descriptor heaps, so craete srvs
 
         res.push_back(vertexbuffer);
@@ -271,6 +298,7 @@ gfx::resourcelist sphgpu::create_resources()
         // now build acceleration structures
         // the sample resets the command allocator before acceleration structure build, but we dont, do we need it?
 
+        D3D12_RAYTRACING_GEOMETRY_DESC geometrydescs[2]; // one triangle and one sphere
         D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
         geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
         geometryDesc.Triangles.IndexBuffer = indexbuffer->GetGPUVirtualAddress();
@@ -287,6 +315,20 @@ gfx::resourcelist sphgpu::create_resources()
         // Note: When rays encounter opaque geometry an any hit shader will not be executed whether it is present or not.
         geometryDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
 
+        geometrydescs[0] = geometryDesc;
+
+        // sphere aabb desc
+        {
+            D3D12_RAYTRACING_GEOMETRY_DESC aabbDescTemplate = {};
+            aabbDescTemplate.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS;
+            aabbDescTemplate.AABBs.AABBCount = 1;
+            aabbDescTemplate.AABBs.AABBs.StrideInBytes = sizeof(D3D12_RAYTRACING_AABB);
+            aabbDescTemplate.Flags = geometryFlags;
+
+            geometryDesc.AABBs.AABBs.StartAddress = sphereaabbres->GetGPUVirtualAddress() + sizeof(D3D12_RAYTRACING_AABB);
+            geometrydescs[1] = aabbDescTemplate;
+        }
+
         // Get required sizes for an acceleration structure.
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS buildFlags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS topLevelInputs = {};
@@ -302,10 +344,19 @@ gfx::resourcelist sphgpu::create_resources()
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomLevelPrebuildInfo = {};
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomLevelInputs = topLevelInputs;
         bottomLevelInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-        bottomLevelInputs.pGeometryDescs = &geometryDesc;
+        bottomLevelInputs.pGeometryDescs = &geometryDescs[0];
         device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelPrebuildInfo);
         stdx::cassert(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
 
+        // need a different blas for procedural geometry
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomLevelprocPrebuildInfo = {};
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomLevelprocInputs = bottomLevelInputs;
+        bottomLevelprocInputs.pGeometryDescs = &geometryDescs[1];
+        device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelprocPrebuildInfo);
+        stdx::cassert(bottomLevelprocPrebuildInfo.ResultDataMaxSizeInBytes > 0);
+
+        // same scratch is shared by blases and the tlas(can this cause problems?)
+        auto scratchsize = std::max(topLevelPrebuildInfo.ScratchDataSizeInBytes, bottomLevelPrebuildInfo.ScratchDataSizeInBytes, bottomLevelprocPrebuildInfo.ScratchDataSizeInBytes);
         ComPtr<ID3D12Resource> scratchResource = gfx::create_default_uavbuffer(std::max(topLevelPrebuildInfo.ScratchDataSizeInBytes, bottomLevelPrebuildInfo.ScratchDataSizeInBytes));
         namkaran(scratchResource);
         res.push_back(scratchResource);
@@ -318,28 +369,43 @@ gfx::resourcelist sphgpu::create_resources()
         //  - the system will be doing this type of access in its implementation of acceleration structure builds behind the scenes.
         //  - from the app point of view, synchronization of writes/reads to acceleration structures is accomplished using UAV barriers.
         {
-            toplevelaccelerationstructure = gfx::create_accelerationstructbuffer(topLevelPrebuildInfo.ResultDataMaxSizeInBytes);
             bottomlevelaccelerationstructure = gfx::create_accelerationstructbuffer(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes);
-            namkaran(toplevelaccelerationstructure);
+            bottomlevelprocaccelerationstructure = gfx::create_accelerationstructbuffer(bottomLevelprocPrebuildInfo.ResultDataMaxSizeInBytes);
+            toplevelaccelerationstructure = gfx::create_accelerationstructbuffer(topLevelPrebuildInfo.ResultDataMaxSizeInBytes);
             namkaran(bottomlevelaccelerationstructure);
+            namkaran(bottomlevelprocaccelerationstructure);
+            namkaran(toplevelaccelerationstructure);
         }
 
         // Create an instance desc for the bottom-level acceleration structure.
-        D3D12_RAYTRACING_INSTANCE_DESC instanceDesc = {};
-        instanceDesc.Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1;
-        instanceDesc.InstanceMask = 1;
-        instanceDesc.AccelerationStructure = bottomlevelaccelerationstructure->GetGPUVirtualAddress();
+        D3D12_RAYTRACING_INSTANCE_DESC instanceDescs[2];
+        instanceDescs[0] = instanceDescs[1] = {};
+        
+        // set instance scale of (1, 1, 1)
+        instanceDescs[0].Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1;
+        instanceDescs[1].Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1;
 
-        ComPtr<ID3D12Resource> instanceDescs = gfx::create_uploadbufferwithdata(&instanceDesc, sizeof(instanceDesc));
+        instanceDescs[0].InstanceMask = instanceDescs[1].InstanceMask = 1;
+        instanceDesc[0].AccelerationStructure = bottomlevelaccelerationstructure->GetGPUVirtualAddress();
+        instanceDesc[1].AccelerationStructure = bottomlevelprocaccelerationstructure->GetGPUVirtualAddress();
+
+        instanceDesc[0].InstanceContributionToHitGroupIndex = 0;
+        instanceDesc[1].InstanceContributionToHitGroupIndex = 1;
+
+        ComPtr<ID3D12Resource> instanceDescs = gfx::create_uploadbufferwithdata(instanceDescs, sizeof(instanceDesc) * 2);
         namkaran(instanceDescs);
         res.push_back(instanceDescs);
 
         // Bottom Level Acceleration Structure desc
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomLevelBuildDesc = {};
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomLevelBuildDescs[2] = {};
         {
-            bottomLevelBuildDesc.Inputs = bottomLevelInputs;
-            bottomLevelBuildDesc.ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
-            bottomLevelBuildDesc.DestAccelerationStructureData = bottomlevelaccelerationstructure->GetGPUVirtualAddress();
+            bottomLevelBuildDesc[0].Inputs = bottomLevelInputs;
+            bottomLevelBuildDesc[0].ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
+            bottomLevelBuildDesc[0].DestAccelerationStructureData = bottomlevelaccelerationstructure->GetGPUVirtualAddress();
+
+            bottomLevelBuildDesc[1].Inputs = bottomLevelprocInputs;
+            bottomLevelBuildDesc[1].ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
+            bottomLevelBuildDesc[1].DestAccelerationStructureData = bottomlevelprocaccelerationstructure->GetGPUVirtualAddress();
         }
 
         // Top Level Acceleration Structure desc
@@ -352,76 +418,143 @@ gfx::resourcelist sphgpu::create_resources()
         }
 
         auto BuildAccelerationStructure = [&](auto* raytracingCommandList)
-            {
-                auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(bottomlevelaccelerationstructure.Get());
-                raytracingCommandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDesc, 0, nullptr);
-                raytracingCommandList->ResourceBarrier(1, &barrier);
-                raytracingCommandList->BuildRaytracingAccelerationStructure(&topLevelBuildDesc, 0, nullptr);
-            };
+        {
+            CD3DX12_RESOURCE_BARRIER barriers[2] = { CD3DX12_RESOURCE_BARRIER::UAV(bottomlevelaccelerationstructure.Get()), CD3DX12_RESOURCE_BARRIER::UAV(bottomlevelprocaccelerationstructure.Get()) };
+            raytracingCommandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDescs[0], 0, nullptr);
+            
+            // use separate barriers as the scratch resource is the same for both builds
+            raytracingCommandList->ResourceBarrier(1, &barriers[0]);
+            raytracingCommandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDescs[1], 0, nullptr);
+            raytracingCommandList->ResourceBarrier(1, &barriers[1]);
+
+            raytracingCommandList->BuildRaytracingAccelerationStructure(&topLevelBuildDesc, 0, nullptr);
+        };
 
         // Build acceleration structure.
         BuildAccelerationStructure(cmdlist.Get());
 
         // now build shader tables
 
-        void* rayGenShaderIdentifier;
-        void* missShaderIdentifier;
-        void* hitGroupShaderIdentifier;
+        void* rayGenShaderID;
+        void* missShaderID;
+        void* hitGroupShaderIDs_TriangleGeometry;
+        void* hitGroupShaderIDs_AABBGeometry;
 
-        auto GetShaderIdentifiers = [&](auto* stateObjectProperties)
+        auto GetShaderIDs = [&](auto* stateObjectProperties)
         {
-            rayGenShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(raygenShaderName).c_str());
-            missShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(missShaderName).c_str());
-            hitGroupShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(hitGroupName).c_str());
+            rayGenShaderID = stateObjectProperties->GetShaderIdentifier(c_raygenShaderName);
+
+            missShaderID = stateObjectProperties->GetShaderIdentifier(missShaderName);
+            hitGroupShaderIDs_TriangleGeometry = stateObjectProperties->GetShaderIdentifier(hitGroupName);
+
+            hitGroupShaderIDs_AABBGeometry = stateObjectProperties->GetShaderIdentifier(prochitgroupname);
         };
 
+        // Get shader identifiers.
+        UINT shaderIDSize
         ComPtr<ID3D12StateObjectProperties> stateObjectProperties;
         ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateObjectProperties));
-        GetShaderIdentifiers(stateObjectProperties.Get());
+        GetShaderIDs(stateObjectProperties.Get());
+        shaderIDSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 
-        // Ray gen shader table
+        /*************--------- Shader table layout -------*******************
+        | --------------------------------------------------------------------
+        | Shader table - HitGroupShaderTable:
+        | [0] : MyHitGroup_Triangle
+        | [1] : MyHitGroup_AABB_AnalyticPrimitive
+        | --------------------------------------------------------------------
+        **********************************************************************/
+
+        static constexpr uint shaderidentifier_aligneduploadsize = (D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
+        static constexpr uint numhitgroups = 2;
+
+        // since num hit groups is 2 and none of the shaders have local root arguments, all shader records are the same size
+        // also the max size of any shader table 2 * record size(shader identifier size)
+        std::byte uploaddata[numhitgroups * shaderidentifier_aligneduploadsize];
+
+        // RayGen shader table.
         {
-            struct RootArguments 
-            {
-                RayGenConstantBuffer cb;
-            };
-
-            uint const datasize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(RootArguments);
-
-            // todo : move this to stdx.core
-            uint const aligneduploadsize = (datasize + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-            
-            std::vector<std::byte> uploaddata;
-            uploaddata.reserve(aligneduploadsize);
-
             // todo : doing two mem copies, better to do one directly into mapped address
-            memcpy(uploaddata.data(), rayGenShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-            RootArguments& rootarguments = reinterpret_cast<RootArguments&>(*(uploaddata.data() + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES));
-            rootarguments.cb.viewport = { -1.0f, -1.0f, 1.0f, 1.0f };
-            float border = 0.1f;
-            rootarguments.cb.stencil = { -1 + border, -1 + border, 1.0f - border, 1 - border };
+            memcpy(uploaddata, rayGenShaderID, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
             rayGenShaderTable = gfx::create_uploadbufferwithdata(uploaddata.data(), aligneduploadsize);
             namkaran(rayGenShaderTable);
         }
 
-        constexpr uint shaderidentifier_aligneduploadsize = (D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-        std::byte uploaddata[shaderidentifier_aligneduploadsize];
-
         // Miss shader table
         {
             // todo : doing two mem copies, better to do one directly into mapped address
-            memcpy(uploaddata, missShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+            memcpy(uploaddata, missShaderID, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
             missShaderTable = gfx::create_uploadbufferwithdata(uploaddata, shaderidentifier_aligneduploadsize);
             namkaran(missShaderTable);
         }
 
-        // Hit group shader table
+        // hit group shader table
         {
             // todo : doing two mem copies, better to do one directly into mapped address
-            memcpy(uploaddata, hitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-            hitGroupShaderTable = gfx::create_uploadbufferwithdata(uploaddata, shaderidentifier_aligneduploadsize);
+            memcpy(uploaddata, hitGroupShaderIDs_TriangleGeometry, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+            memcpy(uploaddata + shaderidentifier_aligneduploadsize, hitGroupShaderIDs_AABBGeometry, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+            hitGroupShaderTable = gfx::create_uploadbufferwithdata(uploaddata, numhitgroups * shaderidentifier_aligneduploadsize);
             namkaran(hitGroupShaderTable);
         }
+
+        //void* rayGenShaderIdentifier;
+        //void* missShaderIdentifier;
+        //void* hitGroupShaderIdentifier;
+
+        //auto GetShaderIdentifiers = [&](auto* stateObjectProperties)
+        //{
+        //    rayGenShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(raygenShaderName).c_str());
+        //    missShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(missShaderName).c_str());
+        //    hitGroupShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(hitGroupName).c_str());
+        //};
+
+        //ComPtr<ID3D12StateObjectProperties> stateObjectProperties;
+        //ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateObjectProperties));
+        //GetShaderIdentifiers(stateObjectProperties.Get());
+
+        //// Ray gen shader table
+        //{
+        //    struct RootArguments 
+        //    {
+        //        RayGenConstantBuffer cb;
+        //    };
+
+        //    uint const datasize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(RootArguments);
+
+        //    // todo : move this to stdx.core
+        //    uint const aligneduploadsize = (datasize + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
+        //    
+        //    std::vector<std::byte> uploaddata;
+        //    uploaddata.reserve(aligneduploadsize);
+
+        //    // todo : doing two mem copies, better to do one directly into mapped address
+        //    memcpy(uploaddata.data(), rayGenShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+        //    RootArguments& rootarguments = reinterpret_cast<RootArguments&>(*(uploaddata.data() + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES));
+        //    rootarguments.cb.viewport = { -1.0f, -1.0f, 1.0f, 1.0f };
+        //    float border = 0.1f;
+        //    rootarguments.cb.stencil = { -1 + border, -1 + border, 1.0f - border, 1 - border };
+        //    rayGenShaderTable = gfx::create_uploadbufferwithdata(uploaddata.data(), aligneduploadsize);
+        //    namkaran(rayGenShaderTable);
+        //}
+
+        //constexpr uint shaderidentifier_aligneduploadsize = (D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
+        //std::byte uploaddata[shaderidentifier_aligneduploadsize];
+
+        //// Miss shader table
+        //{
+        //    // todo : doing two mem copies, better to do one directly into mapped address
+        //    memcpy(uploaddata, missShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+        //    missShaderTable = gfx::create_uploadbufferwithdata(uploaddata, shaderidentifier_aligneduploadsize);
+        //    namkaran(missShaderTable);
+        //}
+
+        //// Hit group shader table
+        //{
+        //    // todo : doing two mem copies, better to do one directly into mapped address
+        //    memcpy(uploaddata, hitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+        //    hitGroupShaderTable = gfx::create_uploadbufferwithdata(uploaddata, shaderidentifier_aligneduploadsize);
+        //    namkaran(hitGroupShaderTable);
+        //}
 
         // Create the output resource. The dimensions and format should match the swap-chain.
         auto uavDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 720, 720, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -620,7 +753,7 @@ void sphgpu::render(float dt)
         commandList->DispatchRays(dispatchDesc);
     };
 
-    auto const& pipelineobjects = globalres.psomap().find("hellotriangle")->second;
+    auto const& pipelineobjects = globalres.psomap().find("procraytrace")->second;
     cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
 
     // Bind the heaps, acceleration structure and dispatch rays.    
@@ -628,6 +761,7 @@ void sphgpu::render(float dt)
     cmd_list->SetDescriptorHeaps(1, globalres.srvheap().GetAddressOf());
     cmd_list->SetComputeRootDescriptorTable(0, raytracingOutputResourceUAVGpuDescriptor);
     cmd_list->SetComputeRootShaderResourceView(1, toplevelaccelerationstructure->GetGPUVirtualAddress());
+    cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().gpuaddress());
     DispatchRays(cmd_list.Get(), pipelineobjects.pso_raytracing.Get(), &dispatchDesc);
 
     auto* rendertarget = globalres.rendertarget().Get();

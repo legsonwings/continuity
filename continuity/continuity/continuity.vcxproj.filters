@@ -25,9 +25,6 @@
     <Filter Include="shaders">
       <UniqueIdentifier>{b0e19a72-bb2c-4514-a693-2874f8b0a712}</UniqueIdentifier>
     </Filter>
-    <Filter Include="source\engine">
-      <UniqueIdentifier>{533ddd05-9389-40d1-b60e-7d5593ca01c2}</UniqueIdentifier>
-    </Filter>
     <Filter Include="source\sampleselection">
       <UniqueIdentifier>{c049719f-bfb1-4ff9-a0cc-9e70bd05ab0f}</UniqueIdentifier>
     </Filter>
@@ -42,6 +39,9 @@
     </Filter>
     <Filter Include="samples\sphgpu\shaders">
       <UniqueIdentifier>{31d2d8b3-2e06-4f44-8e12-8d953080fb94}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\engine">
+      <UniqueIdentifier>{533ddd05-9389-40d1-b60e-7d5593ca01c2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -202,7 +202,7 @@
     <FxCompile Include="samples\sphgpu\shaders\sph_render_debugparticles_ms.hlsl">
       <Filter>samples\sphgpu\shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\hellotriangle_rs.hlsl">
+    <FxCompile Include="assets\raytracetrisphere_rs.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
   </ItemGroup>

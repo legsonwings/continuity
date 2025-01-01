@@ -93,13 +93,27 @@ struct shader
     uint32_t size;
 };
 
+struct trianglehitgroup
+{
+	std::string anyhit;
+	std::string closesthit;
+	std::string name;
+};
+
+struct proceduralhitgroup
+{
+	std::string anyhit;
+	std::string intersection;
+	std::string closesthit;
+	std::string name;
+};
+
 struct raytraceshaders
 {
 	std::string raygen;
 	std::string miss;
-	std::string anyhit;
-	std::string closesthit;
-	std::string intersection;
+	trianglehitgroup tri_hitgrp; 
+	proceduralhitgroup procedural_hitgroup;
 };
 
 struct renderparams
@@ -436,7 +450,7 @@ public:
 	materialcref addmat(std::string const& name, material const& mat, bool twosided = false);
 	void addcomputepso(std::string const& name, std::string const& cs);
 	void addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags = psoflags::none);
-	pipeline_objects& addraytracingpso(std::string const& name, std::string const& libname, std::string const& hitgroupname, raytraceshaders const& shaders);
+	pipeline_objects& addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders);
 
 	static globalresources& get();
 };

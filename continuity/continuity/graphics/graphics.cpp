@@ -237,7 +237,7 @@ void SerializeAndCreateRaytracingRootSignature(Microsoft::WRL::ComPtr<ID3D12Devi
     ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
 }
 
-gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name, std::string const& libname, std::string const& hitgroupname, raytraceshaders const& shaders)
+gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders)
 {
     if (auto existing = _psos.find(name); existing != _psos.cend())
     {
@@ -247,28 +247,29 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
 
     // Global Root Signature
     // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+    
+    // todo : create helper classes for root signature
     {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
 
         CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
         UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-        CD3DX12_ROOT_PARAMETER rootParameters[2];
-        rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);
-        rootParameters[1].InitAsShaderResourceView(0);
+        CD3DX12_ROOT_PARAMETER rootParameters[3];
+        rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);     // colour output uav
+        rootParameters[1].InitAsShaderResourceView(0);                  // acceleration structire
+        rootParameters[2].InitAsConstantBufferView(0);                  // constants
         CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         SerializeAndCreateRaytracingRootSignature(_device, globalRootSignatureDesc, &rootSig);
 
         _psos[name].root_signature = rootSig;
     }
 
-    // Local Root Signature
+    // empty local Root Signature
     // This is a root signature that enables a shader to have unique arguments that come from shader tables.
     {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
 
-        CD3DX12_ROOT_PARAMETER rootParameters[1];
-        rootParameters[0].InitAsConstants(8, 0, 0);
-        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
+        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc = {};
         localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
         SerializeAndCreateRaytracingRootSignature(_device, localRootSignatureDesc, &rootSig);
 
@@ -299,36 +300,53 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     lib->SetDXILLibrary(&libdxil);
     // we do not define any exports so all shaders will be exported
 
-    lib->DefineExport(utils::strtowstr(shaders.raygen).c_str());
-    lib->DefineExport(utils::strtowstr(shaders.closesthit).c_str());
-    lib->DefineExport(utils::strtowstr(shaders.miss).c_str());
+    //lib->DefineExport(utils::strtowstr(shaders.raygen).c_str());
+    //lib->DefineExport(utils::strtowstr(shaders.closesthit).c_str());
+    //lib->DefineExport(utils::strtowstr(shaders.miss).c_str());
 
-    // Triangle hit group
-    // A hit group specifies closest hit, any hit and intersection shaders to be executed when a ray intersects the geometry's triangle/AABB.
-    // In this sample, we only use triangle geometry with a closest hit shader, so others are not set.
-    auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
-    hitGroup->SetClosestHitShaderImport(utils::strtowstr(shaders.closesthit).data());
-    hitGroup->SetHitGroupExport(utils::strtowstr(hitgroupname).data());
+    {
+        // Triangle hit group
+        // A hit group specifies closest hit, any hit and intersection shaders to be executed when a ray intersects the geometry's triangle/AABB.
+        // In this sample, we only use triangle geometry with a closest hit shader, so others are not set.
+        auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
+        hitGroup->SetClosestHitShaderImport(utils::strtowstr(rtshaders.closesthit).c_str());
+        hitGroup->SetHitGroupExport(utils::strtowstr(rtshaders.hitgroupname).c_str());
+        hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
+    }
 
-    // todo : should be procedural hitgroup
-    hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
+    {
+        // procedural hit group
+        auto const& prochitgrp = shaders.procedural_hitgroup;
+        auto hitGroup = raytracingPipeline->CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
+        hitGroup->SetIntersectionShaderImport(utils::strtowstr(prochitgrp.intersection).c_str());
+
+        if (!prochitgrp.anyhit.empty())
+            hitGroup->SetAnyHitShaderImport(utils::strtowstr(prochitgrp.anyhit).c_str());
+
+        hitGroup->SetClosestHitShaderImport(utils::strtowstr(prochitgrp.closesthit).c_str());
+        hitGroup->SetHitGroupExport(utils::strtowstr(prochitgrp.name).c_str());
+        hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_PROCEDURAL_PRIMITIVE);
+    }
 
     // Shader config
     // Defines the maximum sizes in bytes for the ray payload and attribute structure.
     auto shaderConfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
+    
     UINT payloadSize = 4 * sizeof(float);   // float4 color
-    UINT attributeSize = 2 * sizeof(float); // float2 barycentrics
-    shaderConfig->Config(payloadSize, attributeSize);
+    //UINT attributeSize = 2 * sizeof(float) + 3 * sizeof(float); // float2 barycentrics(for triangles) + float3 normal(for procedural)
+    shaderConfig->Config(payloadSize, 0);
 
     // hit group and miss shaders in this sample are not using a local root signature and thus one is not associated with them.
     // local root signature to be used in a ray gen shader.
-    auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
-    localrootsignature->SetRootSignature(_psos[name].rootsignature_local.Get());
-        
-    // shader association
-    auto rootsignatureassociation = raytracingpipeline.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
-    rootsignatureassociation->SetSubobjectToAssociate(*localrootsignature);
-    rootsignatureassociation->AddExport(utils::strtowstr(shaders.raygen).data());
+    
+    // todo : associate local sig with both our hit groups
+    //auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
+    //localrootsignature->SetRootSignature(_psos[name].rootsignature_local.Get());
+
+    //// shader association
+    //auto rootsignatureassociation = raytracingpipeline.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
+    //rootsignatureassociation->SetSubobjectToAssociate(*localrootsignature);
+    //rootsignatureassociation->AddExport(utils::strtowstr(shaders.raygen).data());
 
     // global root signature
     // this is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.

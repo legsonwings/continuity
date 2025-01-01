@@ -37,6 +37,13 @@
 *.ifx
 *.suo
 
+# Local ignore list. Avoid committing this
+/BezeirIntersections/
+/Build/
+/Core/
+/Packages/
+/PropertySheets/
+
 /stdx/.vs/
 /stdx/stdx/x64/
 /continuity/.vs/
