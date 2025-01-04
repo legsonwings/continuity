@@ -269,8 +269,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
 
-        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc = {};
-        localRootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
         SerializeAndCreateRaytracingRootSignature(_device, localRootSignatureDesc, &rootSig);
 
         _psos[name].rootsignature_local = rootSig;
@@ -309,15 +308,15 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
         // A hit group specifies closest hit, any hit and intersection shaders to be executed when a ray intersects the geometry's triangle/AABB.
         // In this sample, we only use triangle geometry with a closest hit shader, so others are not set.
         auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
-        hitGroup->SetClosestHitShaderImport(utils::strtowstr(rtshaders.closesthit).c_str());
-        hitGroup->SetHitGroupExport(utils::strtowstr(rtshaders.hitgroupname).c_str());
+        hitGroup->SetClosestHitShaderImport(utils::strtowstr(shaders.tri_hitgrp.closesthit).c_str());
+        hitGroup->SetHitGroupExport(utils::strtowstr(shaders.tri_hitgrp.name).c_str());
         hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
     }
 
     {
         // procedural hit group
         auto const& prochitgrp = shaders.procedural_hitgroup;
-        auto hitGroup = raytracingPipeline->CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
+        auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
         hitGroup->SetIntersectionShaderImport(utils::strtowstr(prochitgrp.intersection).c_str());
 
         if (!prochitgrp.anyhit.empty())
@@ -334,16 +333,17 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     
     UINT payloadSize = 4 * sizeof(float);   // float4 color
     //UINT attributeSize = 2 * sizeof(float) + 3 * sizeof(float); // float2 barycentrics(for triangles) + float3 normal(for procedural)
-    shaderConfig->Config(payloadSize, 0);
+    // size of built in triangle intesection attributes is 8 bytes and procedural intersection uses dummy attributes
+    shaderConfig->Config(payloadSize, 8);
 
     // hit group and miss shaders in this sample are not using a local root signature and thus one is not associated with them.
     // local root signature to be used in a ray gen shader.
     
     // todo : associate local sig with both our hit groups
-    //auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
-    //localrootsignature->SetRootSignature(_psos[name].rootsignature_local.Get());
+    auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
+    localrootsignature->SetRootSignature(_psos[name].rootsignature_local.Get());
 
-    //// shader association
+    // shader association
     //auto rootsignatureassociation = raytracingpipeline.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
     //rootsignatureassociation->SetSubobjectToAssociate(*localrootsignature);
     //rootsignatureassociation->AddExport(utils::strtowstr(shaders.raygen).data());
