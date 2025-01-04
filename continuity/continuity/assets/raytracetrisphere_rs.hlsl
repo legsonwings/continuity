@@ -186,8 +186,9 @@ bool IsAValidHit(in Ray ray, in float thit, in float3 hitSurfaceNormal)
 bool RaySphereIntersectionTest(in Ray ray, out float thit, in float3 center = float3(0, 0, 0), in float radius = 1)
 {
     float t0, t1; // solutions for t if the ray intersects 
-
-    if (!SolveRaySphereIntersectionEquation(ray, t0, t1, center, radius)) return false;
+    thit = 1e-9;
+    if (!SolveRaySphereIntersectionEquation(ray, t0, t1, center, radius))
+        return false;
 
     if (t0 < RayTMin())
     {

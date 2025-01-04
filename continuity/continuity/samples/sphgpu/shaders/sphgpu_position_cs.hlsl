@@ -15,7 +15,7 @@ void main(uint dtid : SV_DispatchThreadID)
             float diff = sph_dispatch_params.h - sqrt(distsqr);
 
             // get to neighbour direction safely(dir is zero if vector is zero)
-            pton = pton / (FLT_EPSILON + sqrt(distsqr));
+            pton = pton / (FLOAT_EPSILON + sqrt(distsqr));
             particledata[dtid].a += pton * (sph_dispatch_params.spikycoeff * (particledata[dtid].pr + particledata[i].pr) * diff * diff / (2.0f * particledata[dtid].rho * particledata[i].rho));
             particledata[dtid].a += sph_dispatch_params.viscosityconstant * (particledata[i].v - particledata[dtid].v) * sph_dispatch_params.viscositylapcoeff * diff / particledata[i].rho;
         }

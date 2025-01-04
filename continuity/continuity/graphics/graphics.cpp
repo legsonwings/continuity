@@ -25,6 +25,168 @@ bool alignedlinearallocator::canallocate(uint size) const { return ((_currentpos
 namespace gfx
 {
 
+void setnamedebug(ComPtr<ID3D12Resource>& resource, std::string const& name)
+{
+#if _DEBUG
+    resource->SetName(utils::strtowstr(name).c_str());
+#endif
+}
+
+void setnamedebug(ComPtr<ID3D12Resource>& resource, std::wstring const& name)
+{
+#if _DEBUG
+    resource->SetName(name.c_str());
+#endif
+}
+
+shadertable::shadertable(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname)
+{
+    createresource(stateobjproperties, data, datasize, exportname);
+}
+
+ComPtr<ID3D12Resource> shadertable::createresource(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname)
+{
+    stdx::cassert(shaderidentifier == nullptr);
+
+    std::wstring exportnamew = utils::strtowstr(exportname);
+
+    shaderidentifier = stateobjproperties->GetShaderIdentifier(exportnamew.c_str());
+
+    uint const aligneduploadsize = (datasize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
+
+    d3dresource = gfx::create_uploadbufferwithdata(data, aligneduploadsize);
+    setnamedebug(d3dresource, exportnamew);
+
+    return d3dresource;
+}
+
+uint shadertable::getalignedsize(uint datasize)
+{
+    return (datasize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
+}
+
+ComPtr<ID3D12Resource> blas::kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& geometrydesc)
+{
+    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomlevelprebuildinfo = {};
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomlevelinputs;
+
+    bottomlevelinputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    bottomlevelinputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+    bottomlevelinputs.NumDescs = 1;
+    bottomlevelinputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+    bottomlevelinputs.pGeometryDescs = &geometrydesc;
+
+    auto device = globalresources::get().device();
+    auto cmdlist = globalresources::get().cmdlist();
+
+    device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomlevelinputs, &bottomlevelprebuildinfo);
+    stdx::cassert(bottomlevelprebuildinfo.ResultDataMaxSizeInBytes > 0);
+
+    auto scratch = gfx::create_default_uavbuffer(bottomlevelprebuildinfo.ScratchDataSizeInBytes);
+    accelstruct.d3dresource = gfx::create_accelerationstructbuffer(bottomlevelprebuildinfo.ResultDataMaxSizeInBytes);
+
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomlevelbuilddesc = {};
+    bottomlevelbuilddesc.Inputs = bottomlevelinputs;
+    bottomlevelbuilddesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
+    bottomlevelbuilddesc.DestAccelerationStructureData = accelstruct.d3dresource->GetGPUVirtualAddress();
+
+    auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(accelstruct.d3dresource.Get());
+    cmdlist->BuildRaytracingAccelerationStructure(&bottomlevelbuilddesc, 0, nullptr);
+    cmdlist->ResourceBarrier(1, &barrier);
+
+    return scratch;
+}
+
+std::array<ComPtr<ID3D12Resource>, tlas::numresourcetokeepalive> tlas::build(std::vector<D3D12_RAYTRACING_INSTANCE_DESC> const& instancedescs)
+{
+    auto device = globalresources::get().device();
+    auto cmdlist = globalresources::get().cmdlist();
+
+    auto instancedescsresource = create_uploadbufferwithdata(instancedescs.data(), uint(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * instancedescs.size()));
+
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC toplevelbuilddesc = {};
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& toplevelinputs = toplevelbuilddesc.Inputs;
+    toplevelinputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+    toplevelinputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    toplevelinputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+    toplevelinputs.NumDescs = static_cast<UINT>(instancedescs.size());
+    toplevelinputs.InstanceDescs = instancedescsresource->GetGPUVirtualAddress();
+
+    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO toplevelprebuildinfo = {};
+    device->GetRaytracingAccelerationStructurePrebuildInfo(&toplevelinputs, &toplevelprebuildinfo);
+    stdx::cassert(toplevelprebuildinfo.ResultDataMaxSizeInBytes > 0);
+
+    auto scratch = gfx::create_default_uavbuffer(toplevelprebuildinfo.ScratchDataSizeInBytes);
+    accelstruct.d3dresource = gfx::create_accelerationstructbuffer(toplevelprebuildinfo.ResultDataMaxSizeInBytes);
+
+    toplevelbuilddesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
+    toplevelbuilddesc.DestAccelerationStructureData = accelstruct.d3dresource->GetGPUVirtualAddress();
+    
+    cmdlist->BuildRaytracingAccelerationStructure(&toplevelbuilddesc, 0, nullptr);
+
+    return { scratch, instancedescsresource };
+}
+
+std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::build(D3D12_RAYTRACING_INSTANCE_DESC* destinstancedescs, uint blasidx, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices)
+{
+    auto vertexbuffer = create_uploadbufferwithdata(&vertices, sizeof(vertices));
+    auto indexbuffer = create_uploadbufferwithdata(&indices, sizeof(indices));
+
+    D3D12_RAYTRACING_GEOMETRY_DESC geometrydesc = {};
+    geometrydesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+    geometrydesc.Flags = opacity == geometryopacity::opaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
+    geometrydesc.Triangles.IndexBuffer = indexbuffer->GetGPUVirtualAddress();
+    geometrydesc.Triangles.IndexCount = static_cast<UINT>(indexbuffer->GetDesc().Width) / sizeof(uint16_t);
+    geometrydesc.Triangles.IndexFormat = DXGI_FORMAT_R16_UINT;
+    geometrydesc.Triangles.Transform3x4 = 0;
+    geometrydesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+    geometrydesc.Triangles.VertexCount = static_cast<UINT>(vertexbuffer->GetDesc().Width) / sizeof(stdx::vec3);
+    geometrydesc.Triangles.VertexBuffer.StartAddress = vertexbuffer->GetGPUVirtualAddress();
+    geometrydesc.Triangles.VertexBuffer.StrideInBytes = sizeof(stdx::vec3);
+
+    auto scratch = kickoffbuild(geometrydesc);
+
+    D3D12_RAYTRACING_INSTANCE_DESC& instancedesc = destinstancedescs[blasidx];
+    instancedesc = {};
+    instancedesc.Transform[0][0] = instancedesc.Transform[1][1] = instancedesc.Transform[2][2] = 1;
+    instancedesc.InstanceMask = 1;
+    instancedesc.AccelerationStructure = accelstruct.d3dresource->GetGPUVirtualAddress();
+    instancedesc.InstanceContributionToHitGroupIndex = blasidx;
+
+    return { vertexbuffer, indexbuffer, scratch };
+}
+
+std::array<ComPtr<ID3D12Resource>, proceduralblas::numresourcetokeepalive> proceduralblas::build(D3D12_RAYTRACING_INSTANCE_DESC* destinstancedescs, uint blasidx, geometryopacity opacity, geometry::aabb const& aabb)
+{
+    D3D12_RAYTRACING_AABB rtaabb;
+    rtaabb.MinX = aabb.min_pt[0];
+    rtaabb.MinY = aabb.min_pt[1];
+    rtaabb.MinZ = aabb.min_pt[2];
+    rtaabb.MaxX = aabb.max_pt[0];
+    rtaabb.MaxY = aabb.max_pt[1];
+    rtaabb.MaxZ = aabb.max_pt[2];
+
+    auto aabbbuffer = create_uploadbufferwithdata(&rtaabb, sizeof(rtaabb));
+
+	D3D12_RAYTRACING_GEOMETRY_DESC geometrydesc = {};
+	geometrydesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS;
+	geometrydesc.AABBs.AABBCount = 1;
+	geometrydesc.Flags = opacity == geometryopacity::opaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
+    geometrydesc.AABBs.AABBs.StrideInBytes = sizeof(D3D12_RAYTRACING_AABB);
+    geometrydesc.AABBs.AABBs.StartAddress = aabbbuffer->GetGPUVirtualAddress();
+
+    auto scratch = kickoffbuild(geometrydesc);
+
+    D3D12_RAYTRACING_INSTANCE_DESC& instancedesc = destinstancedescs[blasidx];
+    instancedesc = {};
+    instancedesc.Transform[0][0] = instancedesc.Transform[1][1] = instancedesc.Transform[2][2] = 1;
+    instancedesc.InstanceMask = 1;
+    instancedesc.AccelerationStructure = accelstruct.d3dresource->GetGPUVirtualAddress();
+    instancedesc.InstanceContributionToHitGroupIndex = blasidx;
+
+    return { aabbbuffer, scratch };
+}
+
 void texture::createresource(uint heapidx, stdx::vecui2 dims, std::vector<uint8_t> const& texturedata, ID3D12DescriptorHeap* srvheap)
 {
     // textures cannot be 0 sized

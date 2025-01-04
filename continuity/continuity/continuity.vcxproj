@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="activesample.cpp" />
     <ClCompile Include="beziermaths\beziermaths.cpp" />
     <ClCompile Include="beziermaths\beziermaths.ixx" />
     <ClCompile Include="engine\engine.simplecamera.cpp" />
@@ -29,8 +28,8 @@
     <ClCompile Include="engine\engine.ixx" />
     <ClCompile Include="engine\engine.utils.ixx" />
     <ClCompile Include="engine\main.cpp" />
-    <ClCompile Include="geometry.shapes.cpp" />
-    <ClCompile Include="geometry.shapes.ixx" />
+    <ClCompile Include="geometry\geometry.shapes.cpp" />
+    <ClCompile Include="geometry\geometry.shapes.ixx" />
     <ClCompile Include="graphics\body.cpp" />
     <ClCompile Include="graphics\body.ixx" />
     <ClCompile Include="graphics\graphics.cpp" />
@@ -39,6 +38,8 @@
     <ClCompile Include="cursor\cursor.ixx" />
     <ClCompile Include="geometry\geometry.cpp" />
     <ClCompile Include="geometry\geometry.ixx" />
+    <ClCompile Include="graphics\graphicscore.ixx" />
+    <ClCompile Include="sampleselection\activesample.cpp" />
     <ClCompile Include="samples\sphgpu\sphgpu.cpp" />
     <ClCompile Include="samples\sphgpu\sphgpu.ixx" />
     <ClCompile Include="samples\sphintro\sphintro.cpp" />

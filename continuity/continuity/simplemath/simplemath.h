@@ -249,6 +249,7 @@ namespace DirectX
             // Unary operators
             Vector3 operator+ () const noexcept { return *this; }
             Vector3 operator- () const noexcept;
+            float operator[] (uint32_t idx) const noexcept { return idx == 0 ? x : ((idx == 1) ? y : z); }
 
             // Vector operations
             bool InBounds(const Vector3& Bounds) const noexcept;

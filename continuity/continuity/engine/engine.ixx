@@ -14,7 +14,7 @@ export import :steptimer;
 export import :simplecamera;
 
 import stdxcore;
-import graphics;
+import graphicscore;
 
 export constexpr uint frame_count = 2;
 

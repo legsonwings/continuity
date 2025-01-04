@@ -10,6 +10,7 @@ export module body;
 import vec;
 import stdxcore;
 import geometry;
+import graphicscore;
 import graphics;
 
 import std.core;

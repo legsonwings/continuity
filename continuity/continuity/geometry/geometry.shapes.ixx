@@ -5,7 +5,7 @@ module;
 export module geometry:shapes;
 
 import stdxcore;
-import graphics;
+import graphicscore;
 import std.core;
 
 using namespace DirectX;
@@ -62,8 +62,7 @@ struct cube
     aabb const& bbox() const;
     std::vector<gfx::vertex> vertices() const;
     std::vector<gfx::vertex> vertices_flipped() const;
-    std::vector<gfx::instance_data> instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center), gfx::globalresources::get().view(), gfx::globalresources::get().mat("")) }; }
-    
+    std::vector<gfx::instance_data> instancedata() const;
     vector3 const center, extents;
 };
 
@@ -74,7 +73,7 @@ struct sphere
 
     void generate_triangles();
 
-    std::vector<gfx::instance_data> instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center), gfx::globalresources::get().view(), gfx::globalresources::get().mat("")) }; }
+    std::vector<gfx::instance_data> instancedata() const;
     std::vector<gfx::vertex> const& vertices() const { stdx::cassert(triangulated_sphere.size() > 0, "Call generate_triangles() or pass generation flag to constructor."); return triangulated_sphere; }
 
     float radius = 1.5f;

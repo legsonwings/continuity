@@ -1,7 +1,7 @@
 export module activesample;
 
 import engine;
-import graphics;
+import graphicscore;
 import std.core;
 
 export enum class samples : int

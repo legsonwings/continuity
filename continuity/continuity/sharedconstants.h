@@ -8,4 +8,4 @@
 
 #define MAX_NUM_LIGHTS 5
 
-#define FLT_EPSILON 1e-10f
+#define FLOAT_EPSILON 1e-10f
