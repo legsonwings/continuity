@@ -130,13 +130,6 @@ struct shadertable : public resource
 	void* shaderidentifier = nullptr;
 };
 
-struct accelerationstruct
-{
-	// each acceleration struct has its own scratch for simplicity
-	resource scratch;
-	resource accelstruct;
-};
-
 enum class blastype
 {
 	triangle,
@@ -149,30 +142,37 @@ enum class geometryopacity
 	transparent
 };
 
+struct accelerationstruct : public resource { };
+
 struct blas : public accelerationstruct
 {
 	// return scratch resource
 	ComPtr<ID3D12Resource> kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& geometrydesc);
 };
 
+struct blasinstancedescs
+{
+	std::vector<D3D12_RAYTRACING_INSTANCE_DESC> descs;
+};
+
 struct tlas : public accelerationstruct
 {
 	// number of resources we need to keep alive until gpu is done with acceleration structure build
 	static constexpr uint numresourcetokeepalive = 2;
-	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(std::vector<D3D12_RAYTRACING_INSTANCE_DESC> const& instancedescs);
+	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs const& instancedescs);
 };
 
 // blases only support single primitve instance right now
 struct triblas : public blas
 {
 	static constexpr uint numresourcetokeepalive = 3;
-	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(D3D12_RAYTRACING_INSTANCE_DESC* destinstancedescs, uint blasidx, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices);
+	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs& instancedescs, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices);
 };
 
 struct proceduralblas : public blas
 {
 	static constexpr uint numresourcetokeepalive = 2;
-	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(D3D12_RAYTRACING_INSTANCE_DESC* destinstancedescs, uint blasidx, geometryopacity opacity, geometry::aabb const& aabb);
+	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs& instancedescs, geometryopacity opacity, geometry::aabb const& aabb);
 };
 
 template<typename t>

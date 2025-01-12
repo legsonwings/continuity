@@ -32,7 +32,7 @@ struct box
 
 struct aabb
 {
-    aabb() : min_pt(vector3::Zero), max_pt(vector3::Zero) {}
+    aabb() = default;
     aabb(vector3 const (&tri)[3]);
 
     aabb(std::vector<vector3> const& points);

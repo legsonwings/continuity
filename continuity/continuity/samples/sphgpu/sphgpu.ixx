@@ -46,9 +46,9 @@ private:
 	gfx::structuredbuffer render_args;
 
     // ray trace stuff
-	ComPtr<ID3D12Resource> bottomlevelaccelerationstructure;
-	ComPtr<ID3D12Resource> bottomlevelprocaccelerationstructure;
-	ComPtr<ID3D12Resource> toplevelaccelerationstructure;
+	gfx::triblas triblas;
+	gfx::proceduralblas procblas;
+	gfx::tlas tlas;
     ComPtr<ID3D12Resource> missShaderTable;
     ComPtr<ID3D12Resource> hitGroupShaderTable;
     ComPtr<ID3D12Resource> rayGenShaderTable;

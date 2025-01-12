@@ -68,7 +68,7 @@ uint shadertable::getalignedsize(uint datasize)
 ComPtr<ID3D12Resource> blas::kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& geometrydesc)
 {
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomlevelprebuildinfo = {};
-    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomlevelinputs;
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomlevelinputs = {};
 
     bottomlevelinputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
     bottomlevelinputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
@@ -83,33 +83,33 @@ ComPtr<ID3D12Resource> blas::kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& 
     stdx::cassert(bottomlevelprebuildinfo.ResultDataMaxSizeInBytes > 0);
 
     auto scratch = gfx::create_default_uavbuffer(bottomlevelprebuildinfo.ScratchDataSizeInBytes);
-    accelstruct.d3dresource = gfx::create_accelerationstructbuffer(bottomlevelprebuildinfo.ResultDataMaxSizeInBytes);
+    d3dresource = gfx::create_accelerationstructbuffer(bottomlevelprebuildinfo.ResultDataMaxSizeInBytes);
 
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomlevelbuilddesc = {};
     bottomlevelbuilddesc.Inputs = bottomlevelinputs;
     bottomlevelbuilddesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-    bottomlevelbuilddesc.DestAccelerationStructureData = accelstruct.d3dresource->GetGPUVirtualAddress();
+    bottomlevelbuilddesc.DestAccelerationStructureData = d3dresource->GetGPUVirtualAddress();
 
-    auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(accelstruct.d3dresource.Get());
+    auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(d3dresource.Get());
     cmdlist->BuildRaytracingAccelerationStructure(&bottomlevelbuilddesc, 0, nullptr);
     cmdlist->ResourceBarrier(1, &barrier);
 
     return scratch;
 }
 
-std::array<ComPtr<ID3D12Resource>, tlas::numresourcetokeepalive> tlas::build(std::vector<D3D12_RAYTRACING_INSTANCE_DESC> const& instancedescs)
+std::array<ComPtr<ID3D12Resource>, tlas::numresourcetokeepalive> tlas::build(blasinstancedescs const& instancedescs)
 {
     auto device = globalresources::get().device();
     auto cmdlist = globalresources::get().cmdlist();
 
-    auto instancedescsresource = create_uploadbufferwithdata(instancedescs.data(), uint(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * instancedescs.size()));
+    auto instancedescsresource = create_uploadbufferwithdata(instancedescs.descs.data(), uint(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * instancedescs.descs.size()));
 
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC toplevelbuilddesc = {};
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& toplevelinputs = toplevelbuilddesc.Inputs;
     toplevelinputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
     toplevelinputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
     toplevelinputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-    toplevelinputs.NumDescs = static_cast<UINT>(instancedescs.size());
+    toplevelinputs.NumDescs = static_cast<UINT>(instancedescs.descs.size());
     toplevelinputs.InstanceDescs = instancedescsresource->GetGPUVirtualAddress();
 
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO toplevelprebuildinfo = {};
@@ -117,46 +117,47 @@ std::array<ComPtr<ID3D12Resource>, tlas::numresourcetokeepalive> tlas::build(std
     stdx::cassert(toplevelprebuildinfo.ResultDataMaxSizeInBytes > 0);
 
     auto scratch = gfx::create_default_uavbuffer(toplevelprebuildinfo.ScratchDataSizeInBytes);
-    accelstruct.d3dresource = gfx::create_accelerationstructbuffer(toplevelprebuildinfo.ResultDataMaxSizeInBytes);
+    d3dresource = gfx::create_accelerationstructbuffer(toplevelprebuildinfo.ResultDataMaxSizeInBytes);
 
     toplevelbuilddesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-    toplevelbuilddesc.DestAccelerationStructureData = accelstruct.d3dresource->GetGPUVirtualAddress();
+    toplevelbuilddesc.DestAccelerationStructureData = d3dresource->GetGPUVirtualAddress();
     
     cmdlist->BuildRaytracingAccelerationStructure(&toplevelbuilddesc, 0, nullptr);
-
+  
     return { scratch, instancedescsresource };
 }
 
-std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::build(D3D12_RAYTRACING_INSTANCE_DESC* destinstancedescs, uint blasidx, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices)
+std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices)
 {
-    auto vertexbuffer = create_uploadbufferwithdata(&vertices, sizeof(vertices));
-    auto indexbuffer = create_uploadbufferwithdata(&indices, sizeof(indices));
+    auto vertexbuffer = create_uploadbufferwithdata(vertices.data(), sizeof(stdx::vec3) * vertices.size());
+    auto indexbuffer = create_uploadbufferwithdata(indices.data(), sizeof(uint16_t) * indices.size());
 
     D3D12_RAYTRACING_GEOMETRY_DESC geometrydesc = {};
     geometrydesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
     geometrydesc.Flags = opacity == geometryopacity::opaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
     geometrydesc.Triangles.IndexBuffer = indexbuffer->GetGPUVirtualAddress();
-    geometrydesc.Triangles.IndexCount = static_cast<UINT>(indexbuffer->GetDesc().Width) / sizeof(uint16_t);
+    geometrydesc.Triangles.IndexCount = static_cast<UINT>(indices.size());
     geometrydesc.Triangles.IndexFormat = DXGI_FORMAT_R16_UINT;
     geometrydesc.Triangles.Transform3x4 = 0;
     geometrydesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-    geometrydesc.Triangles.VertexCount = static_cast<UINT>(vertexbuffer->GetDesc().Width) / sizeof(stdx::vec3);
+    geometrydesc.Triangles.VertexCount = static_cast<UINT>(vertices.size());
     geometrydesc.Triangles.VertexBuffer.StartAddress = vertexbuffer->GetGPUVirtualAddress();
     geometrydesc.Triangles.VertexBuffer.StrideInBytes = sizeof(stdx::vec3);
 
     auto scratch = kickoffbuild(geometrydesc);
 
-    D3D12_RAYTRACING_INSTANCE_DESC& instancedesc = destinstancedescs[blasidx];
+    uint const instanceidx = instancedescs.descs.size();
+    D3D12_RAYTRACING_INSTANCE_DESC& instancedesc = instancedescs.descs.emplace_back();
     instancedesc = {};
     instancedesc.Transform[0][0] = instancedesc.Transform[1][1] = instancedesc.Transform[2][2] = 1;
     instancedesc.InstanceMask = 1;
-    instancedesc.AccelerationStructure = accelstruct.d3dresource->GetGPUVirtualAddress();
-    instancedesc.InstanceContributionToHitGroupIndex = blasidx;
+    instancedesc.AccelerationStructure = d3dresource->GetGPUVirtualAddress();
+    instancedesc.InstanceContributionToHitGroupIndex = instanceidx;
 
     return { vertexbuffer, indexbuffer, scratch };
 }
 
-std::array<ComPtr<ID3D12Resource>, proceduralblas::numresourcetokeepalive> proceduralblas::build(D3D12_RAYTRACING_INSTANCE_DESC* destinstancedescs, uint blasidx, geometryopacity opacity, geometry::aabb const& aabb)
+std::array<ComPtr<ID3D12Resource>, proceduralblas::numresourcetokeepalive> proceduralblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, geometry::aabb const& aabb)
 {
     D3D12_RAYTRACING_AABB rtaabb;
     rtaabb.MinX = aabb.min_pt[0];
@@ -177,12 +178,13 @@ std::array<ComPtr<ID3D12Resource>, proceduralblas::numresourcetokeepalive> proce
 
     auto scratch = kickoffbuild(geometrydesc);
 
-    D3D12_RAYTRACING_INSTANCE_DESC& instancedesc = destinstancedescs[blasidx];
+    uint const instanceidx = instancedescs.descs.size();
+    D3D12_RAYTRACING_INSTANCE_DESC& instancedesc = instancedescs.descs.emplace_back();
     instancedesc = {};
     instancedesc.Transform[0][0] = instancedesc.Transform[1][1] = instancedesc.Transform[2][2] = 1;
     instancedesc.InstanceMask = 1;
-    instancedesc.AccelerationStructure = accelstruct.d3dresource->GetGPUVirtualAddress();
-    instancedesc.InstanceContributionToHitGroupIndex = blasidx;
+    instancedesc.AccelerationStructure = d3dresource->GetGPUVirtualAddress();
+    instancedesc.InstanceContributionToHitGroupIndex = instanceidx;
 
     return { aabbbuffer, scratch };
 }

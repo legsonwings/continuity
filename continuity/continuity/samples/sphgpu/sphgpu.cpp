@@ -250,14 +250,12 @@ gfx::resourcelist sphgpu::create_resources()
         auto& device = globalres.device();
         auto& cmdlist = globalres.cmdlist();
 
-        struct vertexonly { float v0, v1, v2; };
-        unsigned short indices[] = { 0, 1, 2 };
+        std::vector<uint16_t> indices = { 0, 1, 2 };
 
         float depthValue = 10.0;
         float offset = 2;
-        vertexonly vertices[] =
+        std::vector<stdx::vec3> verts =
         {
-            // The sample raytraces in screen space coordinates.
             // Since DirectX screen space coordinates are right handed (i.e. Y axis points down).
             // Define the vertices in counter clockwise order ~ clockwise in left handed.
             { 0, offset, depthValue },
@@ -265,182 +263,22 @@ gfx::resourcelist sphgpu::create_resources()
             { offset, -offset, depthValue }
         };
 
-        auto vertexbuffer = gfx::create_uploadbufferwithdata(&vertices, sizeof(vertices));
-        auto indexbuffer = gfx::create_uploadbufferwithdata(&indices, sizeof(indices));
-        namkaran(vertexbuffer);
-        namkaran(indexbuffer);
+        geometry::aabb aabb(vector3(-2, -2, 4), vector3(2, 2, 8));
 
-        const stdx::vec3 basePosition = { -2, -2, 4 };
+        gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
+        gfx::blasinstancedescs instancedescs;
 
-        auto InitializeAABB = [&](auto const& size)
-        {
-            return D3D12_RAYTRACING_AABB
-            {
-                basePosition[0],
-                basePosition[1],
-                basePosition[2],
-                basePosition[0] + size[0],
-                basePosition[1] + size[1],
-                basePosition[2] + size[2],
-            };
-        };
+        // cannot use stdx::join because ComPtr is too smart for its own good
+        for (auto r : triblas.build(instancedescs, opacity, verts, indices))
+            res.push_back(r);
 
-        auto sphereaabb = InitializeAABB(stdx::vec3{ 4, 4, 4 });
+        for (auto r : procblas.build(instancedescs, opacity, aabb))
+            res.push_back(r);
 
-        ComPtr<ID3D12Resource> sphereaabbres = gfx::create_uploadbufferwithdata(&sphereaabb, sizeof(sphereaabb));
-        namkaran(sphereaabbres);
-        res.push_back(sphereaabbres);
-
-        // todo : vertex and index buffer descriptors to be passed using descriptor heaps, so craete srvs
-
-        res.push_back(vertexbuffer);
-        res.push_back(indexbuffer);
-
-        // now build acceleration structures
-        // the sample resets the command allocator before acceleration structure build, but we dont, do we need it?
-
-        D3D12_RAYTRACING_GEOMETRY_DESC geometrydescs[2]; // one triangle and one sphere
-        D3D12_RAYTRACING_GEOMETRY_DESC geometryDesc = {};
-        geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-        geometryDesc.Triangles.IndexBuffer = indexbuffer->GetGPUVirtualAddress();
-        geometryDesc.Triangles.IndexCount = static_cast<UINT>(indexbuffer->GetDesc().Width) / sizeof(unsigned short);
-        geometryDesc.Triangles.IndexFormat = DXGI_FORMAT_R16_UINT;
-        geometryDesc.Triangles.Transform3x4 = 0;
-        geometryDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-        geometryDesc.Triangles.VertexCount = static_cast<UINT>(vertexbuffer->GetDesc().Width) / sizeof(vertexonly);
-        geometryDesc.Triangles.VertexBuffer.StartAddress = vertexbuffer->GetGPUVirtualAddress();
-        geometryDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(vertexonly);
-
-        // Mark the geometry as opaque. 
-        // PERFORMANCE TIP: mark geometry as opaque whenever applicable as it can enable important ray processing optimizations.
-        // Note: When rays encounter opaque geometry an any hit shader will not be executed whether it is present or not.
-        geometryDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-
-        geometrydescs[0] = geometryDesc;
-
-        // sphere aabb desc
-        {
-            D3D12_RAYTRACING_GEOMETRY_DESC aabbDesc = {};
-            aabbDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS;
-            aabbDesc.AABBs.AABBCount = 1;
-            aabbDesc.AABBs.AABBs.StrideInBytes = sizeof(D3D12_RAYTRACING_AABB);
-            aabbDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-            aabbDesc.AABBs.AABBs.StartAddress = sphereaabbres->GetGPUVirtualAddress();
-
-            geometrydescs[1] = aabbDesc;
-        }
-
-        static constexpr uint numinstances = 2;
-
-        // Get required sizes for an acceleration structure.
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS buildFlags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS topLevelInputs = {};
-        topLevelInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        topLevelInputs.Flags = buildFlags;
-        topLevelInputs.NumDescs = numinstances;
-        topLevelInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomLevelPrebuildInfo = {};
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomLevelInputs = {};
-        bottomLevelInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-        bottomLevelInputs.Flags = buildFlags;
-        bottomLevelInputs.NumDescs = 1;
-        bottomLevelInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-        bottomLevelInputs.pGeometryDescs = &geometrydescs[0];
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelPrebuildInfo);
-        stdx::cassert(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
-
-        // need a different blas for procedural geometry
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomLevelprocPrebuildInfo = {};
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomLevelprocInputs = bottomLevelInputs;
-        bottomLevelprocInputs.pGeometryDescs = &geometrydescs[1];
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomLevelInputs, &bottomLevelprocPrebuildInfo);
-        stdx::cassert(bottomLevelprocPrebuildInfo.ResultDataMaxSizeInBytes > 0);
-
-        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO topLevelPrebuildInfo = {};
-        device->GetRaytracingAccelerationStructurePrebuildInfo(&topLevelInputs, &topLevelPrebuildInfo);
-        stdx::cassert(topLevelPrebuildInfo.ResultDataMaxSizeInBytes > 0);
-
-        // same scratch is shared by blases and the tlas(can this cause problems?)
-        auto scratchsize = std::max({ topLevelPrebuildInfo.ScratchDataSizeInBytes, bottomLevelPrebuildInfo.ScratchDataSizeInBytes, bottomLevelprocPrebuildInfo.ScratchDataSizeInBytes });
-        ComPtr<ID3D12Resource> scratchResource = gfx::create_default_uavbuffer(scratchsize);
-        namkaran(scratchResource);
-        res.push_back(scratchResource);
-
-        // Allocate resources for acceleration structures.
-        // Acceleration structures can only be placed in resources that are created in the default heap (or custom heap equivalent). 
-        // Default heap is OK since the application doesn’t need CPU read/write access to them. 
-        // The resources that will contain acceleration structures must be created in the state D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, 
-        // and must have resource flag D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS. The ALLOW_UNORDERED_ACCESS requirement simply acknowledges both: 
-        //  - the system will be doing this type of access in its implementation of acceleration structure builds behind the scenes.
-        //  - from the app point of view, synchronization of writes/reads to acceleration structures is accomplished using UAV barriers.
-        {
-            bottomlevelaccelerationstructure = gfx::create_accelerationstructbuffer(bottomLevelPrebuildInfo.ResultDataMaxSizeInBytes);
-            bottomlevelprocaccelerationstructure = gfx::create_accelerationstructbuffer(bottomLevelprocPrebuildInfo.ResultDataMaxSizeInBytes);
-            toplevelaccelerationstructure = gfx::create_accelerationstructbuffer(topLevelPrebuildInfo.ResultDataMaxSizeInBytes);
-            namkaran(bottomlevelaccelerationstructure);
-            namkaran(bottomlevelprocaccelerationstructure);
-            namkaran(toplevelaccelerationstructure);
-        }
-
-        // Create an instance desc for the bottom-level acceleration structure.
-        D3D12_RAYTRACING_INSTANCE_DESC instanceDescs[numinstances];
-        instanceDescs[0] = instanceDescs[1] = {};
-        
-        // set instance scale of (1, 1, 1)
-        instanceDescs[0].Transform[0][0] = instanceDescs[0].Transform[1][1] = instanceDescs[0].Transform[2][2] = 1;
-        instanceDescs[1].Transform[0][0] = instanceDescs[1].Transform[1][1] = instanceDescs[1].Transform[2][2] = 1;
-
-        instanceDescs[0].InstanceMask = instanceDescs[1].InstanceMask = 1;
-        instanceDescs[0].AccelerationStructure = bottomlevelaccelerationstructure->GetGPUVirtualAddress();
-        instanceDescs[1].AccelerationStructure = bottomlevelprocaccelerationstructure->GetGPUVirtualAddress();
-
-        instanceDescs[0].InstanceContributionToHitGroupIndex = 0;
-        instanceDescs[1].InstanceContributionToHitGroupIndex = 1;
-
-        ComPtr<ID3D12Resource> instanceDescsRes = gfx::create_uploadbufferwithdata(instanceDescs, sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * 2);
-        namkaran(instanceDescsRes);
-        res.push_back(instanceDescsRes);
-
-        // Bottom Level Acceleration Structure desc
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomLevelBuildDescs[2] = {};
-        {
-            bottomLevelBuildDescs[0].Inputs = bottomLevelInputs;
-            bottomLevelBuildDescs[0].ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
-            bottomLevelBuildDescs[0].DestAccelerationStructureData = bottomlevelaccelerationstructure->GetGPUVirtualAddress();
-
-            bottomLevelBuildDescs[1].Inputs = bottomLevelprocInputs;
-            bottomLevelBuildDescs[1].ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
-            bottomLevelBuildDescs[1].DestAccelerationStructureData = bottomlevelprocaccelerationstructure->GetGPUVirtualAddress();
-        }
-
-        // Top Level Acceleration Structure desc
-        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC topLevelBuildDesc = {};
-        {
-            topLevelInputs.InstanceDescs = instanceDescsRes->GetGPUVirtualAddress();
-            topLevelBuildDesc.Inputs = topLevelInputs;
-            topLevelBuildDesc.DestAccelerationStructureData = toplevelaccelerationstructure->GetGPUVirtualAddress();
-            topLevelBuildDesc.ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
-        }
-
-        auto BuildAccelerationStructure = [&](auto* raytracingCommandList)
-        {
-            CD3DX12_RESOURCE_BARRIER barriers[2] = { CD3DX12_RESOURCE_BARRIER::UAV(bottomlevelaccelerationstructure.Get()), CD3DX12_RESOURCE_BARRIER::UAV(bottomlevelprocaccelerationstructure.Get()) };
-            raytracingCommandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDescs[0], 0, nullptr);
-            
-            // use separate barriers as the scratch resource is the same for both builds
-            raytracingCommandList->ResourceBarrier(1, &barriers[0]);
-            raytracingCommandList->BuildRaytracingAccelerationStructure(&bottomLevelBuildDescs[1], 0, nullptr);
-            raytracingCommandList->ResourceBarrier(1, &barriers[1]);
-
-            raytracingCommandList->BuildRaytracingAccelerationStructure(&topLevelBuildDesc, 0, nullptr);
-        };
-
-        // Build acceleration structure.
-        BuildAccelerationStructure(cmdlist.Get());
+        for (auto r : tlas.build(instancedescs))
+            res.push_back(r);
 
         // now build shader tables
-
         void* rayGenShaderID;
         void* missShaderID;
         void* hitGroupShaderIDs_TriangleGeometry;
@@ -459,7 +297,6 @@ gfx::resourcelist sphgpu::create_resources()
         ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateObjectProperties));
         GetShaderIDs(stateObjectProperties.Get());
   
-
         /*************--------- Shader table layout -------*******************
         | --------------------------------------------------------------------
         | Shader table - HitGroupShaderTable:
@@ -499,65 +336,6 @@ gfx::resourcelist sphgpu::create_resources()
             hitGroupShaderTable = gfx::create_uploadbufferwithdata(uploaddata, numhitgroups * shaderidentifier_aligneduploadsize);
             namkaran(hitGroupShaderTable);
         }
-
-        //void* rayGenShaderIdentifier;
-        //void* missShaderIdentifier;
-        //void* hitGroupShaderIdentifier;
-
-        //auto GetShaderIdentifiers = [&](auto* stateObjectProperties)
-        //{
-        //    rayGenShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(raygenShaderName).c_str());
-        //    missShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(missShaderName).c_str());
-        //    hitGroupShaderIdentifier = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(hitGroupName).c_str());
-        //};
-
-        //ComPtr<ID3D12StateObjectProperties> stateObjectProperties;
-        //ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateObjectProperties));
-        //GetShaderIdentifiers(stateObjectProperties.Get());
-
-        //// Ray gen shader table
-        //{
-        //    struct RootArguments 
-        //    {
-        //        RayGenConstantBuffer cb;
-        //    };
-
-        //    uint const datasize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(RootArguments);
-
-        //    // todo : move this to stdx.core
-        //    uint const aligneduploadsize = (datasize + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-        //    
-        //    std::vector<std::byte> uploaddata;
-        //    uploaddata.reserve(aligneduploadsize);
-
-        //    // todo : doing two mem copies, better to do one directly into mapped address
-        //    memcpy(uploaddata.data(), rayGenShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //    RootArguments& rootarguments = reinterpret_cast<RootArguments&>(*(uploaddata.data() + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES));
-        //    rootarguments.cb.viewport = { -1.0f, -1.0f, 1.0f, 1.0f };
-        //    float border = 0.1f;
-        //    rootarguments.cb.stencil = { -1 + border, -1 + border, 1.0f - border, 1 - border };
-        //    rayGenShaderTable = gfx::create_uploadbufferwithdata(uploaddata.data(), aligneduploadsize);
-        //    namkaran(rayGenShaderTable);
-        //}
-
-        //constexpr uint shaderidentifier_aligneduploadsize = (D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-        //std::byte uploaddata[shaderidentifier_aligneduploadsize];
-
-        //// Miss shader table
-        //{
-        //    // todo : doing two mem copies, better to do one directly into mapped address
-        //    memcpy(uploaddata, missShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //    missShaderTable = gfx::create_uploadbufferwithdata(uploaddata, shaderidentifier_aligneduploadsize);
-        //    namkaran(missShaderTable);
-        //}
-
-        //// Hit group shader table
-        //{
-        //    // todo : doing two mem copies, better to do one directly into mapped address
-        //    memcpy(uploaddata, hitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //    hitGroupShaderTable = gfx::create_uploadbufferwithdata(uploaddata, shaderidentifier_aligneduploadsize);
-        //    namkaran(hitGroupShaderTable);
-        //}
 
         // Create the output resource. The dimensions and format should match the swap-chain.
         auto uavDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 720, 720, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -764,7 +542,7 @@ void sphgpu::render(float dt)
     D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
     cmd_list->SetDescriptorHeaps(1, globalres.srvheap().GetAddressOf());
     cmd_list->SetComputeRootDescriptorTable(0, raytracingOutputResourceUAVGpuDescriptor);
-    cmd_list->SetComputeRootShaderResourceView(1, toplevelaccelerationstructure->GetGPUVirtualAddress());
+    cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
     cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().gpuaddress());
     DispatchRays(cmd_list.Get(), pipelineobjects.pso_raytracing.Get(), &dispatchDesc);
 
