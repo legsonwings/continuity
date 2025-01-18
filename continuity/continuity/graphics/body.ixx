@@ -13,7 +13,7 @@ import geometry;
 import graphicscore;
 import graphics;
 
-import std.core;
+import std;
 
 using Microsoft::WRL::ComPtr;
 

@@ -7,7 +7,7 @@ export module beziermaths;
 import stdxcore;
 import stdx;
 import vec;
-import std.core;
+import std;
 
 export namespace beziermaths
 {

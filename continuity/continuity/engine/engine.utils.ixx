@@ -7,7 +7,7 @@ module;
 
 export module engine:utils;
 
-import std.core;
+import std;
 import stdxcore;
 
 export using Microsoft::WRL::ComPtr;

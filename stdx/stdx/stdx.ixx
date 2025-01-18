@@ -2,7 +2,7 @@ export module stdx;
 
 import stdxcore;
 import vec;
-import std.core;
+import std;
 
 export namespace stdx
 {

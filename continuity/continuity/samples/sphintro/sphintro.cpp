@@ -6,7 +6,7 @@ module sphintro;
 
 import stdx;
 import vec;
-import std.core;
+import std;
 
 namespace sample_creator
 {

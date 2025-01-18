@@ -11,7 +11,7 @@ module geometry:shapes;
 
 import stdxcore;
 import vec;
-import std.core;
+import std;
 
 import graphics;
 

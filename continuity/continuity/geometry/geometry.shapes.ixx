@@ -6,7 +6,7 @@ export module geometry:shapes;
 
 import stdxcore;
 import graphicscore;
-import std.core;
+import std;
 
 using namespace DirectX;
 using vector3 = DirectX::SimpleMath::Vector3;

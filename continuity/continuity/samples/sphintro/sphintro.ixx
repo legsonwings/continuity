@@ -10,7 +10,7 @@ import graphics;
 import geometry;
 import body;
 
-import std.core;
+import std;
 
 namespace gfx
 {

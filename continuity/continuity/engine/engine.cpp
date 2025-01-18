@@ -18,7 +18,6 @@ module engine;
 import activesample;
 import graphics;
 
-import std.core;
 import std;
 
 #define CONSOLE_LOGS 0

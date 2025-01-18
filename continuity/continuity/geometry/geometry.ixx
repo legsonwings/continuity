@@ -3,7 +3,7 @@ export import :shapes;
 
 import stdxcore;
 import vec;
-import std.core;
+import std;
 
 using vec2 = stdx::vec2;
 using vec3 = stdx::vec3;

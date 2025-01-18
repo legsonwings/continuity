@@ -10,7 +10,7 @@ module;
 
 export module stdxcore;
 
-import std.core;
+import std;
 
 // unexported declarations
 namespace stdx

@@ -1,7 +1,7 @@
 module geometry;
 
 import stdxcore;
-import std.core;
+import std;
 
 vec2 to2d(vec3 const& v) { return { v[0], v[1] }; }
 

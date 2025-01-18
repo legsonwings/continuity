@@ -14,7 +14,7 @@ export module graphics;
 import stdxcore;
 import stdx;
 import vec;
-import std.core;
+import std;
 
 import graphicscore;
 import geometry;

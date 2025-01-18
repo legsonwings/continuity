@@ -12,7 +12,7 @@ module;
 import stdxcore;
 import stdx;
 import vec;
-import std.core;
+import std;
 
 export module graphicscore;
 

@@ -2,7 +2,7 @@ export module activesample;
 
 import engine;
 import graphicscore;
-import std.core;
+import std;
 
 export enum class samples : int
 {
