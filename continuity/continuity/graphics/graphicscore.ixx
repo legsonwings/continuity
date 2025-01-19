@@ -61,7 +61,7 @@ struct color
 
 struct shader
 {
-    byte* data;
+    std::byte* data;
     uint32_t size;
 };
 

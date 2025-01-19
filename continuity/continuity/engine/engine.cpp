@@ -129,7 +129,7 @@ void continuity::load_pipeline()
 
     ThrowIfFailed(D3D12CreateDevice(
         hardwareAdapter.Get(),
-        D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_12_1,
         IID_PPV_ARGS(device.ReleaseAndGetAddressOf())
     ));
 

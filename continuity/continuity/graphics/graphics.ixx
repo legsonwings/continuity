@@ -49,6 +49,12 @@ private:
 	uint _alignment;
 };
 
+struct cballocationhelper
+{
+	static constexpr unsigned cbalignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+	static alignedlinearallocator& allocator() { static alignedlinearallocator allocator{ cbalignment }; return allocator; }
+};
+
 export namespace gfx
 {
 
@@ -105,12 +111,6 @@ void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... res
 
 // helpers
 
-struct cballocationhelper
-{
-	static constexpr unsigned cbalignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-	static alignedlinearallocator& allocator() { static alignedlinearallocator allocator{ cbalignment }; return allocator; }
-};
-
 struct resource
 {
 	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return d3dresource->GetGPUVirtualAddress(); }
@@ -119,15 +119,65 @@ struct resource
 	ComPtr<ID3D12Resource> d3dresource;
 };
 
+constexpr uint alignshaderrecord(uint unalignedsize) { return (unalignedsize + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1); }
+
+template<typename rootargs_t>
+struct shaderrecord
+{
+	static constexpr uint unalignedsize = sizeof(rootargs_t) + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	static constexpr uint alignedsize = alignshaderrecord(unalignedsize);
+};
+
+template<>
+struct shaderrecord<void>
+{
+	static constexpr uint unalignedsize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	static constexpr uint alignedsize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+};
+
+using shaderrecord_default = shaderrecord<void>;
+
+template<typename... rootargs_ts>
+struct shadertable_recordsize
+{
+	static constexpr uint size = (... + shaderrecord<rootargs_ts>::alignedsize);
+};
+
 struct shadertable : public resource
 {
 	shadertable() = default;
-	shadertable(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname);
+	shadertable(uint recordsize, uint numrecords);
 
-	ComPtr<ID3D12Resource> createresource(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname);
-	static uint getalignedsize(uint datasize);
+	// default shader record
+	void addrecord(void* shaderid)
+	{
+		stdx::cassert(shaderrecord_default::alignedsize <= shaderrecordsize);
 
-	void* shaderidentifier = nullptr;
+		std::byte* recordstart = getnewrecord_start();
+		memcpy(shaderid, recordstart, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+
+		numshaderrecordswritten++;
+	}
+
+	template<typename rootargs_t>
+	void addrecord(void* shaderid, rootargs_t const& rootargs) requires !std::is_same_v<rootargs_t, void>
+	{
+		stdx::cassert(shaderrecord<rootargs_t>::alignedsize <= shaderrecordsize);
+
+		std::byte* recordstart = getnewrecord_start();
+		std::memcpy(shaderid, recordstart, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		mapped_records += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+		std::memcpy(&rootargs, mapped_records, sizeof(rootargs_t));
+		numshaderrecordswritten++;
+	}
+
+	std::byte* getnewrecord_start() const { return mapped_records + numshaderrecordswritten * shaderrecordsize; }
+
+private:
+	uint shaderrecordsize = 0;
+	uint numshaderrecords = 0;
+	uint numshaderrecordswritten = 0;
+	std::byte* mapped_records = nullptr;
 };
 
 enum class blastype

@@ -39,31 +39,36 @@ void setnamedebug(ComPtr<ID3D12Resource>& resource, std::wstring const& name)
 #endif
 }
 
-shadertable::shadertable(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname)
+shadertable::shadertable(uint recordsize, uint numrecords) : shaderrecordsize(recordsize), numshaderrecords(numrecords)
 {
-    createresource(stateobjproperties, data, datasize, exportname);
+    d3dresource = gfx::create_uploadbuffer(&mapped_records, recordsize * numrecords);
 }
 
-ComPtr<ID3D12Resource> shadertable::createresource(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname)
-{
-    stdx::cassert(shaderidentifier == nullptr);
-
-    std::wstring exportnamew = utils::strtowstr(exportname);
-
-    shaderidentifier = stateobjproperties->GetShaderIdentifier(exportnamew.c_str());
-
-    uint const aligneduploadsize = (datasize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-
-    d3dresource = gfx::create_uploadbufferwithdata(data, aligneduploadsize);
-    setnamedebug(d3dresource, exportnamew);
-
-    return d3dresource;
-}
-
-uint shadertable::getalignedsize(uint datasize)
-{
-    return (datasize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-}
+//shadertable::shadertable(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname)
+//{
+//    createresource(stateobjproperties, data, datasize, exportname);
+//}
+//
+//ComPtr<ID3D12Resource> shadertable::createresource(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname)
+//{
+//    stdx::cassert(shaderidentifier == nullptr);
+//
+//    std::wstring exportnamew = utils::strtowstr(exportname);
+//
+//    shaderidentifier = stateobjproperties->GetShaderIdentifier(exportnamew.c_str());
+//
+//    uint const aligneduploadsize = (datasize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
+//
+//    d3dresource = gfx::create_uploadbufferwithdata(data, aligneduploadsize);
+//    setnamedebug(d3dresource, exportnamew);
+//
+//    return d3dresource;
+//}
+//
+//uint shadertable::getalignedsize(uint datasize)
+//{
+//    return (datasize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
+//}
 
 ComPtr<ID3D12Resource> blas::kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& geometrydesc)
 {

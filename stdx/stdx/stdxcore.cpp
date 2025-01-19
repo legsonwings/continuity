@@ -3,6 +3,9 @@ module stdxcore;
 namespace stdx
 {
 
+// size of c++ structs cannot be zero
+static_assert(sizeof(nulltype) == 1u);
+
 constexpr bool ispowtwo(uint value) { return (value & (value - 1)) == 0; }
 
 uint nextpowoftwomultiple(uint value, uint multipleof)

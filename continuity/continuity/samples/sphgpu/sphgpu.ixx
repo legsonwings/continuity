@@ -49,11 +49,14 @@ private:
 	gfx::triblas triblas;
 	gfx::proceduralblas procblas;
 	gfx::tlas tlas;
-    ComPtr<ID3D12Resource> missShaderTable;
-    ComPtr<ID3D12Resource> hitGroupShaderTable;
-    ComPtr<ID3D12Resource> rayGenShaderTable;
-	ComPtr<ID3D12Resource> raytracingOutput;
-	D3D12_GPU_DESCRIPTOR_HANDLE raytracingOutputResourceUAVGpuDescriptor;
+    //ComPtr<ID3D12Resource> missshadertable;
+    //ComPtr<ID3D12Resource> hitgroupshadertable;
+    //ComPtr<ID3D12Resource> raygenshadertable;
+	gfx::shadertable missshadertable;
+	gfx::shadertable hitgroupshadertable;
+	gfx::shadertable raygenshadertable;
+	ComPtr<ID3D12Resource> raytracingoutput;
+	D3D12_GPU_DESCRIPTOR_HANDLE raytracingoutput_uavgpudescriptor;
 
 	ComPtr<ID3D12CommandSignature> render_commandsig;
 

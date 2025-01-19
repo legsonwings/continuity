@@ -69,7 +69,7 @@ inline void GetAssetsPath(_Out_writes_(pathSize) CHAR* path, UINT pathSize)
     }
 }
 
-inline HRESULT ReadDataFromFile(LPCSTR filename, byte** data, UINT* size)
+inline HRESULT ReadDataFromFile(LPCSTR filename, std::byte** data, UINT* size)
 {
     using namespace Microsoft::WRL;
 
@@ -118,7 +118,7 @@ inline HRESULT ReadDataFromFile(LPCSTR filename, byte** data, UINT* size)
         throw std::exception();
     }
 
-    *data = reinterpret_cast<byte*>(malloc(fileInfo.EndOfFile.LowPart));
+    *data = reinterpret_cast<std::byte*>(malloc(fileInfo.EndOfFile.LowPart));
     *size = fileInfo.EndOfFile.LowPart;
 
     if (!ReadFile(file.Get(), *data, fileInfo.EndOfFile.LowPart, nullptr, nullptr))

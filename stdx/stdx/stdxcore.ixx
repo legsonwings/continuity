@@ -25,6 +25,10 @@ export using uint = std::size_t;
 export namespace stdx
 {
 
+struct nulltype { };
+
+template<typename t> constexpr bool is_nulltype = std::is_same_v<t, nulltype>;
+
 std::ranges::iota_view<uint, uint> range(uint e) { return std::ranges::iota_view<uint, uint>(0u, e); }
 std::ranges::iota_view<uint, uint> range(uint s, uint e) { return std::ranges::iota_view<uint, uint>(s, e); }
 
