@@ -278,68 +278,29 @@ gfx::resourcelist sphgpu::create_resources()
         for (auto r : tlas.build(instancedescs))
             res.push_back(r);
 
-        // now build shader tables
-        void* rayGenShaderID;
-        void* missShaderID;
-        void* hitGroupShaderIDs_TriangleGeometry;
-        void* hitGroupShaderIDs_AABBGeometry;
-
-        auto GetShaderIDs = [&](auto* stateObjectProperties)
-        {
-            rayGenShaderID = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(raygenShaderName).c_str());
-            missShaderID = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(missShaderName).c_str());
-            hitGroupShaderIDs_TriangleGeometry = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(hitGroupName).c_str());
-            hitGroupShaderIDs_AABBGeometry = stateObjectProperties->GetShaderIdentifier(utils::strtowstr(prochitGroupName).c_str());
-        };
-
-        // Get shader identifiers.
         ComPtr<ID3D12StateObjectProperties> stateobjectproperties;
         ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateobjectproperties));
-        GetShaderIDs(stateobjectproperties.Get());
-  
+        auto* stateobjectprops = stateobjectproperties.Get();
+        
+        // get shader id's
+        void* raygenshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(raygenShaderName).c_str());
+        void* missshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(missShaderName).c_str());
+        void* hitgroupshaderids_trianglegeometry = stateobjectprops->GetShaderIdentifier(utils::strtowstr(hitGroupName).c_str());
+        void* hitgroupshaderids_aabbgeometry = stateobjectprops->GetShaderIdentifier(utils::strtowstr(prochitGroupName).c_str());
+        
+        // now build shader tables
+
         // only one records for ray gen and miss shader tables
         raygenshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
-        raygenshadertable.addrecord(rayGenShaderID);
+        raygenshadertable.addrecord(raygenshaderid);
 
         missshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
-        missshadertable.addrecord(missShaderID);
+        missshadertable.addrecord(missshaderid);
 
         // triangle and procedural aabb records for hitgroup shader table
         hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void, void>::size, 2);
-        hitgroupshadertable.addrecord(hitGroupShaderIDs_TriangleGeometry);
-        hitgroupshadertable.addrecord(hitGroupShaderIDs_AABBGeometry);
-
-        /*************--------- Shader table layout -------*******************
-        | --------------------------------------------------------------------
-        | Shader table - HitGroupShaderTable:
-        | [0] : MyHitGroup_Triangle
-        | [1] : MyHitGroup_AABB_AnalyticPrimitive
-        | --------------------------------------------------------------------
-        **********************************************************************/
-
-        //static constexpr uint shaderidentifier_aligneduploadsize = (D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-        //static constexpr uint numhitgroups = 2;
-
-        // since num hit groups is 2 and none of the shaders have local root arguments, all shader records are the same size
-        // also the max size of any shader table 2 * record size(shader identifier size)
-        //std::byte uploaddata[numhitgroups * shaderidentifier_aligneduploadsize];
-
-        // RayGen shader table.
-        //{
-        //    // todo : doing two mem copies, better to do one directly into mapped address
-        //    memcpy(uploaddata, rayGenShaderID, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //    raygenshadertable = gfx::create_uploadbufferwithdata(uploaddata, shaderidentifier_aligneduploadsize);
-        //    namkaran(raygenshadertable);
-        //}
-
-        //// hit group shader table
-        //{
-        //    // todo : doing two mem copies, better to do one directly into mapped address
-        //    memcpy(uploaddata, hitGroupShaderIDs_TriangleGeometry, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //    memcpy(uploaddata + shaderidentifier_aligneduploadsize, hitGroupShaderIDs_AABBGeometry, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-        //    hitgroupshadertable = gfx::create_uploadbufferwithdata(uploaddata, numhitgroups * shaderidentifier_aligneduploadsize);
-        //    namkaran(hitgroupshadertable);
-        //}
+        hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
+        hitgroupshadertable.addrecord(hitgroupshaderids_aabbgeometry);
 
         // Create the output resource. The dimensions and format should match the swap-chain.
         auto uavDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 720, 720, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -520,48 +481,17 @@ void sphgpu::render(float dt)
     // 
     
     auto cmd_list = globalres.cmdlist();
-
-    auto DispatchRays = [&](auto* commandList, auto* stateObject, auto* dispatchDesc)
-    {
-        // Since each shader table has only one shader record, the stride is same as the size.
-        dispatchDesc->HitGroupTable.StartAddress = hitgroupshadertable.d3dresource->GetGPUVirtualAddress();
-        dispatchDesc->HitGroupTable.SizeInBytes = hitgroupshadertable.d3dresource->GetDesc().Width;
-        dispatchDesc->HitGroupTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;    // no local root arguments
-        dispatchDesc->MissShaderTable.StartAddress = missshadertable.d3dresource->GetGPUVirtualAddress();
-        dispatchDesc->MissShaderTable.SizeInBytes = missshadertable.d3dresource->GetDesc().Width;
-        dispatchDesc->MissShaderTable.StrideInBytes = dispatchDesc->MissShaderTable.SizeInBytes;
-        dispatchDesc->RayGenerationShaderRecord.StartAddress = raygenshadertable.d3dresource->GetGPUVirtualAddress();
-        dispatchDesc->RayGenerationShaderRecord.SizeInBytes = raygenshadertable.d3dresource->GetDesc().Width;
-        dispatchDesc->Width = 720;
-        dispatchDesc->Height = 720;
-        dispatchDesc->Depth = 1;
-        commandList->SetPipelineState1(stateObject);
-        commandList->DispatchRays(dispatchDesc);
-    };
-
     auto const& pipelineobjects = globalres.psomap().find("procraytrace")->second;
+    
     cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-
-    // Bind the heaps, acceleration structure and dispatch rays.    
-    D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
     cmd_list->SetDescriptorHeaps(1, globalres.srvheap().GetAddressOf());
     cmd_list->SetComputeRootDescriptorTable(0, raytracingoutput_uavgpudescriptor);
     cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
     cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().gpuaddress());
-    DispatchRays(cmd_list.Get(), pipelineobjects.pso_raytracing.Get(), &dispatchDesc);
+    cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
-    auto* rendertarget = globalres.rendertarget().Get();
+    gfx::raytrace rt;
+    rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), 720, 720);
+    rt.copyoutputtorendertarget(raytracingoutput.Get());
 
-    D3D12_RESOURCE_BARRIER preCopyBarriers[2];
-    preCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
-    preCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(raytracingoutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    cmd_list->ResourceBarrier(ARRAYSIZE(preCopyBarriers), preCopyBarriers);
-
-    cmd_list->CopyResource(rendertarget, raytracingoutput.Get());
-
-    D3D12_RESOURCE_BARRIER postCopyBarriers[2];
-    postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(raytracingoutput.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-    cmd_list->ResourceBarrier(ARRAYSIZE(postCopyBarriers), postCopyBarriers);
 }

@@ -140,7 +140,7 @@ using shaderrecord_default = shaderrecord<void>;
 template<typename... rootargs_ts>
 struct shadertable_recordsize
 {
-	static constexpr uint size = (... + shaderrecord<rootargs_ts>::alignedsize);
+	static constexpr uint size = std::max<uint>({ shaderrecord<rootargs_ts>::alignedsize... });
 };
 
 struct shadertable : public resource
@@ -148,13 +148,16 @@ struct shadertable : public resource
 	shadertable() = default;
 	shadertable(uint recordsize, uint numrecords);
 
+	uint recordsize() const { return shaderrecordsize; }
+	uint numrecords() const { return numshaderrecords; }
+
 	// default shader record
 	void addrecord(void* shaderid)
 	{
 		stdx::cassert(shaderrecord_default::alignedsize <= shaderrecordsize);
 
 		std::byte* recordstart = getnewrecord_start();
-		memcpy(shaderid, recordstart, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		memcpy(recordstart, shaderid, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
 		numshaderrecordswritten++;
 	}
@@ -165,15 +168,17 @@ struct shadertable : public resource
 		stdx::cassert(shaderrecord<rootargs_t>::alignedsize <= shaderrecordsize);
 
 		std::byte* recordstart = getnewrecord_start();
-		std::memcpy(shaderid, recordstart, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		mapped_records += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-		std::memcpy(&rootargs, mapped_records, sizeof(rootargs_t));
-		numshaderrecordswritten++;
+		std::memcpy(recordstart, shaderid, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		recordstart = recordstart + shaderrecordsize;
+		std::memcpy(recordstart, &rootargs, sizeof(rootargs_t));
+
+		numshaderrecordswritten += 2;
 	}
 
 	std::byte* getnewrecord_start() const { return mapped_records + numshaderrecordswritten * shaderrecordsize; }
 
 private:
+
 	uint shaderrecordsize = 0;
 	uint numshaderrecords = 0;
 	uint numshaderrecordswritten = 0;
@@ -223,6 +228,12 @@ struct proceduralblas : public blas
 {
 	static constexpr uint numresourcetokeepalive = 2;
 	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs& instancedescs, geometryopacity opacity, geometry::aabb const& aabb);
+};
+
+struct raytrace
+{
+	void dispatchrays(shadertable const& raygen, shadertable const& miss, shadertable const& hitgroup, ID3D12StateObject* stateobject, uint width, uint height);
+	void copyoutputtorendertarget(ID3D12Resource* rtoutput);
 };
 
 template<typename t>

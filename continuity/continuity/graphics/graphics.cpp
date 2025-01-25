@@ -44,32 +44,6 @@ shadertable::shadertable(uint recordsize, uint numrecords) : shaderrecordsize(re
     d3dresource = gfx::create_uploadbuffer(&mapped_records, recordsize * numrecords);
 }
 
-//shadertable::shadertable(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname)
-//{
-//    createresource(stateobjproperties, data, datasize, exportname);
-//}
-//
-//ComPtr<ID3D12Resource> shadertable::createresource(ID3D12StateObjectProperties* stateobjproperties, std::byte const* data, uint datasize, std::string const& exportname)
-//{
-//    stdx::cassert(shaderidentifier == nullptr);
-//
-//    std::wstring exportnamew = utils::strtowstr(exportname);
-//
-//    shaderidentifier = stateobjproperties->GetShaderIdentifier(exportnamew.c_str());
-//
-//    uint const aligneduploadsize = (datasize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-//
-//    d3dresource = gfx::create_uploadbufferwithdata(data, aligneduploadsize);
-//    setnamedebug(d3dresource, exportnamew);
-//
-//    return d3dresource;
-//}
-//
-//uint shadertable::getalignedsize(uint datasize)
-//{
-//    return (datasize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1);
-//}
-
 ComPtr<ID3D12Resource> blas::kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& geometrydesc)
 {
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottomlevelprebuildinfo = {};
@@ -192,6 +166,47 @@ std::array<ComPtr<ID3D12Resource>, proceduralblas::numresourcetokeepalive> proce
     instancedesc.InstanceContributionToHitGroupIndex = instanceidx;
 
     return { aabbbuffer, scratch };
+}
+
+void raytrace::dispatchrays(shadertable const& raygen, shadertable const& miss, shadertable const& hitgroup, ID3D12StateObject* stateobject, uint width, uint height)
+{
+    // this function expects resources and state to be setup
+    D3D12_DISPATCH_RAYS_DESC dispatchdesc = {};
+
+    dispatchdesc.HitGroupTable.StartAddress = hitgroup.d3dresource->GetGPUVirtualAddress();
+    dispatchdesc.HitGroupTable.SizeInBytes = hitgroup.d3dresource->GetDesc().Width;
+    dispatchdesc.HitGroupTable.StrideInBytes = UINT(hitgroup.recordsize());
+    dispatchdesc.MissShaderTable.StartAddress = miss.d3dresource->GetGPUVirtualAddress();
+    dispatchdesc.MissShaderTable.SizeInBytes = miss.d3dresource->GetDesc().Width;
+    dispatchdesc.MissShaderTable.StrideInBytes = UINT(miss.recordsize());
+    dispatchdesc.RayGenerationShaderRecord.StartAddress = raygen.d3dresource->GetGPUVirtualAddress();
+    dispatchdesc.RayGenerationShaderRecord.SizeInBytes = raygen.d3dresource->GetDesc().Width;
+    dispatchdesc.Width = UINT(width);
+    dispatchdesc.Height = UINT(height);
+    dispatchdesc.Depth = 1;
+
+    globalresources::get().cmdlist()->DispatchRays(&dispatchdesc);
+}
+
+void raytrace::copyoutputtorendertarget(ID3D12Resource* rtoutput)
+{
+    auto& globalres = globalresources::get();
+
+    auto cmd_list = globalres.cmdlist();
+    auto* rendertarget = globalres.rendertarget().Get();
+
+    D3D12_RESOURCE_BARRIER precopybarriers[2];
+    precopybarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
+    precopybarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rtoutput, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    cmd_list->ResourceBarrier(ARRAYSIZE(precopybarriers), precopybarriers);
+
+    cmd_list->CopyResource(rendertarget, rtoutput);
+
+    D3D12_RESOURCE_BARRIER postcopybarriers[2];
+    postcopybarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    postcopybarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rtoutput, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+    cmd_list->ResourceBarrier(ARRAYSIZE(postcopybarriers), postcopybarriers);
 }
 
 void texture::createresource(uint heapidx, stdx::vecui2 dims, std::vector<uint8_t> const& texturedata, ID3D12DescriptorHeap* srvheap)

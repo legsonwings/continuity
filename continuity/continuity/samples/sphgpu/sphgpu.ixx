@@ -49,9 +49,6 @@ private:
 	gfx::triblas triblas;
 	gfx::proceduralblas procblas;
 	gfx::tlas tlas;
-    //ComPtr<ID3D12Resource> missshadertable;
-    //ComPtr<ID3D12Resource> hitgroupshadertable;
-    //ComPtr<ID3D12Resource> raygenshadertable;
 	gfx::shadertable missshadertable;
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
