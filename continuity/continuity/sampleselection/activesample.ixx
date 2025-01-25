@@ -9,11 +9,12 @@ export enum class samples : int
 	basic,
 	sphintro,
 	sphgpu,
+	raytrace,
 	num
 };
 
-export inline std::wstring sample_titles[int(samples::num)] = { L"Basic ", L"Intro SPH fluid ", L"Sph Gpu fluid"};
-export auto constexpr activesample = samples::sphgpu;
+export inline std::wstring sample_titles[int(samples::num)] = { L"Basic ", L"Intro SPH fluid ", L"Sph Gpu fluid", L"raytrace"};
+export auto constexpr activesample = samples::raytrace;
 
 export class basic_sample : public sample_base
 {

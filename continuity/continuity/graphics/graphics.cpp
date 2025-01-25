@@ -1,9 +1,12 @@
 module;
 
-#include <wrl.h>
-#include <d3d12.h>
+// include these first so min/max doesn't cause issues
+#include "thirdparty/rapidobj.hpp"
 #include "thirdparty/dxhelpers.h"
 #include "thirdparty/d3dx12.h"
+
+#include <wrl.h>
+#include <d3d12.h>
 
 module graphics;
 
@@ -252,6 +255,11 @@ uint texture::size() const
     return _dims[0] * _dims[1] * dxgiformatsize(_format);
 }
 
+model::model(std::string const& objpath)
+{
+
+}
+
 void globalresources::init()
 {
     CHAR assetsPath[512];
@@ -481,25 +489,21 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     auto lib = raytracingpipeline.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
     D3D12_SHADER_BYTECODE libdxil = CD3DX12_SHADER_BYTECODE((void*)raytracinglib.data, raytracinglib.size);
     lib->SetDXILLibrary(&libdxil);
-    // we do not define any exports so all shaders will be exported
 
-    //lib->DefineExport(utils::strtowstr(shaders.raygen).c_str());
-    //lib->DefineExport(utils::strtowstr(shaders.closesthit).c_str());
-    //lib->DefineExport(utils::strtowstr(shaders.miss).c_str());
+    auto const& trihitgrp = shaders.procedural_hitgroup;
+    auto const& prochitgrp = shaders.procedural_hitgroup;
 
+    if(!trihitgrp.name.empty())
     {
-        // Triangle hit group
-        // A hit group specifies closest hit, any hit and intersection shaders to be executed when a ray intersects the geometry's triangle/AABB.
-        // In this sample, we only use triangle geometry with a closest hit shader, so others are not set.
+        // we do not define any exports so all shaders will be exported
         auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
         hitGroup->SetClosestHitShaderImport(utils::strtowstr(shaders.tri_hitgrp.closesthit).c_str());
         hitGroup->SetHitGroupExport(utils::strtowstr(shaders.tri_hitgrp.name).c_str());
         hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
     }
 
+    if(!prochitgrp.name.empty())
     {
-        // procedural hit group
-        auto const& prochitgrp = shaders.procedural_hitgroup;
         auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
         hitGroup->SetIntersectionShaderImport(utils::strtowstr(prochitgrp.intersection).c_str());
 

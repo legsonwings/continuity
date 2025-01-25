@@ -40,6 +40,8 @@
     <ClCompile Include="geometry\geometry.ixx" />
     <ClCompile Include="graphics\graphicscore.ixx" />
     <ClCompile Include="sampleselection\activesample.cpp" />
+    <ClCompile Include="samples\raytrace\raytrace.cpp" />
+    <ClCompile Include="samples\raytrace\raytrace.ixx" />
     <ClCompile Include="samples\sphgpu\sphgpu.cpp" />
     <ClCompile Include="samples\sphgpu\sphgpu.ixx" />
     <ClCompile Include="samples\sphintro\sphintro.cpp" />
@@ -54,6 +56,7 @@
     <ClInclude Include="simplemath\simplemath.h" />
     <ClInclude Include="thirdparty\d3dx12.h" />
     <ClInclude Include="thirdparty\dxhelpers.h" />
+    <ClInclude Include="thirdparty\rapidobj.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\common.hlsli" />
@@ -133,6 +136,10 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="samples\raytrace\shaders\raytrace_rs.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Library</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Library</ShaderType>
     </FxCompile>
     <FxCompile Include="samples\sphgpu\shaders\marchingcubes_cs.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
@@ -375,6 +382,9 @@
       <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ShaderModel>6.6</ShaderModel>
     </FxCompile>
+    <PostBuildEvent>
+      <Command>robocopy "$(ProjectDir)models" "$(TargetDir)models" /E</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -415,6 +425,9 @@
       <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ShaderModel>6.6</ShaderModel>
     </FxCompile>
+    <PostBuildEvent>
+      <Command>robocopy "$(ProjectDir)models" "$(TargetDir)models" /E</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -43,6 +43,12 @@
     <Filter Include="source\engine">
       <UniqueIdentifier>{533ddd05-9389-40d1-b60e-7d5593ca01c2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="samples\raytrace">
+      <UniqueIdentifier>{e74ccb62-badf-4292-9b22-a01e1331a345}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="samples\raytrace\shaders">
+      <UniqueIdentifier>{e22f733e-880f-4eef-ad4b-e2911a8e7bb5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beziermaths\beziermaths.cpp">
@@ -126,6 +132,12 @@
     <ClCompile Include="geometry\geometry.shapes.ixx">
       <Filter>source\geometry</Filter>
     </ClCompile>
+    <ClCompile Include="samples\raytrace\raytrace.cpp">
+      <Filter>samples\raytrace</Filter>
+    </ClCompile>
+    <ClCompile Include="samples\raytrace\raytrace.ixx">
+      <Filter>samples\raytrace</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simplemath\simplemath.h">
@@ -136,6 +148,9 @@
     </ClInclude>
     <ClInclude Include="sharedconstants.h" />
     <ClInclude Include="thirdparty\dxhelpers.h">
+      <Filter>source\thirdparty</Filter>
+    </ClInclude>
+    <ClInclude Include="thirdparty\rapidobj.hpp">
       <Filter>source\thirdparty</Filter>
     </ClInclude>
   </ItemGroup>
@@ -207,6 +222,9 @@
     </FxCompile>
     <FxCompile Include="assets\raytracetrisphere_rs.hlsl">
       <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="samples\raytrace\shaders\raytrace_rs.hlsl">
+      <Filter>samples\raytrace\shaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

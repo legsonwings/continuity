@@ -47,13 +47,13 @@ static constexpr float sqrt2 = 1.41421356237f;
 static constexpr float marchingcube_size = 0.1f;
 
 // raytracing stuff
-constexpr char const* hitGroupName = "MyHitGroup";
-constexpr char const* prochitGroupName = "MyHitGroup_AABB_AnalyticPrimitive";
-constexpr char const* raygenShaderName = "MyRaygenShader";
-constexpr char const* closestHitShaderName = "MyClosestHitShader_Triangle";
-constexpr char const* procclosestHitShaderName = "MyClosestHitShader_AABB";
-constexpr char const* missShaderName = "MyMissShader";
-constexpr char const* intersectionShaderName = "MyIntersectionShader_AnalyticPrimitive";
+static constexpr char const* hitGroupName = "MyHitGroup";
+static constexpr char const* prochitGroupName = "MyHitGroup_AABB_AnalyticPrimitive";
+static constexpr char const* raygenShaderName = "MyRaygenShader";
+static constexpr char const* closestHitShaderName = "MyClosestHitShader_Triangle";
+static constexpr char const* procclosestHitShaderName = "MyClosestHitShader_AABB";
+static constexpr char const* missShaderName = "MyMissShader";
+static constexpr char const* intersectionShaderName = "MyIntersectionShader_AnalyticPrimitive";
 
 struct Viewport
 {

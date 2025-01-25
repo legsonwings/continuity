@@ -143,8 +143,10 @@ struct shadertable_recordsize
 	static constexpr uint size = std::max<uint>({ shaderrecord<rootargs_ts>::alignedsize... });
 };
 
-struct shadertable : public resource
+class shadertable : public resource
 {
+
+public:
 	shadertable() = default;
 	shadertable(uint recordsize, uint numrecords);
 
@@ -338,6 +340,15 @@ struct texture
 
 	// todo : why is this here?
 	ComPtr<ID3D12DescriptorHeap> _srvheap;
+};
+
+struct model
+{
+	model() = default;
+	model(std::string const& objpath);
+
+	std::vector<uint16_t> indices;
+	std::vector<stdx::vec3> vertices;
 };
 
 // todo : theres partial module implementations?? these should be split better
