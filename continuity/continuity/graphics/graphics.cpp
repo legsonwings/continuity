@@ -490,7 +490,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     D3D12_SHADER_BYTECODE libdxil = CD3DX12_SHADER_BYTECODE((void*)raytracinglib.data, raytracinglib.size);
     lib->SetDXILLibrary(&libdxil);
 
-    auto const& trihitgrp = shaders.procedural_hitgroup;
+    auto const& trihitgrp = shaders.tri_hitgrp;
     auto const& prochitgrp = shaders.procedural_hitgroup;
 
     if(!trihitgrp.name.empty())
