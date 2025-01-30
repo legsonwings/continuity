@@ -383,7 +383,7 @@
       <ShaderModel>6.6</ShaderModel>
     </FxCompile>
     <PostBuildEvent>
-      <Command>robocopy "$(ProjectDir)models" "$(TargetDir)models" /E</Command>
+      <Command>xcopy "$(ProjectDir)models" "$(TargetDir)models" /Y /I /E</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -426,7 +426,7 @@
       <ShaderModel>6.6</ShaderModel>
     </FxCompile>
     <PostBuildEvent>
-      <Command>robocopy "$(ProjectDir)models" "$(TargetDir)models" /E</Command>
+      <Command>xcopy "$(ProjectDir)models" "$(TargetDir)models" /Y /I /E</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
