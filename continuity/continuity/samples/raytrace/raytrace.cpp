@@ -89,33 +89,17 @@ gfx::resourcelist raytrace::create_resources()
         auto& device = globalres.device();
         auto& cmdlist = globalres.cmdlist();
 
-        std::vector<uint16_t> indices = { 0, 1, 2 };
-
-        float depthValue = 10.0;
-        float offset = 2;
-        std::vector<stdx::vec3> verts =
-        {
-            // Since DirectX screen space coordinates are right handed (i.e. Y axis points down).
-            // Define the vertices in counter clockwise order ~ clockwise in left handed.
-            { 0, offset, depthValue },
-            { -offset, -offset, depthValue },
-            { offset, -offset, depthValue }
-        };
-
-        geometry::aabb aabb(vector3(-2, -2, 4), vector3(2, 2, 8));
-
+        gfx::model model("spot.obj");
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
         gfx::blasinstancedescs instancedescs;
 
         // cannot use stdx::join because ComPtr is too smart for its own good
-        for (auto r : triblas.build(instancedescs, opacity, verts, indices))
-            res.push_back(r);
-
-        for (auto r : procblas.build(instancedescs, opacity, aabb))
+        for (auto r : triblas.build(instancedescs, opacity, model.vertices, model.indices))
             res.push_back(r);
 
         for (auto r : tlas.build(instancedescs))
             res.push_back(r);
+
         ComPtr<ID3D12StateObjectProperties> stateobjectproperties;
         ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateobjectproperties));
         auto* stateobjectprops = stateobjectproperties.Get();

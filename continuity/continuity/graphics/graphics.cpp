@@ -10,6 +10,7 @@ module;
 
 module graphics;
 
+import vec;
 import engine;
 
 // seems like the declarations is not available across files
@@ -251,13 +252,29 @@ D3D12_GPU_DESCRIPTOR_HANDLE texture::deschandle() const
 }
 
 uint texture::size() const
-{ 
+{
     return _dims[0] * _dims[1] * dxgiformatsize(_format);
 }
 
 model::model(std::string const& objpath)
 {
+    rapidobj::Result result = rapidobj::ParseFile(std::filesystem::path(objpath));
+    auto const& positions = result.attributes.positions;
+    auto const& objindices = result.shapes[0].mesh.indices;
 
+    for (uint i(0); i < result.shapes[0].mesh.num_face_vertices.size(); ++i)
+    {
+        stdx::cassert(result.shapes[0].mesh.num_face_vertices[i] == 3);
+        indices.push_back(uint16_t(objindices[i * 3].position_index));
+        indices.push_back(uint16_t(objindices[i * 3 + 1].position_index));
+        indices.push_back(uint16_t(objindices[i * 3 + 2].position_index));
+    }
+
+    // make sure there is no padding
+    static_assert(sizeof(std::decay_t<decltype(positions)>::value_type) * 3 == sizeof(stdx::vec3));
+
+    stdx::vec3 const* const vert_start = reinterpret_cast<stdx::vec3 const*>(positions.data());
+    vertices = std::vector<stdx::vec3>(vert_start, vert_start + (positions.size() / 3));
 }
 
 void globalresources::init()

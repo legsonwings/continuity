@@ -39,7 +39,6 @@ public:
 private:
 
 	gfx::triblas triblas;
-	gfx::proceduralblas procblas;
 	gfx::tlas tlas;
 	gfx::shadertable missshadertable;
 	gfx::shadertable hitgroupshadertable;
