@@ -89,7 +89,7 @@ gfx::resourcelist raytrace::create_resources()
         auto& device = globalres.device();
         auto& cmdlist = globalres.cmdlist();
 
-        gfx::model model("spot.obj");
+        gfx::model model("models/spot.obj");
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
         gfx::blasinstancedescs instancedescs;
 
@@ -157,57 +157,21 @@ void raytrace::render(float dt)
     globalres.cbuffer().updateresource();
 
     // render the room inner walls
-    //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) b->render(dt, { false });
+    for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) b->render(dt, { false });
 
     auto cmd_list = globalres.cmdlist();
 
-    auto DispatchRays = [&](auto* commandList, auto* stateObject, auto* dispatchDesc)
-    {
-        // Since each shader table has only one shader record, the stride is same as the size.
-        dispatchDesc->HitGroupTable.StartAddress = hitgroupshadertable.d3dresource->GetGPUVirtualAddress();
-        dispatchDesc->HitGroupTable.SizeInBytes = hitgroupshadertable.d3dresource->GetDesc().Width;
-        dispatchDesc->HitGroupTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;    // no local root arguments
-        dispatchDesc->MissShaderTable.StartAddress = missshadertable.d3dresource->GetGPUVirtualAddress();
-        dispatchDesc->MissShaderTable.SizeInBytes = missshadertable.d3dresource->GetDesc().Width;
-        dispatchDesc->MissShaderTable.StrideInBytes = dispatchDesc->MissShaderTable.SizeInBytes;
-        dispatchDesc->RayGenerationShaderRecord.StartAddress = raygenshadertable.d3dresource->GetGPUVirtualAddress();
-        dispatchDesc->RayGenerationShaderRecord.SizeInBytes = raygenshadertable.d3dresource->GetDesc().Width;
-        dispatchDesc->Width = 720;
-        dispatchDesc->Height = 720;
-        dispatchDesc->Depth = 1;
-        commandList->SetPipelineState1(stateObject);
-        commandList->DispatchRays(dispatchDesc);
-    };
-
     auto const& pipelineobjects = globalres.psomap().find("raytrace")->second;
 
+    // bind the global root signature, heaps, acceleration structure and dispatch rays.    
     cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-
-    // Bind the heaps, acceleration structure and dispatch rays.    
-    D3D12_DISPATCH_RAYS_DESC dispatchDesc = {};
     cmd_list->SetDescriptorHeaps(1, globalres.srvheap().GetAddressOf());
     cmd_list->SetComputeRootDescriptorTable(0, raytracingoutput_uavgpudescriptor);
     cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
     cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().gpuaddress());
-    DispatchRays(cmd_list.Get(), pipelineobjects.pso_raytracing.Get(), &dispatchDesc);
-
-    auto* rendertarget = globalres.rendertarget().Get();
-
-    D3D12_RESOURCE_BARRIER preCopyBarriers[2];
-    preCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
-    preCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(raytracingoutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    cmd_list->ResourceBarrier(ARRAYSIZE(preCopyBarriers), preCopyBarriers);
-
-    cmd_list->CopyResource(rendertarget, raytracingoutput.Get());
     cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
-
-    D3D12_RESOURCE_BARRIER postCopyBarriers[2];
-    postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(raytracingoutput.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), 720, 720);
     rt.copyoutputtorendertarget(raytracingoutput.Get());
-
-    cmd_list->ResourceBarrier(ARRAYSIZE(postCopyBarriers), postCopyBarriers);
 }

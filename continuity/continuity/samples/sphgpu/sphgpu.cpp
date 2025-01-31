@@ -493,5 +493,4 @@ void sphgpu::render(float dt)
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), 720, 720);
     rt.copyoutputtorendertarget(raytracingoutput.Get());
-
 }
