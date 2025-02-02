@@ -157,7 +157,7 @@ class body_dynamic : public bodyinterface
     body_t body;
     constantbuffer<objectconstants> _cbuffer;
     dynamicbuffer<vertextype> _vertexbuffer;
-    texture _texture{ 0, DXGI_FORMAT_R8G8B8A8_UNORM };
+    texture_dynamic _texture{ DXGI_FORMAT_R8G8B8A8_UNORM };
 
     using vertexfetch_r = std::vector<vertextype>;
     using vertexfetch = std::function<vertexfetch_r(rawbody_t const&)>;
@@ -285,7 +285,7 @@ inline std::vector<ComPtr<ID3D12Resource>> body_dynamic<body_t, prim_t>::create_
     _cbuffer.createresource();
     auto const& verts = get_vertices(body);
     _vertexbuffer.createresource(getparams().maxverts);
-    _texture.createresource(0, getparams().dims, body.texturedata(), gfx::globalresources::get().srvheap().Get());
+    _texture.createresource(getparams().dims, body.texturedata());
 
     stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
     return {};

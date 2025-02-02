@@ -27,7 +27,10 @@ std::unique_ptr<sample_base> create_instance<samples::raytrace>(view_data const&
 
 using namespace DirectX;
 
-static constexpr float roomextents = 1.6f;
+// todo : remove these
+using vector3 = DirectX::SimpleMath::Vector3;
+using vector4 = DirectX::SimpleMath::Vector4;
+using matrix = DirectX::SimpleMath::Matrix;
 
 // raytracing stuff
 static constexpr char const* hitGroupName = "MyHitGroup";
@@ -53,30 +56,16 @@ gfx::resourcelist raytrace::create_resources()
 
     // initialize lights
     globals.numdirlights = 1;
-    globals.numpointlights = 2;
+    globals.numpointlights = 0;
 
     globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
     globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
     globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
 
-    globals.lights[1].position = { -15.f, 15.f, -15.f };
-    globals.lights[1].color = { 1.f, 1.f, 1.f };
-    globals.lights[1].range = 40.f;
-
-    globals.lights[2].position = { 15.f, 15.f, -15.f };
-    globals.lights[2].color = { 1.f, 1.f, 1.f };
-    globals.lights[2].range = 40.f;
-
     globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
     globalres.cbuffer().updateresource();
-
-    // since these use static vertex buffers, just send 0 as maxverts
-    boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{ roomextents } }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });
-
     gfx::resourcelist res;
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) { stdx::append(b->create_resources(), res); };
 
-    // rt triangle
     {
         gfx::raytraceshaders rtshaders;
         rtshaders.raygen = raygenShaderName;
@@ -122,29 +111,11 @@ gfx::resourcelist raytrace::create_resources()
         hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
         hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
-        // Create the output resource. The dimensions and format should match the swap-chain.
-        auto uavDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 720, 720, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-
-        auto defaultHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        ThrowIfFailed(device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &uavDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&raytracingoutput)));
-        namkaran(raytracingoutput);
-
-        auto descriptorHeapCpuBase = globalres.srvheap()->GetCPUDescriptorHandleForHeapStart();
-
-        D3D12_CPU_DESCRIPTOR_HANDLE cpudescriptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(descriptorHeapCpuBase, 0, UINT(gfx::srvcbvuav_descincrementsize()));
-        D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
-        UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-        device->CreateUnorderedAccessView(raytracingoutput.Get(), nullptr, &UAVDesc, cpudescriptor);
-        raytracingoutput_uavgpudescriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(globalres.srvheap()->GetGPUDescriptorHandleForHeapStart(), 0, UINT(gfx::srvcbvuav_descincrementsize()));
+        raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ 720, 720 }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        raytraceoutput_uav = raytracingoutput.createuav();
     }
 
     return res;
-}
-
-void raytrace::update(float dt)
-{
-    sample_base::update(dt);
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) b->update(dt);
 }
 
 void raytrace::render(float dt)
@@ -156,22 +127,19 @@ void raytrace::render(float dt)
     globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
     globalres.cbuffer().updateresource();
 
-    // render the room inner walls
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) b->render(dt, { false });
-
     auto cmd_list = globalres.cmdlist();
 
     auto const& pipelineobjects = globalres.psomap().find("raytrace")->second;
 
     // bind the global root signature, heaps, acceleration structure and dispatch rays.    
     cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    cmd_list->SetDescriptorHeaps(1, globalres.srvheap().GetAddressOf());
-    cmd_list->SetComputeRootDescriptorTable(0, raytracingoutput_uavgpudescriptor);
+    cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
+    cmd_list->SetComputeRootDescriptorTable(0, globalres.resourceheap().gpudeschandle(raytraceoutput_uav.heapidx)); // todo : bindless will make this irrelevant
     cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
     cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().gpuaddress());
     cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), 720, 720);
-    rt.copyoutputtorendertarget(raytracingoutput.Get());
+    rt.copyoutputtorendertarget(raytracingoutput);
 }

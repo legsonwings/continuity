@@ -302,20 +302,8 @@ gfx::resourcelist sphgpu::create_resources()
         hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
         hitgroupshadertable.addrecord(hitgroupshaderids_aabbgeometry);
 
-        // Create the output resource. The dimensions and format should match the swap-chain.
-        auto uavDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 720, 720, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-
-        auto defaultHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        ThrowIfFailed(device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &uavDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&raytracingoutput)));
-        namkaran(raytracingoutput);
-
-        auto descriptorHeapCpuBase = globalres.srvheap()->GetCPUDescriptorHandleForHeapStart();
-
-        D3D12_CPU_DESCRIPTOR_HANDLE cpudescriptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(descriptorHeapCpuBase, 0, UINT(gfx::srvcbvuav_descincrementsize()));
-        D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
-        UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-        device->CreateUnorderedAccessView(raytracingoutput.Get(), nullptr, &UAVDesc, cpudescriptor);
-        raytracingoutput_uavgpudescriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(globalres.srvheap()->GetGPUDescriptorHandleForHeapStart(), 0, UINT(gfx::srvcbvuav_descincrementsize()));
+        raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ 720, 720 }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        raytraceoutput_uav = raytracingoutput.createuav();
     }
 
     return res;
@@ -484,13 +472,13 @@ void sphgpu::render(float dt)
     auto const& pipelineobjects = globalres.psomap().find("procraytrace")->second;
     
     cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    cmd_list->SetDescriptorHeaps(1, globalres.srvheap().GetAddressOf());
-    cmd_list->SetComputeRootDescriptorTable(0, raytracingoutput_uavgpudescriptor);
+    cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
+    cmd_list->SetComputeRootDescriptorTable(0, globalres.resourceheap().gpudeschandle(raytraceoutput_uav.heapidx));
     cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
     cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().gpuaddress());
     cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), 720, 720);
-    rt.copyoutputtorendertarget(raytracingoutput.Get());
+    rt.copyoutputtorendertarget(raytracingoutput);
 }

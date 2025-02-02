@@ -81,11 +81,11 @@ ComPtr<ID3D12Resource> create_perframeuploadbuffers(std::byte** mapped_buffer, u
 ComPtr<ID3D12Resource> create_uploadbufferwithdata(void const* data_start, uint const buffersize);
 ComPtr<ID3D12Resource> create_perframeuploadbufferunmapped(uint const buffersize);
 ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap();
-void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* srvheap, uint heapslot = 0);
+void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* resourceheap, uint heapslot = 0);
 ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size);
 ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size);
 default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const b_size);
-ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format);
+ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format, D3D12_RESOURCE_STATES state);
 uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata);
 D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, UINT64 perframe_buffersize);
 void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize);
@@ -232,10 +232,85 @@ struct proceduralblas : public blas
 	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs& instancedescs, geometryopacity opacity, geometry::aabb const& aabb);
 };
 
+
+// all resource views are created on the global resource heap right now
+struct resourceview
+{
+	uint heapidx;
+};
+
+struct srv : public resourceview
+{
+	D3D12_SHADER_RESOURCE_VIEW_DESC desc;
+};
+
+struct uav : public resourceview
+{
+	D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+};
+
+struct cbv : public resourceview
+{
+	D3D12_CONSTANT_BUFFER_VIEW_DESC desc;
+};
+
+class resourceheap
+{
+public:
+	srv addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC view, ID3D12Resource* res);
+	uav adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC view, ID3D12Resource* res);
+	cbv addcbv(D3D12_CONSTANT_BUFFER_VIEW_DESC view, ID3D12Resource* res);
+
+	D3D12_GPU_DESCRIPTOR_HANDLE gpudeschandle(uint slot) const;
+
+	ComPtr<ID3D12DescriptorHeap> d3dheap;
+private:
+	uint currslot = 0;
+};
+
+// read write by gpu only
+struct texture : public resource
+{
+	texture() = default;
+	texture(DXGI_FORMAT dxgiformat, stdx::vecui2 dimensions, D3D12_RESOURCE_STATES state);
+
+	gfx::srv const& createsrv() const;
+	gfx::uav const& createuav() const;
+
+	DXGI_FORMAT format;
+	stdx::vecui2 dims;
+};
+
+// todo : this is a texture updated per frame,
+// update to be more consistent with texture
+struct texture_dynamic
+{
+	void createresource(stdx::vecui2 dims, std::vector<uint8_t> const& texturedata);
+	void updateresource(std::vector<uint8_t> const& texturedata);
+	D3D12_GPU_DESCRIPTOR_HANDLE deschandle() const;
+
+	uint size() const;
+
+	DXGI_FORMAT _format;
+	stdx::vecui2 _dims;
+	srv _srv;
+	ComPtr<ID3D12Resource> _texture;
+	ComPtr<ID3D12Resource> _bufferupload;
+};
+
+struct model
+{
+	model() = default;
+	model(std::string const& objpath);
+
+	std::vector<uint16_t> indices;
+	std::vector<stdx::vec3> vertices;
+};
+
 struct raytrace
 {
 	void dispatchrays(shadertable const& raygen, shadertable const& miss, shadertable const& hitgroup, ID3D12StateObject* stateobject, uint width, uint height);
-	void copyoutputtorendertarget(ID3D12Resource* rtoutput);
+	void copyoutputtorendertarget(texture const& rtoutput);
 };
 
 template<typename t>
@@ -324,33 +399,6 @@ struct dynamicbuffer
 	ComPtr<ID3D12Resource> _buffer;
 };
 
-struct texture
-{
-	void createresource(uint heapidx, stdx::vecui2 dims, std::vector<uint8_t> const& texturedata, ID3D12DescriptorHeap* srvheap);
-	void updateresource(std::vector<uint8_t> const& texturedata);
-	D3D12_GPU_DESCRIPTOR_HANDLE deschandle() const;
-
-	uint size() const;
-
-	uint _heapidx;
-	DXGI_FORMAT _format;
-	stdx::vecui2 _dims;
-	ComPtr<ID3D12Resource> _texture;
-	ComPtr<ID3D12Resource> _bufferupload;
-
-	// todo : why is this here?
-	ComPtr<ID3D12DescriptorHeap> _srvheap;
-};
-
-struct model
-{
-	model() = default;
-	model(std::string const& objpath);
-
-	std::vector<uint16_t> indices;
-	std::vector<stdx::vec3> vertices;
-};
-
 // todo : theres partial module implementations?? these should be split better
 class globalresources
 {
@@ -358,7 +406,7 @@ class globalresources
 	uint _frameindex{ 0 };
 	std::string _assetspath;
 	constantbuffer<sceneconstants> _cbuffer;
-	ComPtr<ID3D12DescriptorHeap> _srvheap;
+	resourceheap _resourceheap;
 	ComPtr<ID3D12Device5> _device;
 
 	// todo : o we need to store root signature twice?
@@ -383,7 +431,7 @@ public:
 	void rendertarget(ComPtr<ID3D12Resource>& rendertarget);
 	ComPtr<ID3D12Resource>& rendertarget();
 	ComPtr<ID3D12Device5>& device();
-	ComPtr<ID3D12DescriptorHeap>& srvheap();
+	resourceheap& resourceheap();
 	ComPtr<ID3D12GraphicsCommandList6>& cmdlist();
 	void frameindex(uint idx);
 	uint frameindex() const;

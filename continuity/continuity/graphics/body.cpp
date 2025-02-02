@@ -12,7 +12,7 @@ void dispatch(resource_bindings const& bindings, bool wireframe, uint dispatchx)
     auto cmd_list = gfx::globalresources::get().cmdlist();
 
     cmd_list->SetGraphicsRootSignature(bindings.pipelineobjs.root_signature.Get());
-    cmd_list->SetDescriptorHeaps(1, gfx::globalresources::get().srvheap().GetAddressOf());
+    cmd_list->SetDescriptorHeaps(1, gfx::globalresources::get().resourceheap().d3dheap.GetAddressOf());
     cmd_list->SetGraphicsRootConstantBufferView(bindings.constant.slot, bindings.constant.address);
     
     if (bindings.objectconstant.address != 0)

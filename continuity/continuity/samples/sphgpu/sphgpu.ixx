@@ -52,8 +52,8 @@ private:
 	gfx::shadertable missshadertable;
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
-	ComPtr<ID3D12Resource> raytracingoutput;
-	D3D12_GPU_DESCRIPTOR_HANDLE raytracingoutput_uavgpudescriptor;
+	gfx::uav raytraceoutput_uav;
+	gfx::texture raytracingoutput;
 
 	ComPtr<ID3D12CommandSignature> render_commandsig;
 

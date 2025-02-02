@@ -9,12 +9,12 @@ module;
 #include "sharedconstants.h"
 #include "simplemath/simplemath.h"
 
+export module graphicscore;
+
 import stdxcore;
 import stdx;
 import vec;
 import std;
-
-export module graphicscore;
 
 using Microsoft::WRL::ComPtr;
 
