@@ -820,7 +820,7 @@ ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMA
     auto device = globalresources::get().device();
 
     // all unordered access on all textures(on some architecutres unordered access might lead to suboptimal texture layout, but its 2025)
-    auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(format, static_cast<UINT64>(width), static_cast<UINT>(height), 1, 1, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+    auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(format, static_cast<UINT64>(width), static_cast<UINT>(height), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
     ComPtr<ID3D12Resource> texdefault;
     auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
