@@ -112,7 +112,11 @@ gfx::resourcelist raytrace::create_resources()
         hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
         raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ 720, 720 }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        raytraceoutput_uav = raytracingoutput.createuav();
+        
+        // we don't store descriptors, as the indices are hardcoded in shaders
+        tlas.createsrv();
+        raytracingoutput.createuav();
+        globalres.cbuffer().createcbv();
     }
 
     return res;
@@ -132,11 +136,11 @@ void raytrace::render(float dt)
     auto const& pipelineobjects = globalres.psomap().find("raytrace")->second;
 
     // bind the global root signature, heaps, acceleration structure and dispatch rays.    
-    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
     cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
-    cmd_list->SetComputeRootDescriptorTable(0, globalres.resourceheap().gpudeschandle(raytraceoutput_uav.heapidx)); // todo : bindless will make this irrelevant
-    cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
-    cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().gpuaddress());
+    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+    //cmd_list->SetComputeRootDescriptorTable(0, globalres.resourceheap().gpudeschandle(raytraceoutput_uav.heapidx)); // todo : bindless will make this irrelevant
+    //cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
+    cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
     cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;

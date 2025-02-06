@@ -474,8 +474,8 @@ void sphgpu::render(float dt)
     cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
     cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
     cmd_list->SetComputeRootDescriptorTable(0, globalres.resourceheap().gpudeschandle(raytraceoutput_uav.heapidx));
-    cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
-    cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().gpuaddress());
+    cmd_list->SetComputeRootShaderResourceView(1, tlas.gpuaddress());
+    cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().currframe_gpuaddress());
     cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;

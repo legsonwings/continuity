@@ -250,7 +250,7 @@ inline void body_static<body_t, prim_t>::render(float dt, renderparams const& pa
     dispatch_params.maxprims_permsgroup = topologyconstants<prim_t>::maxprims_permsgroup;
 
     resource_bindings bindings;
-    bindings.constant = { 0, globalresources::get().cbuffer().gpuaddress() };
+    bindings.constant = { 0, globalresources::get().cbuffer().currframe_gpuaddress() };
     bindings.vertex = { 3, _vertexbuffer.gpuaddress() };
     bindings.instance = { 4, _instancebuffer.gpuaddress() };
     bindings.pipelineobjs = foundpso->second;
@@ -319,8 +319,8 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
     dispatch_params.maxprims_permsgroup = topologyconstants<prim_t>::maxprims_permsgroup;
 
     resource_bindings bindings;
-    bindings.constant = { 0, globalresources::get().cbuffer().gpuaddress() };
-    bindings.objectconstant = { 1, _cbuffer.gpuaddress() };
+    bindings.constant = { 0, globalresources::get().cbuffer().currframe_gpuaddress() };
+    bindings.objectconstant = { 1, _cbuffer.currframe_gpuaddress() };
     bindings.vertex = { 3, _vertexbuffer.gpuaddress() };
     bindings.pipelineobjs = foundpso->second;
     bindings.rootconstants.slot = 2;

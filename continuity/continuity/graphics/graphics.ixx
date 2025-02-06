@@ -58,7 +58,35 @@ struct cballocationhelper
 export namespace gfx
 {
 
-struct resource;
+struct resource
+{
+	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return d3dresource->GetGPUVirtualAddress(); }
+
+	uint ressize = 0;
+	ComPtr<ID3D12Resource> d3dresource;
+};
+
+// all resource views are created on the global resource heap right now
+struct resourceview
+{
+	uint heapidx;
+};
+
+struct srv : public resourceview
+{
+	D3D12_SHADER_RESOURCE_VIEW_DESC desc;
+};
+
+struct uav : public resourceview
+{
+	D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+};
+
+struct cbv : public resourceview
+{
+	D3D12_CONSTANT_BUFFER_VIEW_DESC desc;
+};
+
 
 // gfx core
 
@@ -90,6 +118,7 @@ uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURC
 D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, UINT64 perframe_buffersize);
 void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize);
 void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, uint const perframe_buffersize);
+cbv createcbv(uint size, ID3D12Resource* res);
 
 template<typename... args>
 void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... resources)
@@ -111,12 +140,57 @@ void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... res
 
 // helpers
 
-struct resource
+class resourceheap
 {
-	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return d3dresource->GetGPUVirtualAddress(); }
+public:
+	srv addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC view, ID3D12Resource* res);
+	uav adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC view, ID3D12Resource* res);
+	cbv addcbv(D3D12_CONSTANT_BUFFER_VIEW_DESC view, ID3D12Resource* res);
 
-	uint ressize = 0;
-	ComPtr<ID3D12Resource> d3dresource;
+	D3D12_GPU_DESCRIPTOR_HANDLE gpudeschandle(uint slot) const;
+
+	ComPtr<ID3D12DescriptorHeap> d3dheap;
+private:
+	uint currslot = 0;
+};
+
+// read write by gpu only
+struct texture : public resource
+{
+	texture() = default;
+	texture(DXGI_FORMAT dxgiformat, stdx::vecui2 dimensions, D3D12_RESOURCE_STATES state);
+
+	srv createsrv() const;
+	uav createuav() const;
+
+	DXGI_FORMAT format;
+	stdx::vecui2 dims;
+};
+
+// todo : this is a texture updated per frame,
+// update to be more consistent with texture
+struct texture_dynamic
+{
+	void createresource(stdx::vecui2 dims, std::vector<uint8_t> const& texturedata);
+	void updateresource(std::vector<uint8_t> const& texturedata);
+	D3D12_GPU_DESCRIPTOR_HANDLE deschandle() const;
+
+	uint size() const;
+
+	DXGI_FORMAT _format;
+	stdx::vecui2 _dims;
+	srv _srv;
+	ComPtr<ID3D12Resource> _texture;
+	ComPtr<ID3D12Resource> _bufferupload;
+};
+
+struct model
+{
+	model() = default;
+	model(std::string const& objpath);
+
+	std::vector<uint16_t> indices;
+	std::vector<stdx::vec3> vertices;
 };
 
 constexpr uint alignshaderrecord(uint unalignedsize) { return (unalignedsize + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1); }
@@ -217,6 +291,8 @@ struct tlas : public accelerationstruct
 	// number of resources we need to keep alive until gpu is done with acceleration structure build
 	static constexpr uint numresourcetokeepalive = 2;
 	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs const& instancedescs);
+
+	srv createsrv();
 };
 
 // blases only support single primitve instance right now
@@ -232,81 +308,6 @@ struct proceduralblas : public blas
 	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs& instancedescs, geometryopacity opacity, geometry::aabb const& aabb);
 };
 
-
-// all resource views are created on the global resource heap right now
-struct resourceview
-{
-	uint heapidx;
-};
-
-struct srv : public resourceview
-{
-	D3D12_SHADER_RESOURCE_VIEW_DESC desc;
-};
-
-struct uav : public resourceview
-{
-	D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
-};
-
-struct cbv : public resourceview
-{
-	D3D12_CONSTANT_BUFFER_VIEW_DESC desc;
-};
-
-class resourceheap
-{
-public:
-	srv addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC view, ID3D12Resource* res);
-	uav adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC view, ID3D12Resource* res);
-	cbv addcbv(D3D12_CONSTANT_BUFFER_VIEW_DESC view, ID3D12Resource* res);
-
-	D3D12_GPU_DESCRIPTOR_HANDLE gpudeschandle(uint slot) const;
-
-	ComPtr<ID3D12DescriptorHeap> d3dheap;
-private:
-	uint currslot = 0;
-};
-
-// read write by gpu only
-struct texture : public resource
-{
-	texture() = default;
-	texture(DXGI_FORMAT dxgiformat, stdx::vecui2 dimensions, D3D12_RESOURCE_STATES state);
-
-	gfx::srv const& createsrv() const;
-	gfx::uav const& createuav() const;
-
-	DXGI_FORMAT format;
-	stdx::vecui2 dims;
-};
-
-// todo : this is a texture updated per frame,
-// update to be more consistent with texture
-struct texture_dynamic
-{
-	void createresource(stdx::vecui2 dims, std::vector<uint8_t> const& texturedata);
-	void updateresource(std::vector<uint8_t> const& texturedata);
-	D3D12_GPU_DESCRIPTOR_HANDLE deschandle() const;
-
-	uint size() const;
-
-	DXGI_FORMAT _format;
-	stdx::vecui2 _dims;
-	srv _srv;
-	ComPtr<ID3D12Resource> _texture;
-	ComPtr<ID3D12Resource> _bufferupload;
-};
-
-struct model
-{
-	model() = default;
-	model(std::string const& objpath);
-
-	std::vector<uint16_t> indices;
-	std::vector<stdx::vec3> vertices;
-};
-
 struct raytrace
 {
 	void dispatchrays(shadertable const& raygen, shadertable const& miss, shadertable const& hitgroup, ID3D12StateObject* stateobject, uint width, uint height);
@@ -315,12 +316,18 @@ struct raytrace
 
 template<typename t>
 requires (sizeof(t) % 256 == 0 && stdx::triviallycopyable_c<t>)
-struct constantbuffer
+struct constantbuffer : public resource
 {
 	void createresource()
 	{
 		_data = cballocationhelper::allocator().allocate<t>();
-		_buffer = create_perframeuploadbuffers(&_mappeddata, size());
+		d3dresource = create_perframeuploadbuffers(&_mappeddata, size());
+	}
+
+	cbv createcbv() const
+	{
+		// todo : should this be size of whole resource
+		return gfx::createcbv(size(), d3dresource.Get());
 	}
 
 	t& data() const { return *_data; }
@@ -335,11 +342,15 @@ struct constantbuffer
 	}
 
 	uint size() const { return sizeof(t); }
-	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return get_perframe_gpuaddress(_buffer->GetGPUVirtualAddress(), size()); }
+	D3D12_GPU_VIRTUAL_ADDRESS currframe_gpuaddress() const { return get_perframe_gpuaddress(d3dresource->GetGPUVirtualAddress(), size()); }
 
 	t* _data = nullptr;
 	std::byte* _mappeddata = nullptr;
-	ComPtr<ID3D12Resource> _buffer;
+
+private:
+	// todo : hide base class function so we fail on its use
+	// todo : replace uses with currframe_gpuaddress()
+	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const {}
 };
 
 template<typename t>

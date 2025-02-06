@@ -24,8 +24,8 @@ struct sceneconstants
     uint numpointlights;
 };
 
-RaytracingAccelerationStructure g_scene : register(t0, space0);
-RWTexture2D<float4> g_renderTarget : register(u0);
+//RaytracingAccelerationStructure g_scene = ResourceDescriptorHeap[1];
+//RWTexture2D<float4> g_renderTarget : register(u0);
 ConstantBuffer<sceneconstants> g_sceneCB : register(b0);
 
 struct RayPayload
@@ -81,10 +81,13 @@ void MyRaygenShader()
     rayDesc.TMax = 10000;
     RayPayload rayPayload = { float4(0, 0, 0, 0)};
 
-    TraceRay(g_scene, RAY_FLAG_CULL_FRONT_FACING_TRIANGLES, ~0, 0, 1, 0, rayDesc, rayPayload);
+    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[2];
+    TraceRay(scene, RAY_FLAG_CULL_FRONT_FACING_TRIANGLES, ~0, 0, 1, 0, rayDesc, rayPayload);
+
+    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[0];
 
     // Write the raytraced color to the output texture.
-    g_renderTarget[DispatchRaysIndex().xy] = rayPayload.color;
+    rendertarget[DispatchRaysIndex().xy] = rayPayload.color;
 }
 
 //***************************************************************************

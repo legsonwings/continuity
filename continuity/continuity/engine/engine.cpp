@@ -133,27 +133,35 @@ void continuity::load_pipeline()
         IID_PPV_ARGS(device.ReleaseAndGetAddressOf())
     ));
 
-    D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = { D3D_SHADER_MODEL_6_5 };
+    D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = { D3D_SHADER_MODEL_6_6 };
     if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel)))
-        || (shaderModel.HighestShaderModel < D3D_SHADER_MODEL_6_5))
+        || (shaderModel.HighestShaderModel < D3D_SHADER_MODEL_6_6))
     {
-        OutputDebugStringA("ERROR: Shader Model 6.5 is not supported\n");
-        throw std::exception("Shader Model 6.5 is not supported");
+        OutputDebugStringA("ERROR: Shader Model 6.6 is not supported\n");
+        throw std::exception("Shader Model 6.6 is not supported.");
     }
 
-    D3D12_FEATURE_DATA_D3D12_OPTIONS7 features = {};
-    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &features, sizeof(features)))
-        || (features.MeshShaderTier == D3D12_MESH_SHADER_TIER_NOT_SUPPORTED))
+    D3D12_FEATURE_DATA_D3D12_OPTIONS features = {};
+    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &features, sizeof(features)))
+        || (features.ResourceBindingTier != D3D12_RESOURCE_BINDING_TIER_3))
     {
-        OutputDebugStringA("ERROR: Mesh Shaders aren't supported!\n");
-        throw std::exception("Mesh Shaders aren't supported!");
+        OutputDebugStringA("ERROR: Dynamic resources(Bindless resources) are not supported!\n");
+        throw std::exception("Bindless resources aren't supported!");
     }
-
-    D3D12_FEATURE_DATA_D3D12_OPTIONS5 featureSupportData = {};
-    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &featureSupportData, sizeof(featureSupportData))) || featureSupportData.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
+    
+    D3D12_FEATURE_DATA_D3D12_OPTIONS5 features5 = {};
+    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &features5, sizeof(features5))) || features5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
     {
         OutputDebugStringA("ERROR: Raytracing is not supported!\n");
         throw std::exception("Raytracing is not supported!");
+    }
+
+    D3D12_FEATURE_DATA_D3D12_OPTIONS7 features7 = {};
+    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &features7, sizeof(features7)))
+        || (features7.MeshShaderTier == D3D12_MESH_SHADER_TIER_NOT_SUPPORTED))
+    {
+        OutputDebugStringA("ERROR: Mesh Shaders aren't supported!\n");
+        throw std::exception("Mesh Shaders aren't supported!");
     }
 
     // describe and create the command queue.

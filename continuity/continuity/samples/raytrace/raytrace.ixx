@@ -38,7 +38,6 @@ private:
 	gfx::shadertable missshadertable;
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
-	gfx::uav raytraceoutput_uav;
 	gfx::texture raytracingoutput;
 };
 

@@ -71,7 +71,7 @@ ComPtr<ID3D12Resource> blas::kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& 
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC bottomlevelbuilddesc = {};
     bottomlevelbuilddesc.Inputs = bottomlevelinputs;
     bottomlevelbuilddesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-    bottomlevelbuilddesc.DestAccelerationStructureData = d3dresource->GetGPUVirtualAddress();
+    bottomlevelbuilddesc.DestAccelerationStructureData = gpuaddress();
 
     auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(d3dresource.Get());
     cmdlist->BuildRaytracingAccelerationStructure(&bottomlevelbuilddesc, 0, nullptr);
@@ -103,11 +103,19 @@ std::array<ComPtr<ID3D12Resource>, tlas::numresourcetokeepalive> tlas::build(bla
     d3dresource = gfx::create_accelerationstructbuffer(toplevelprebuildinfo.ResultDataMaxSizeInBytes);
 
     toplevelbuilddesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
-    toplevelbuilddesc.DestAccelerationStructureData = d3dresource->GetGPUVirtualAddress();
+    toplevelbuilddesc.DestAccelerationStructureData = gpuaddress();
     
     cmdlist->BuildRaytracingAccelerationStructure(&toplevelbuilddesc, 0, nullptr);
   
     return { scratch, instancedescsresource };
+}
+
+srv tlas::createsrv()
+{
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+    srvdesc.RaytracingAccelerationStructure.Location = gpuaddress();
+    
+    return globalresources::get().resourceheap().addsrv(srvdesc, d3dresource.Get());
 }
 
 std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices)
@@ -134,7 +142,7 @@ std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::bu
     instancedesc = {};
     instancedesc.Transform[0][0] = instancedesc.Transform[1][1] = instancedesc.Transform[2][2] = 1;
     instancedesc.InstanceMask = 1;
-    instancedesc.AccelerationStructure = d3dresource->GetGPUVirtualAddress();
+    instancedesc.AccelerationStructure = gpuaddress();
     instancedesc.InstanceContributionToHitGroupIndex = instanceidx;
 
     return { vertexbuffer, indexbuffer, scratch };
@@ -166,7 +174,7 @@ std::array<ComPtr<ID3D12Resource>, proceduralblas::numresourcetokeepalive> proce
     instancedesc = {};
     instancedesc.Transform[0][0] = instancedesc.Transform[1][1] = instancedesc.Transform[2][2] = 1;
     instancedesc.InstanceMask = 1;
-    instancedesc.AccelerationStructure = d3dresource->GetGPUVirtualAddress();
+    instancedesc.AccelerationStructure = gpuaddress();
     instancedesc.InstanceContributionToHitGroupIndex = instanceidx;
 
     return { aabbbuffer, scratch };
@@ -177,13 +185,13 @@ void raytrace::dispatchrays(shadertable const& raygen, shadertable const& miss, 
     // this function expects resources and state to be setup
     D3D12_DISPATCH_RAYS_DESC dispatchdesc = {};
 
-    dispatchdesc.HitGroupTable.StartAddress = hitgroup.d3dresource->GetGPUVirtualAddress();
+    dispatchdesc.HitGroupTable.StartAddress = hitgroup.gpuaddress();
     dispatchdesc.HitGroupTable.SizeInBytes = hitgroup.d3dresource->GetDesc().Width;
     dispatchdesc.HitGroupTable.StrideInBytes = UINT(hitgroup.recordsize());
-    dispatchdesc.MissShaderTable.StartAddress = miss.d3dresource->GetGPUVirtualAddress();
+    dispatchdesc.MissShaderTable.StartAddress = miss.gpuaddress();
     dispatchdesc.MissShaderTable.SizeInBytes = miss.d3dresource->GetDesc().Width;
     dispatchdesc.MissShaderTable.StrideInBytes = UINT(miss.recordsize());
-    dispatchdesc.RayGenerationShaderRecord.StartAddress = raygen.d3dresource->GetGPUVirtualAddress();
+    dispatchdesc.RayGenerationShaderRecord.StartAddress = raygen.gpuaddress();
     dispatchdesc.RayGenerationShaderRecord.SizeInBytes = raygen.d3dresource->GetDesc().Width;
     dispatchdesc.Width = UINT(width);
     dispatchdesc.Height = UINT(height);
@@ -250,7 +258,7 @@ texture::texture(DXGI_FORMAT dxgiformat, stdx::vecui2 dimensions, D3D12_RESOURCE
     d3dresource = createtexture_default(dims[0], dims[1], format, state);
 }
 
-gfx::srv const& texture::createsrv() const
+srv texture::createsrv() const
 {
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
     srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -261,7 +269,7 @@ gfx::srv const& texture::createsrv() const
     return globalresources::get().resourceheap().addsrv(srvdesc, d3dresource.Get());
 }
 
-gfx::uav const& texture::createuav() const
+uav texture::createuav() const
 {
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
     uavdesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
@@ -507,27 +515,31 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
         return _psos[name];
     }
 
-    // Global Root Signature
-    // This is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+    // global root signatur is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     
-    // todo : create helper classes for root signature
     {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
 
-        CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
-        UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-        CD3DX12_ROOT_PARAMETER rootParameters[3];
-        rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);     // colour output uav
-        rootParameters[1].InitAsShaderResourceView(0);                  // acceleration structire
-        rootParameters[2].InitAsConstantBufferView(0);                  // constants
-        CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
-        SerializeAndCreateRaytracingRootSignature(_device, globalRootSignatureDesc, &rootSig);
+        //CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
+        //UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+        CD3DX12_ROOT_PARAMETER rootParameters[1];
+        //rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);     // colour output uav
+        //rootParameters[1].InitAsShaderResourceView(0);                  // acceleration structire
+        rootParameters[0].InitAsConstantBufferView(0);                  // constants
+        CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(ARRAYSIZE(rootParameters), rootParameters);
+        
+        // all resource indices are hardcoded in shaders so we don't using root constants
+        //CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc = {};
+        
+        rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
+
+        // empty root signature
+        SerializeAndCreateRaytracingRootSignature(_device, rootsig_desc, &rootSig);
 
         _psos[name].root_signature = rootSig;
     }
 
-    // empty local Root Signature
-    // This is a root signature that enables a shader to have unique arguments that come from shader tables.
+    // empty local root signature
     {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
 
@@ -540,22 +552,11 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     shader raytracinglib;
     ReadDataFromFile(assetfullpath(libname).c_str(), &raytracinglib.data, &raytracinglib.size);
 
-    // Create 7 subobjects that combine into a RTPSO:
-   // Subobjects need to be associated with DXIL exports (i.e. shaders) either by way of default or explicit associations.
-   // Default association applies to every exported shader entrypoint that doesn't have any of the same type of subobject associated with it.
-   // This simple sample utilizes default shader association except for local root signature subobject
-   // which has an explicit association specified purely for demonstration purposes.
-   // 1 - DXIL library
-   // 1 - Triangle hit group
-   // 1 - Shader config
-   // 2 - Local root signature and association
-   // 1 - Global root signature
-   // 1 - Pipeline config
     CD3DX12_STATE_OBJECT_DESC raytracingpipeline{ D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE };
 
     // DXIL library
-    // This contains the shaders and their entrypoints for the state object.
-    // Since shaders are not considered a subobject, they need to be passed in via DXIL library subobjects.
+    // this contains the shaders and their entrypoints for the state object.
+    // since shaders are not considered a subobject, they need to be passed in via DXIL library subobjects.
     auto lib = raytracingpipeline.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
     D3D12_SHADER_BYTECODE libdxil = CD3DX12_SHADER_BYTECODE((void*)raytracinglib.data, raytracinglib.size);
     lib->SetDXILLibrary(&libdxil);
@@ -585,8 +586,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
         hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_PROCEDURAL_PRIMITIVE);
     }
 
-    // Shader config
-    // Defines the maximum sizes in bytes for the ray payload and attribute structure.
+    // defines the maximum sizes in bytes for the ray payload and attribute structure.
     auto shaderConfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
     
     UINT payloadSize = 4 * sizeof(float);   // float4 color
@@ -594,17 +594,9 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     // size of built in triangle intesection attributes is 8 bytes and procedural intersection uses dummy attributes
     shaderConfig->Config(payloadSize, 8);
 
-    // hit group and miss shaders in this sample are not using a local root signature and thus one is not associated with them.
-    // local root signature to be used in a ray gen shader.
-    
-    // todo : associate local sig with both our hit groups
+    // empty local root signature
     auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
     localrootsignature->SetRootSignature(_psos[name].rootsignature_local.Get());
-
-    // shader association
-    //auto rootsignatureassociation = raytracingpipeline.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
-    //rootsignatureassociation->SetSubobjectToAssociate(*localrootsignature);
-    //rootsignatureassociation->AddExport(utils::strtowstr(shaders.raygen).data());
 
     // global root signature
     // this is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
@@ -614,7 +606,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     auto pipelineconfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_PIPELINE_CONFIG_SUBOBJECT>();
     pipelineconfig->Config(1); // primary rays only. 
 
-    // Create the state object.
+    // create the state object.
     ThrowIfFailed(_device->CreateStateObject(raytracingpipeline, IID_PPV_ARGS(&_psos[name].pso_raytracing)));
 
     return _psos[name];
@@ -650,6 +642,15 @@ void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, ui
 {
     for (uint i = 0; i < frame_count; ++i)
         memcpy(mapped_buffer + perframe_buffersize * i, data_start, perframe_buffersize);
+}
+
+cbv createcbv(uint size, ID3D12Resource* res)
+{
+    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvdesc = {};
+    cbvdesc.SizeInBytes = UINT(size);
+    cbvdesc.BufferLocation = res->GetGPUVirtualAddress();
+
+    return globalresources::get().resourceheap().addcbv(cbvdesc, res);
 }
 
 uint srvcbvuav_descincrementsize()
