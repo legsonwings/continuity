@@ -15,13 +15,13 @@ namespace rt
 
 struct rootconstants
 {
-    uint frameidx;
+    uint32 frameidx;
 };
 
 struct alignas(256) sceneconstants
 {
     stdx::vec3 campos;
-    uint8_t padding[4];
+    uint8 padding0[4];
     stdx::matrix4x4 inv_viewproj;
 };
 
@@ -38,7 +38,6 @@ struct sceneconstants
     float3 campos;
     uint padding0;
     float4x4 inv_viewproj;
-    uint padding1[44];
 };
 
 }

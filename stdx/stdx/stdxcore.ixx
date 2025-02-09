@@ -20,6 +20,9 @@ void cassertinternal(bool const passed, std::source_location loc, std::string ms
 
 }
 
+export using uint8 = unsigned char;
+export using uint16 = unsigned short;
+export using uint32 = unsigned int;
 export using uint = std::size_t;
 
 export namespace stdx

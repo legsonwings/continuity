@@ -1,7 +1,6 @@
 module;
 
 #include "simplemath/simplemath.h"
-#include <d3d12.h>
 #include "thirdparty/d3dx12.h"
 #include "thirdparty/dxhelpers.h"
 
@@ -10,6 +9,7 @@ module raytrace;
 import stdx;
 import vec;
 import std;
+import activesample;
 
 namespace sample_creator
 {
@@ -25,13 +25,6 @@ std::unique_ptr<sample_base> create_instance<samples::raytrace>(view_data const&
 #define namkaran(d3dobject) { d3dobject->SetName(utils::strtowstr(#d3dobject).c_str()); }
 #define namkaranres(gfxresource) { gfxresource.d3dresource->SetName(utils::strtowstr(#gfxresource).c_str()); }
 
-using namespace DirectX;
-
-// todo : remove these
-using vector3 = DirectX::SimpleMath::Vector3;
-using vector4 = DirectX::SimpleMath::Vector4;
-using matrix = DirectX::SimpleMath::Matrix;
-
 // raytracing stuff
 static constexpr char const* hitGroupName = "trianglehitgroup";
 static constexpr char const* raygenShaderName = "raygenshader";
@@ -46,24 +39,7 @@ raytrace::raytrace(view_data const& viewdata) : sample_base(viewdata)
 
 gfx::resourcelist raytrace::create_resources()
 {
-    using geometry::cube;
-    using geometry::sphere;
-    using gfx::bodyparams;
-    using gfx::material;
-
     auto& globalres = gfx::globalresources::get();
-    auto& globals = globalres.cbuffer().data();
-
-    // initialize lights
-    globals.numdirlights = 1;
-    globals.numpointlights = 0;
-
-    globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
-    globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
-    globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
-
-    //globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
-    //globalres.cbuffer().updateresource();
 
     constantbuffer.createresource();
 
