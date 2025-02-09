@@ -114,6 +114,7 @@ ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size);
 ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size);
 default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const b_size);
 ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format, D3D12_RESOURCE_STATES state);
+void update_buffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size);
 uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata);
 D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, UINT64 perframe_buffersize);
 void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize);
@@ -193,7 +194,8 @@ struct model
 	std::vector<stdx::vec3> vertices;
 };
 
-constexpr uint alignshaderrecord(uint unalignedsize) { return (unalignedsize + (D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1)) & ~(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT - 1); }
+uint align(uint unalignedsize, uint alignment) { return stdx::nextpowoftwomultiple(unalignedsize, alignment); }
+uint alignshaderrecord(uint unalignedsize) { return align(unalignedsize, D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT); }
 
 template<typename rootargs_t>
 struct shaderrecord
@@ -351,6 +353,40 @@ private:
 	// todo : hide base class function so we fail on its use
 	// todo : replace uses with currframe_gpuaddress()
 	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const {}
+};
+
+template<typename t, uint n>
+requires (sizeof(t) % D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT == 0 && stdx::triviallycopyable_c<t>)
+struct constantbuffer2
+{
+	void createresource()
+	{
+		alignedsize = align(size(), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+		for (uint i(0); i < n; ++i)
+		{
+			buffers[i] = create_uploadbuffer(&_mappeddata[i], alignedsize);
+		}
+	}
+
+	std::array<cbv, n> createcbv() const
+	{
+		std::array<cbv, n> r;
+		for (uint i(0); i < n; ++i)
+		{
+			r[i] = gfx::createcbv(alignedsize, buffers[i].Get());
+		}
+
+		return r;
+	}
+
+	t& data(uint i) const { return *reinterpret_cast<t*>(_mappeddata[i]); }
+
+	uint size() const { return sizeof(t); }
+
+private:
+	uint alignedsize = 0;
+	ComPtr<ID3D12Resource> buffers[n];
+	std::byte* _mappeddata[n];
 };
 
 template<typename t>

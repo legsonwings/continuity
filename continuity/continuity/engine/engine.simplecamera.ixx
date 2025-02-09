@@ -6,14 +6,16 @@ module;
 
 export module engine:simplecamera;
 
+import vec;
+
 class simplecamera
 {
 public:
     simplecamera();
 
-    void Init(DirectX::XMFLOAT3 position);
+    void Init(stdx::vec3 position);
     void Update(float elapsedSeconds);
-    DirectX::XMFLOAT3 GetCurrentPosition() const;
+    stdx::vec3 GetCurrentPosition() const;
     DirectX::XMMATRIX GetViewMatrix();
     DirectX::XMMATRIX GetProjectionMatrix(float fov);
     DirectX::XMMATRIX GetOrthoProjectionMatrix();
@@ -50,8 +52,8 @@ private:
         bool down;
     };
 
-    DirectX::XMFLOAT3 m_initialPosition;
-    DirectX::XMFLOAT3 m_position;
+    stdx::vec3 m_initialPosition;
+    stdx::vec3 m_position;
     float m_yaw;                // Relative to the +z axis.
     float m_pitch;                // Relative to the xz plane.
     DirectX::XMFLOAT3 m_lookDirection;

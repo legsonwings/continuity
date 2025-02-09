@@ -38,6 +38,12 @@ struct vec : public std::array<t, d>
 	constexpr std::string str() const;
 };
 
+// could merge vec and matrix, if I was immortal
+template<uint r, uint c, stdx::arithmeticpure_c t = float>
+struct matrix : public std::array<vec<c, t>, r>
+{
+};
+
 template<stdx::arithmeticpure_c t, uint d>
 vec<d, t> operator*(t l, vec<d, t> r) { return { stdx::unaryop(r, std::bind(std::multiplies<>(), std::placeholders::_1, l)) }; }
 
@@ -62,14 +68,20 @@ using vecui = vec<d, uint>;
 using vec1 = vec<1>;
 using vec2 = vec<2>;
 using vec3 = vec<3>;
+using vec4 = vec<4>;
 
 using veci1 = veci<1>;
 using veci2 = veci<2>;
 using veci3 = veci<3>;
+using veci4 = veci<4>;
 
 using vecui1 = vecui<1>;
 using vecui2 = vecui<2>;
 using vecui3 = vecui<3>;
+using vecui4 = vecui<4>;
+
+using matrix3x3 = matrix<3, 3>;
+using matrix4x4 = matrix<4, 4>;
 
 template<uint d, stdx::arithmeticpure_c t>
 constexpr vec<d, t> vec<d, t>::cross(vec<d, t> const& rhs) const requires (d == 3)

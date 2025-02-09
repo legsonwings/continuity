@@ -2,6 +2,7 @@ module;
 
 #include "simplemath/simplemath.h"
 #include "thirdparty/d3dx12.h"
+#include "raytracecommon.h"
 
 export module raytrace;
 
@@ -39,6 +40,8 @@ private:
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
 	gfx::texture raytracingoutput;
+
+	gfx::constantbuffer2<rt::sceneconstants, frame_count> constantbuffer;
 };
 
 

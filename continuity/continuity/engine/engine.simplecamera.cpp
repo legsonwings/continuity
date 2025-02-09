@@ -13,8 +13,8 @@ using namespace DirectX;
 static constexpr XMFLOAT3 defaultlook_dir = { 0.f, 0.f, 1.f };
 
 simplecamera::simplecamera() :
-    m_initialPosition(0, 0, 0),
-    m_position(m_initialPosition),
+    m_initialPosition{ 0, 0, 0 },
+    m_position{ m_initialPosition },
     m_yaw(XM_PI),
     m_pitch(0.0f),
     m_lookDirection(defaultlook_dir),
@@ -25,7 +25,7 @@ simplecamera::simplecamera() :
 {
 }
 
-void simplecamera::Init(DirectX::XMFLOAT3 position)
+void simplecamera::Init(stdx::vec3 position)
 {
     m_initialPosition = position;
     Reset();
@@ -91,8 +91,8 @@ void simplecamera::Update(float elapsedSeconds)
     // Move the camera in model space.
     float x = move.x * cosf(m_yaw) - move.z * sinf(m_yaw);
     float z = -move.x * sinf(m_yaw) - move.z * cosf(m_yaw);
-    m_position.x += x * moveInterval;
-    m_position.z += z * moveInterval;
+    m_position[0] += x * moveInterval;
+    m_position[2] += z * moveInterval;
 
     // Determine the look direction.
     float r = cosf(m_pitch);
@@ -101,14 +101,15 @@ void simplecamera::Update(float elapsedSeconds)
     m_lookDirection.z = r * cosf(m_yaw);
 }
 
-XMFLOAT3 simplecamera::GetCurrentPosition() const
+stdx::vec3 simplecamera::GetCurrentPosition() const
 {
     return m_position;
 }
 
 XMMATRIX simplecamera::GetViewMatrix()
 {
-    return XMMatrixLookToLH(XMLoadFloat3(&m_position), XMLoadFloat3(&m_lookDirection), XMLoadFloat3(&m_upDirection));
+    XMFLOAT3 pos = { m_position[0], m_position[1], m_position[2] };
+    return XMMatrixLookToLH(XMLoadFloat3(&pos), XMLoadFloat3(&m_lookDirection), XMLoadFloat3(&m_upDirection));
 }
 
 XMMATRIX simplecamera::GetProjectionMatrix(float fov)

@@ -52,6 +52,7 @@
     <ClCompile Include="sampleselection\activesample.ixx">
       <FileType>Document</FileType>
     </ClCompile>
+    <ClInclude Include="samples\raytrace\raytracecommon.h" />
     <ClInclude Include="sharedconstants.h" />
     <ClInclude Include="simplemath\simplemath.h" />
     <ClInclude Include="thirdparty\d3dx12.h" />

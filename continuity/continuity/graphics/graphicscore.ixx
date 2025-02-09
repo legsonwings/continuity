@@ -161,7 +161,7 @@ struct light
 
 struct alignas(256) sceneconstants
 {
-    vector3 campos;
+    stdx::vec3 campos;
     uint8_t padding[4];
     vector4 ambient;
     light lights[MAX_NUM_LIGHTS];

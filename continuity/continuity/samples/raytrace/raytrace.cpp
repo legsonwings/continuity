@@ -33,10 +33,10 @@ using vector4 = DirectX::SimpleMath::Vector4;
 using matrix = DirectX::SimpleMath::Matrix;
 
 // raytracing stuff
-static constexpr char const* hitGroupName = "MyHitGroup";
-static constexpr char const* raygenShaderName = "MyRaygenShader";
-static constexpr char const* closestHitShaderName = "MyClosestHitShader_Triangle";
-static constexpr char const* missShaderName = "MyMissShader";
+static constexpr char const* hitGroupName = "trianglehitgroup";
+static constexpr char const* raygenShaderName = "raygenshader";
+static constexpr char const* closestHitShaderName = "closesthitshader_triangle";
+static constexpr char const* missShaderName = "missshader";
 
 raytrace::raytrace(view_data const& viewdata) : sample_base(viewdata)
 {
@@ -62,8 +62,11 @@ gfx::resourcelist raytrace::create_resources()
     globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
     globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
 
-    globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
-    globalres.cbuffer().updateresource();
+    //globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
+    //globalres.cbuffer().updateresource();
+
+    constantbuffer.createresource();
+
     gfx::resourcelist res;
 
     {
@@ -99,7 +102,6 @@ gfx::resourcelist raytrace::create_resources()
         void* hitgroupshaderids_trianglegeometry = stateobjectprops->GetShaderIdentifier(utils::strtowstr(hitGroupName).c_str());
 
         // now build shader tables
-
         // only one records for ray gen and miss shader tables
         raygenshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
         raygenshadertable.addrecord(raygenshaderid);
@@ -114,9 +116,13 @@ gfx::resourcelist raytrace::create_resources()
         raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ 720, 720 }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         
         // we don't store descriptors, as the indices are hardcoded in shaders
+        // 0. const buffer for frame0 
+        // 1. const buffer for frame1
+        // 2. tlas
+        // 3. ray trace output
+        constantbuffer.createcbv();
         tlas.createsrv();
         raytracingoutput.createuav();
-        globalres.cbuffer().createcbv();
     }
 
     return res;
@@ -125,22 +131,18 @@ gfx::resourcelist raytrace::create_resources()
 void raytrace::render(float dt)
 {
     auto& globalres = gfx::globalresources::get();
-    auto& globals = globalres.cbuffer().data();
+    auto& framecbuffer = constantbuffer.data(globalres.frameindex());
 
-    // hack : should use different const buffer
-    globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
-    globalres.cbuffer().updateresource();
+    framecbuffer.campos = camera.GetCurrentPosition();
+    framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
 
     auto cmd_list = globalres.cmdlist();
-
     auto const& pipelineobjects = globalres.psomap().find("raytrace")->second;
 
-    // bind the global root signature, heaps, acceleration structure and dispatch rays.    
+    // bind the global root signature, heaps and frame index, other resources are bindless 
     cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
     cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    //cmd_list->SetComputeRootDescriptorTable(0, globalres.resourceheap().gpudeschandle(raytraceoutput_uav.heapidx)); // todo : bindless will make this irrelevant
-    //cmd_list->SetComputeRootShaderResourceView(1, tlas.d3dresource->GetGPUVirtualAddress());
-    cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
+    cmd_list->SetComputeRoot32BitConstant(0, UINT(globalres.frameindex()), 0);
     cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;

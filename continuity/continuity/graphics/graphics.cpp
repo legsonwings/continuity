@@ -113,9 +113,12 @@ std::array<ComPtr<ID3D12Resource>, tlas::numresourcetokeepalive> tlas::build(bla
 srv tlas::createsrv()
 {
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
     srvdesc.RaytracingAccelerationStructure.Location = gpuaddress();
     
-    return globalresources::get().resourceheap().addsrv(srvdesc, d3dresource.Get());
+    // set resource as nullptr for acceleration structure srv's as resource is accessed using gpu address
+    return globalresources::get().resourceheap().addsrv(srvdesc, nullptr);
 }
 
 std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices)
@@ -518,25 +521,17 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     // global root signatur is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     
     {
-        Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
+        Microsoft::WRL::ComPtr<ID3D12RootSignature> rootsig;
+        CD3DX12_ROOT_PARAMETER rootparams[1];
+        rootparams[0].InitAsConstants(1, 0); // pass frame index
 
-        //CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
-        //UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-        CD3DX12_ROOT_PARAMETER rootParameters[1];
-        //rootParameters[0].InitAsDescriptorTable(1, &UAVDescriptor);     // colour output uav
-        //rootParameters[1].InitAsShaderResourceView(0);                  // acceleration structire
-        rootParameters[0].InitAsConstantBufferView(0);                  // constants
-        CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(ARRAYSIZE(rootParameters), rootParameters);
-        
-        // all resource indices are hardcoded in shaders so we don't using root constants
-        //CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc = {};
-        
+        CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(ARRAYSIZE(rootparams), rootparams);
         rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
         // empty root signature
-        SerializeAndCreateRaytracingRootSignature(_device, rootsig_desc, &rootSig);
+        SerializeAndCreateRaytracingRootSignature(_device, rootsig_desc, &rootsig);
 
-        _psos[name].root_signature = rootSig;
+        _psos[name].root_signature = rootsig;
     }
 
     // empty local root signature
@@ -590,9 +585,8 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     auto shaderConfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
     
     UINT payloadSize = 4 * sizeof(float);   // float4 color
-    //UINT attributeSize = 2 * sizeof(float) + 3 * sizeof(float); // float2 barycentrics(for triangles) + float3 normal(for procedural)
-    // size of built in triangle intesection attributes is 8 bytes and procedural intersection uses dummy attributes
-    shaderConfig->Config(payloadSize, 8);
+    UINT attributeSize = 2 * sizeof(float); // float2 for barycentrics
+    shaderConfig->Config(payloadSize, attributeSize);
 
     // empty local root signature
     auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
@@ -827,6 +821,11 @@ ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMA
     auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, state, nullptr, IID_PPV_ARGS(texdefault.ReleaseAndGetAddressOf())));
     return texdefault;
+}
+
+void update_buffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size)
+{
+    memcpy(mapped_buffer, data_start, data_size);
 }
 
 uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata)
