@@ -250,7 +250,7 @@ gfx::resourcelist sphgpu::create_resources()
         auto& device = globalres.device();
         auto& cmdlist = globalres.cmdlist();
 
-        std::vector<uint16_t> indices = { 0, 1, 2 };
+        std::vector<uint32_t> indices = { 0, 1, 2 };
 
         float depthValue = 10.0;
         float offset = 2;
@@ -268,8 +268,15 @@ gfx::resourcelist sphgpu::create_resources()
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
         gfx::blasinstancedescs instancedescs;
 
+        gfx::rtvertexbuffer vertexbuffer;
+        gfx::rtindexbuffer indexbuffer;
+
+        // no need for persistent vertex and index buffers here, as they are not bound to shaders
+        res.push_back(vertexbuffer.create(verts));
+        res.push_back(indexbuffer.create(indices));
+
         // cannot use stdx::join because ComPtr is too smart for its own good
-        for (auto r : triblas.build(instancedescs, opacity, verts, indices))
+        for (auto r : triblas.build(instancedescs, opacity, vertexbuffer, indexbuffer))
             res.push_back(r);
 
         for (auto r : procblas.build(instancedescs, opacity, aabb))
@@ -281,7 +288,7 @@ gfx::resourcelist sphgpu::create_resources()
         ComPtr<ID3D12StateObjectProperties> stateobjectproperties;
         ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateobjectproperties));
         auto* stateobjectprops = stateobjectproperties.Get();
-        
+
         // get shader id's
         void* raygenshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(raygenShaderName).c_str());
         void* missshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(missShaderName).c_str());

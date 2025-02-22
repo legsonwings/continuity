@@ -24,6 +24,8 @@ private:
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
 	gfx::texture raytracingoutput;
+	gfx::rtvertexbuffer vertexbuffer;
+	gfx::rtindexbuffer indexbuffer;
 
 	gfx::constantbuffer2<rt::sceneconstants, frame_count> constantbuffer;
 };

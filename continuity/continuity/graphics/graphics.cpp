@@ -121,21 +121,18 @@ srv tlas::createsrv()
     return globalresources::get().resourceheap().addsrv(srvdesc, nullptr);
 }
 
-std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices)
+std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, rtvertexbuffer const& vertices, rtindexbuffer const& indices)
 {
-    auto vertexbuffer = create_uploadbufferwithdata(vertices.data(), sizeof(stdx::vec3) * vertices.size());
-    auto indexbuffer = create_uploadbufferwithdata(indices.data(), sizeof(uint16_t) * indices.size());
-
     D3D12_RAYTRACING_GEOMETRY_DESC geometrydesc = {};
     geometrydesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
     geometrydesc.Flags = opacity == geometryopacity::opaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-    geometrydesc.Triangles.IndexBuffer = indexbuffer->GetGPUVirtualAddress();
-    geometrydesc.Triangles.IndexCount = static_cast<UINT>(indices.size());
-    geometrydesc.Triangles.IndexFormat = DXGI_FORMAT_R16_UINT;
+    geometrydesc.Triangles.IndexBuffer = indices.gpuaddress();
+    geometrydesc.Triangles.IndexCount = static_cast<UINT>(indices.numelements);
+    geometrydesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
     geometrydesc.Triangles.Transform3x4 = 0;
     geometrydesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-    geometrydesc.Triangles.VertexCount = static_cast<UINT>(vertices.size());
-    geometrydesc.Triangles.VertexBuffer.StartAddress = vertexbuffer->GetGPUVirtualAddress();
+    geometrydesc.Triangles.VertexCount = static_cast<UINT>(vertices.numelements);
+    geometrydesc.Triangles.VertexBuffer.StartAddress = vertices.gpuaddress();
     geometrydesc.Triangles.VertexBuffer.StrideInBytes = sizeof(stdx::vec3);
 
     auto scratch = kickoffbuild(geometrydesc);
@@ -148,7 +145,7 @@ std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::bu
     instancedesc.AccelerationStructure = gpuaddress();
     instancedesc.InstanceContributionToHitGroupIndex = instanceidx;
 
-    return { vertexbuffer, indexbuffer, scratch };
+    return { scratch };
 }
 
 std::array<ComPtr<ID3D12Resource>, proceduralblas::numresourcetokeepalive> proceduralblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, geometry::aabb const& aabb)
@@ -329,9 +326,9 @@ model::model(std::string const& objpath)
     for (uint i(0); i < result.shapes[0].mesh.num_face_vertices.size(); ++i)
     {
         stdx::cassert(result.shapes[0].mesh.num_face_vertices[i] == 3);
-        indices.push_back(uint16_t(objindices[i * 3].position_index));
-        indices.push_back(uint16_t(objindices[i * 3 + 1].position_index));
-        indices.push_back(uint16_t(objindices[i * 3 + 2].position_index));
+        indices.push_back(objindices[i * 3].position_index);
+        indices.push_back(objindices[i * 3 + 1].position_index);
+        indices.push_back(objindices[i * 3 + 2].position_index);
     }
 
     // make sure there is no padding
@@ -733,6 +730,11 @@ ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap()
     return heap;
 }
 
+srv createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource)
+{
+    return globalresources::get().resourceheap().addsrv(srvdesc, resource);
+}
+
 void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* resourceheap, uint heapslot)
 {
     auto device = globalresources::get().device();
@@ -776,7 +778,8 @@ default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size
 
     if (b_size > 0)
     {
-        auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size);
+        // allow unordered access on default buffers, for convenience
+        auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
         // create buffer on the default heap
         auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);

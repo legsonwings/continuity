@@ -73,8 +73,19 @@ void raygenshader()
 [shader("closesthit")]
 void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    float3 barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);
-    payload.color = float4(1, 0, 0, 1);
+    StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[4];
+    StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[5];
+
+    uint const triidx = PrimitiveIndex();
+    
+    float3 v0 = vertexbuffer[triidx * 3];
+    float3 v1 = vertexbuffer[triidx * 3 + 1];
+    float3 v2 = vertexbuffer[triidx * 3 + 2];
+
+    float3 normal = normalize(cross(v2 - v1, v1 - v0));
+
+    //float3 barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);
+    payload.color = float4(normal, 1.0f);
 }
 
 #endif // RAYTRACE_HLSL

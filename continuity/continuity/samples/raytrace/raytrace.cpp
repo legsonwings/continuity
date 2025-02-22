@@ -61,8 +61,11 @@ gfx::resourcelist raytrace::create_resources()
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
         gfx::blasinstancedescs instancedescs;
 
+        res.push_back(vertexbuffer.create(model.vertices));
+        res.push_back(indexbuffer.create(model.indices));
+
         // cannot use stdx::join because ComPtr is too smart for its own good
-        for (auto r : triblas.build(instancedescs, opacity, model.vertices, model.indices))
+        for (auto r : triblas.build(instancedescs, opacity, vertexbuffer, indexbuffer))
             res.push_back(r);
 
         for (auto r : tlas.build(instancedescs))
@@ -92,13 +95,17 @@ gfx::resourcelist raytrace::create_resources()
         raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ 720, 720 }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         
         // we don't store descriptors, as the indices are hardcoded in shaders
-        // 0. const buffer for frame0 
-        // 1. const buffer for frame1
-        // 2. tlas
-        // 3. ray trace output
+        // 0 const buffer for frame0 
+        // 1 const buffer for frame1
+        // 2 tlas
+        // 3 ray trace output
+        // 4 vertex buffers
+        // 5 index buffers
         constantbuffer.createcbv();
         tlas.createsrv();
         raytracingoutput.createuav();
+        vertexbuffer.createsrv();
+        indexbuffer.createsrv();
     }
 
     return res;

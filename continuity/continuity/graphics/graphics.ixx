@@ -109,6 +109,7 @@ ComPtr<ID3D12Resource> create_perframeuploadbuffers(std::byte** mapped_buffer, u
 ComPtr<ID3D12Resource> create_uploadbufferwithdata(void const* data_start, uint const buffersize);
 ComPtr<ID3D12Resource> create_perframeuploadbufferunmapped(uint const buffersize);
 ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap();
+srv createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource);
 void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* resourceheap, uint heapslot = 0);
 ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size);
 ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size);
@@ -140,6 +141,63 @@ void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... res
 }
 
 // helpers
+
+enum class accesstype
+{
+	both,		// cpu w, gpu rw
+	gpu,		// gpu rw
+};
+
+template<typename t>
+struct structuredbufferbase : public resource
+{
+	srv createsrv()
+	{
+		stdx::cassert(d3dresource != nullptr);
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+		srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvdesc.Format = DXGI_FORMAT_UNKNOWN;
+		srvdesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+		srvdesc.Buffer.NumElements = UINT(numelements);
+		srvdesc.Buffer.StructureByteStride = UINT(sizeof(t));
+
+		return gfx::createsrv(srvdesc, d3dresource.Get());
+	}
+
+	uint numelements = 0;
+};
+
+// cpu writeable
+template<typename t, accesstype access>
+struct structuredbuffer : public structuredbufferbase<t>
+{
+	ComPtr<ID3D12Resource> create(std::vector<t> const& data)
+	{
+		stdx::cassert(this->d3dresource == nullptr);
+
+		auto buffers = create_defaultbuffer(data.data(), data.size() * UINT(sizeof(t)));
+		this->d3dresource = buffers.first;
+		this->numelements = data.size();
+		return buffers.second;
+	}
+};
+
+// gpu only
+template<typename t>
+struct structuredbuffer<t, accesstype::gpu> : public structuredbufferbase<t>
+{
+	void create(uint numelems)
+	{
+		stdx::cassert(this->d3dresource == nullptr);
+
+		this->d3dresource = create_default_uavbuffer(sizeof(t) * numelems);
+		this->numelements = numelems;
+	}
+};
+
+using rtvertexbuffer = structuredbuffer<stdx::vec3, accesstype::both>;
+using rtindexbuffer = structuredbuffer<uint32_t, accesstype::both>;
 
 class resourceheap
 {
@@ -190,7 +248,7 @@ struct model
 	model() = default;
 	model(std::string const& objpath);
 
-	std::vector<uint16_t> indices;
+	std::vector<uint32_t> indices;
 	std::vector<stdx::vec3> vertices;
 };
 
@@ -300,8 +358,8 @@ struct tlas : public accelerationstruct
 // blases only support single primitve instance right now
 struct triblas : public blas
 {
-	static constexpr uint numresourcetokeepalive = 3;
-	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs& instancedescs, geometryopacity opacity, std::vector<stdx::vec3> const& vertices, std::vector<uint16_t> const& indices);
+	static constexpr uint numresourcetokeepalive = 1;
+	std::array<ComPtr<ID3D12Resource>, numresourcetokeepalive> build(blasinstancedescs& instancedescs, geometryopacity opacity, rtvertexbuffer const& vertices, rtindexbuffer const& indices);
 };
 
 struct proceduralblas : public blas
@@ -408,8 +466,7 @@ struct staticbuffer
 	ComPtr<ID3D12Resource> _buffer;
 };
 
-// todo : specify type using a template
-struct structuredbuffer : public resource
+struct rostructuredbuffer : public resource
 {
 	void createresources(uint buffersize)
 	{

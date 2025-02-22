@@ -40,10 +40,10 @@ private:
 
 	float computetimestep() const;
 
-	gfx::structuredbuffer databuffer;
-	gfx::structuredbuffer isosurface_vertices_counter;
-	gfx::structuredbuffer isosurface_vertices;
-	gfx::structuredbuffer render_args;
+	gfx::rostructuredbuffer databuffer;
+	gfx::rostructuredbuffer isosurface_vertices_counter;
+	gfx::rostructuredbuffer isosurface_vertices;
+	gfx::rostructuredbuffer render_args;
 
     // ray trace stuff
 	gfx::triblas triblas;
