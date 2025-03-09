@@ -61,8 +61,22 @@ gfx::resourcelist raytrace::create_resources()
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
         gfx::blasinstancedescs instancedescs;
 
+        // one material id per blas
+        std::vector<uint32> material_idsdata(1u, 0u);
+        std::vector<rt::material> materials_data(1u);
+
+        materials_data[0].colour[0] = 0.0f;
+        materials_data[0].colour[1] = 1.0f;
+        materials_data[0].colour[2] = 0.0f;
+        materials_data[0].colour[3] = 1.0f;
+        materials_data[0].metallic = 1u;
+        materials_data[0].roughness = 0.25f;
+        materials_data[0].reflectance = 0.5f;
+
         res.push_back(vertexbuffer.create(model.vertices));
         res.push_back(indexbuffer.create(model.indices));
+        res.push_back(materialids.create(material_idsdata));
+        res.push_back(materials.create(materials_data));
 
         // cannot use stdx::join because ComPtr is too smart for its own good
         for (auto r : triblas.build(instancedescs, opacity, vertexbuffer, indexbuffer))
@@ -101,11 +115,15 @@ gfx::resourcelist raytrace::create_resources()
         // 3 ray trace output
         // 4 vertex buffers
         // 5 index buffers
+        // 6 material ids
+        // 7 material data
         constantbuffer.createcbv();
         tlas.createsrv();
         raytracingoutput.createuav();
         vertexbuffer.createsrv();
         indexbuffer.createsrv();
+        materialids.createsrv();
+        materials.createsrv();
     }
 
     return res;
@@ -116,6 +134,7 @@ void raytrace::render(float dt)
     auto& globalres = gfx::globalresources::get();
     auto& framecbuffer = constantbuffer.data(globalres.frameindex());
 
+    framecbuffer.sundir = stdx::vec3{ 1.0f, 0.0f, 0.0f }.normalized();
     framecbuffer.campos = camera.GetCurrentPosition();
     framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
 

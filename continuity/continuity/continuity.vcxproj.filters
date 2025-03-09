@@ -156,6 +156,7 @@
     <ClInclude Include="samples\raytrace\raytracecommon.h">
       <Filter>samples\raytrace</Filter>
     </ClInclude>
+    <ClInclude Include="sharedtypes.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="simplemath\simplemath.inl">

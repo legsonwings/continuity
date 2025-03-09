@@ -14,7 +14,7 @@ public:
 	raytrace(view_data const& viewdata);
 
 	gfx::resourcelist create_resources() override;
-	void render(float dt) override;  
+	void render(float dt) override; 
 
 private:
 
@@ -26,8 +26,8 @@ private:
 	gfx::texture raytracingoutput;
 	gfx::rtvertexbuffer vertexbuffer;
 	gfx::rtindexbuffer indexbuffer;
+	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;
+	gfx::structuredbuffer<rt::material, gfx::accesstype::both> materials;
 
 	gfx::constantbuffer2<rt::sceneconstants, frame_count> constantbuffer;
 };
-
-

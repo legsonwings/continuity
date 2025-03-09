@@ -54,6 +54,7 @@
     </ClCompile>
     <ClInclude Include="samples\raytrace\raytracecommon.h" />
     <ClInclude Include="sharedconstants.h" />
+    <ClInclude Include="sharedtypes.h" />
     <ClInclude Include="simplemath\simplemath.h" />
     <ClInclude Include="thirdparty\d3dx12.h" />
     <ClInclude Include="thirdparty\dxhelpers.h" />

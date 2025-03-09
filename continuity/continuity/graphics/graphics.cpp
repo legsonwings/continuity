@@ -140,6 +140,7 @@ std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::bu
     uint const instanceidx = instancedescs.descs.size();
     D3D12_RAYTRACING_INSTANCE_DESC& instancedesc = instancedescs.descs.emplace_back();
     instancedesc = {};
+    instancedesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_FRONT_COUNTERCLOCKWISE;
     instancedesc.Transform[0][0] = instancedesc.Transform[1][1] = instancedesc.Transform[2][2] = 1;
     instancedesc.InstanceMask = 1;
     instancedesc.AccelerationStructure = gpuaddress();
@@ -319,7 +320,12 @@ uint texture_dynamic::size() const
 
 model::model(std::string const& objpath)
 {
-    rapidobj::Result result = rapidobj::ParseFile(std::filesystem::path(objpath));
+    rapidobj::Result result = rapidobj::ParseFile(std::filesystem::path(objpath), rapidobj::MaterialLibrary::Default(rapidobj::Load::Optional));
+    stdx::cassert(!result.error);
+    
+    rapidobj::Triangulate(result);
+    stdx::cassert(!result.error);
+
     auto const& positions = result.attributes.positions;
     auto const& objindices = result.shapes[0].mesh.indices;
 
@@ -780,6 +786,7 @@ default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size
     {
         // allow unordered access on default buffers, for convenience
         auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        auto ub_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size);
 
         // create buffer on the default heap
         auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
@@ -787,7 +794,7 @@ default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size
 
         // create resource on the upload heap
         auto uploadheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        ThrowIfFailed(device->CreateCommittedResource(&uploadheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
+        ThrowIfFailed(device->CreateCommittedResource(&uploadheap_desc, D3D12_HEAP_FLAG_NONE, &ub_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
 
         {
             uint8_t* b_upload_start = nullptr;

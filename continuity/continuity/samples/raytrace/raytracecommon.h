@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sharedtypes.h"
+
 #if __cplusplus
 
 // import modules here
@@ -11,32 +13,45 @@ import vec;
 namespace rt
 {
 
-#if __cplusplus
+static const float pi = 3.14159265f;
 
 struct rootconstants
 {
     uint32 frameidx;
 };
 
+struct material
+{
+    float colour[4];
+    float roughness;
+    float reflectance;
+    uint32 metallic;
+};
+
+#if __cplusplus
+
 struct alignas(256) sceneconstants
 {
     stdx::vec3 campos;
-    uint8 padding0[4];
+    uint32 padding0;
+
+    stdx::vec3 sundir;
+    uint32 padding1;
+
     stdx::matrix4x4 inv_viewproj;
 };
 
 }
 #else
 
-struct rootconstants
-{
-    uint frameidx;
-};
-
 struct sceneconstants
 {
     float3 campos;
-    uint padding0;
+    uint32 padding0;
+    
+    float3 sundir;
+    uint32 padding1;
+
     float4x4 inv_viewproj;
 };
 
