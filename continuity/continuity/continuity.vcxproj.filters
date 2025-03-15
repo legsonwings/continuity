@@ -162,10 +162,10 @@
     <None Include="simplemath\simplemath.inl">
       <Filter>source\simplemath</Filter>
     </None>
-    <None Include="assets\common.hlsli">
+    <None Include="shaders\common.hlsli">
       <Filter>shaders</Filter>
     </None>
-    <None Include="assets\lighting.hlsli">
+    <None Include="shaders\lighting.hlsli">
       <Filter>shaders</Filter>
     </None>
     <None Include="samples\sphgpu\shaders\sphcommon.hlsli">
@@ -173,34 +173,34 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="assets\basic_ps.hlsl">
+    <FxCompile Include="shaders\basic_ps.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\default_as.hlsl">
+    <FxCompile Include="shaders\default_as.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\default_ms.hlsl">
+    <FxCompile Include="shaders\default_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\default_ps.hlsl">
+    <FxCompile Include="shaders\default_ps.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\instances_ms.hlsl">
+    <FxCompile Include="shaders\instances_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\instances_ps.hlsl">
+    <FxCompile Include="shaders\instances_ps.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\lines_ms.hlsl">
+    <FxCompile Include="shaders\lines_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\linesinstances_ms.hlsl">
+    <FxCompile Include="shaders\linesinstances_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\texturess_ms.hlsl">
+    <FxCompile Include="shaders\texturess_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\texturess_ps.hlsl">
+    <FxCompile Include="shaders\texturess_ps.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
     <FxCompile Include="samples\sphgpu\shaders\sphgpu_densitypressure_cs.hlsl">
@@ -224,7 +224,7 @@
     <FxCompile Include="samples\sphgpu\shaders\sph_render_debugparticles_ms.hlsl">
       <Filter>samples\sphgpu\shaders</Filter>
     </FxCompile>
-    <FxCompile Include="assets\raytracetrisphere_rs.hlsl">
+    <FxCompile Include="shaders\raytracetrisphere_rs.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
     <FxCompile Include="samples\raytrace\shaders\raytrace_rs.hlsl">

@@ -1,5 +1,5 @@
 #pragma once
-#include "assets/common.hlsli"
+#include "shaders/common.hlsli"
 
 // globals
 // various dispatch params(numprims, etc)

@@ -1,8 +1,8 @@
-#include "assets/lighting.hlsli"
+#include "shaders/lighting.hlsli"
 
 // todo : probably should remove this
 // todo : alternatively use root signature that is common with default_ps adn ensure sample specific root signatures are supersets of base root signature
-#include "assets/common.hlsli"
+#include "shaders/common.hlsli"
 
 float4 main(meshshadervertex input) : SV_TARGET
 {
