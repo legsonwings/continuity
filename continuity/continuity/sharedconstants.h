@@ -9,3 +9,5 @@
 #define MAX_NUM_LIGHTS 5
 
 #define FLOAT_EPSILON 1e-10f
+
+static const float pi = 3.14159265f;

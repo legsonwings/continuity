@@ -13,8 +13,6 @@ import vec;
 namespace rt
 {
 
-static const float pi = 3.14159265f;
-
 struct rootconstants
 {
     uint32 frameidx;
