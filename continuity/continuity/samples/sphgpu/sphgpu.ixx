@@ -2,6 +2,7 @@ module;
 
 #include "simplemath/simplemath.h"
 #include "thirdparty/d3dx12.h"
+#include "shared/raytracecommon.h"
 
 export module sphgpu;
 
@@ -40,22 +41,22 @@ private:
 
 	float computetimestep() const;
 
+	// replace with structured buffer
 	gfx::rostructuredbuffer databuffer;
-	gfx::rostructuredbuffer isosurface_vertices_counter;
-	gfx::rostructuredbuffer isosurface_vertices;
-	gfx::rostructuredbuffer render_args;
 
-    // ray trace stuff
-	gfx::triblas triblas;
 	gfx::proceduralblas procblas;
 	gfx::tlas tlas;
 	gfx::shadertable missshadertable;
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
-	gfx::uav raytraceoutput_uav;
 	gfx::texture raytracingoutput;
 
+	// todo : should be in engine
+	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;
+	gfx::structuredbuffer<rt::material, gfx::accesstype::both> materials;
+
 	ComPtr<ID3D12CommandSignature> render_commandsig;
+	gfx::constantbuffer2<rt::sceneconstants, 1> constantbuffer;
 
 	std::vector<gfx::body_static<geometry::cube>> boxes;
 

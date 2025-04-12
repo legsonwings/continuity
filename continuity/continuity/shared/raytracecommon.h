@@ -13,14 +13,9 @@ import vec;
 namespace rt
 {
 
-struct rootconstants
-{
-    uint32 frameidx;
-};
-
 struct material
 {
-    float colour[4];
+    float4 colour;
     float roughness;
     float reflectance;
     uint32 metallic;

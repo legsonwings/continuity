@@ -1,10 +1,8 @@
 #ifndef RAYTRACE_HLSL
 #define RAYTRACE_HLSL
 
-#include "samples/raytrace/raytracecommon.h"
+#include "shared/raytracecommon.h"
 #include "shaders/lighting.hlsli"
-
-ConstantBuffer<rt::rootconstants> rootconsts : register(b0);
 
 struct raypayload
 {
@@ -46,7 +44,7 @@ inline ray generateray(uint2 index, in float3 campos, in float4x4 projtoworld)
 [shader("raygeneration")]
 void raygenshader()
 {
-    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[rootconsts.frameidx];
+    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[0];
     
     // generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
     ray ray = generateray(DispatchRaysIndex().xy, frameconstants.campos, frameconstants.inv_viewproj);
@@ -62,10 +60,10 @@ void raygenshader()
     rayDesc.TMax = 10000;
     raypayload raypayload = { float4(0, 0, 0, 0)};
 
-    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[2];
+    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[1];
     TraceRay(scene, RAY_FLAG_CULL_FRONT_FACING_TRIANGLES, ~0, 0, 1, 0, rayDesc, raypayload);
 
-    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[3];
+    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[2];
 
     // write the raytraced color to the output texture.
     rendertarget[DispatchRaysIndex().xy] = raypayload.color;
@@ -74,11 +72,11 @@ void raygenshader()
 [shader("closesthit")]
 void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[4];
-    StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[5];
-    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[rootconsts.frameidx];
-    StructuredBuffer<uint> material_ids = ResourceDescriptorHeap[6];
-    StructuredBuffer<rt::material> materials = ResourceDescriptorHeap[7];
+    StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[3];
+    StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[4];
+    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[0];
+    StructuredBuffer<uint> material_ids = ResourceDescriptorHeap[5];
+    StructuredBuffer<rt::material> materials = ResourceDescriptorHeap[6];
 
     // index of blas in tlas, assume each instance only contains geometries that use same material id
     uint const geometryinstance_idx = InstanceIndex();

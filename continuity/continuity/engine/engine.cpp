@@ -11,7 +11,7 @@ module;
 #include <shlobj.h>
 #include <strsafe.h>
 
-#include "sharedconstants.h"
+#include "shared/sharedconstants.h"
 
 module engine;
 
@@ -222,15 +222,16 @@ void continuity::load_pipeline()
     {
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
-        // create a RTV and a command allocator for each frame.
+        // create a RTV
         for (UINT n = 0; n < frame_count; n++)
         {
             ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
             device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
             rtvHandle.Offset(1, m_rtvDescriptorSize);
-
-            ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[n])));
         }
+
+        // create command allocator for only one frame since theres no frame buffering
+        ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[0])));
     }
 
     // create the depth stencil view.
@@ -282,7 +283,7 @@ void continuity::create_resources()
     auto& cmdlist = gfx::globalresources::get().cmdlist();
 
     // create the command list. They are created in recording state
-    ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[gfx::globalresources::get().frameindex()].Get(), nullptr, IID_PPV_ARGS(&cmdlist)));
+    ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[0].Get(), nullptr, IID_PPV_ARGS(&cmdlist)));
 
     // intitialize render target
     gfx::globalresources::get().rendertarget(m_renderTargets[gfx::globalresources::get().frameindex()]);
@@ -297,7 +298,7 @@ void continuity::create_resources()
     // create synchronization objects and wait until assets have been uploaded to the GPU.
     {
         ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
-        m_fenceValues[gfx::globalresources::get().frameindex()]++;
+        m_fenceValues[0]++;
 
         // Create an event handle to use for frame synchronization.
         m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -345,12 +346,12 @@ void continuity::OnRender()
     // command list allocators can only be reset when the associated 
     // command lists have finished execution on the GPU; apps should use 
     // fences to determine GPU execution progress.
-    ThrowIfFailed(m_commandAllocators[frameidx]->Reset());
+    ThrowIfFailed(m_commandAllocators[0]->Reset());
 
     // however, when ExecuteCommandList() is called on a particular command 
     // list, that command list can then be reset at any time and must be before 
     // re-recording.
-    ThrowIfFailed(cmdlist->Reset(m_commandAllocators[frameidx].Get(), nullptr));
+    ThrowIfFailed(cmdlist->Reset(m_commandAllocators[0].Get(), nullptr));
 
     // set necessary state.
     cmdlist->RSSetViewports(1, &m_viewport);
@@ -386,7 +387,9 @@ void continuity::OnRender()
     // present the frame.
     ThrowIfFailed(m_swapChain->Present(1, 0));
 
-    moveto_nextframe();
+    waitforgpu();
+
+    gfx::globalresources::get().frameindex(m_swapChain->GetCurrentBackBufferIndex());
 }
 
 void continuity::OnDestroy()
@@ -411,40 +414,15 @@ void continuity::OnKeyUp(UINT8 key)
 // wait for pending GPU work to complete.
 void continuity::waitforgpu()
 {
-    auto const frameidx = gfx::globalresources::get().frameindex();
-
     // schedule a Signal command in the queue.
-    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[frameidx]));
+    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[0]));
 
     // Wait until the fence has been processed.
-    ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[frameidx], m_fenceEvent));
+    ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[0], m_fenceEvent));
     WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 
     // increment the fence value for the current frame.
-    m_fenceValues[frameidx]++;
-}
-
-// prepare to render the next frame.
-void continuity::moveto_nextframe()
-{
-    auto const frameidx = gfx::globalresources::get().frameindex();
-
-    // schedule a Signal command in the queue.
-    const UINT64 currentFenceValue = m_fenceValues[frameidx];
-    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
-
-    // update the frame index.
-    gfx::globalresources::get().frameindex(m_swapChain->GetCurrentBackBufferIndex());
-
-    // if the next frame is not ready to be rendered yet, wait until it is ready.
-    if (m_fence->GetCompletedValue() < m_fenceValues[frameidx])
-    {
-        ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[frameidx], m_fenceEvent));
-        WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
-    }
-
-    // set the fence value for the next frame.
-    m_fenceValues[frameidx] = currentFenceValue + 1;
+    m_fenceValues[0]++;
 }
 
 // helper function for acquiring the first available hardware adapter that supports Direct3D 12.

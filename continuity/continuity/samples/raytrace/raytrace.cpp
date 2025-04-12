@@ -52,7 +52,7 @@ gfx::resourcelist raytrace::create_resources()
         rtshaders.tri_hitgrp.name = hitGroupName;
         rtshaders.tri_hitgrp.closesthit = closestHitShaderName;
 
-        auto& raytraceipelinepipeline_objs = globalres.addraytracingpso("raytrace", "raytrace_rs.cso", rtshaders);
+        auto& raytracepipeline_objs = globalres.addraytracingpso("raytrace", "raytrace_rs.cso", rtshaders);
 
         auto& device = globalres.device();
         auto& cmdlist = globalres.cmdlist();
@@ -86,7 +86,7 @@ gfx::resourcelist raytrace::create_resources()
             res.push_back(r);
 
         ComPtr<ID3D12StateObjectProperties> stateobjectproperties;
-        ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateobjectproperties));
+        ThrowIfFailed(raytracepipeline_objs.pso_raytracing.As(&stateobjectproperties));
         auto* stateobjectprops = stateobjectproperties.Get();
 
         // get shader id's
@@ -109,14 +109,13 @@ gfx::resourcelist raytrace::create_resources()
         raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ 720, 720 }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         
         // we don't store descriptors, as the indices are hardcoded in shaders
-        // 0 const buffer for frame0 
-        // 1 const buffer for frame1
-        // 2 tlas
-        // 3 ray trace output
-        // 4 vertex buffers
-        // 5 index buffers
-        // 6 material ids
-        // 7 material data
+        // 0 const buffer
+        // 1 tlas
+        // 2 ray trace output
+        // 3 vertex buffers
+        // 4 index buffers
+        // 5 material ids
+        // 6 material data
         constantbuffer.createcbv();
         tlas.createsrv();
         raytracingoutput.createuav();
@@ -132,7 +131,7 @@ gfx::resourcelist raytrace::create_resources()
 void raytrace::render(float dt)
 {
     auto& globalres = gfx::globalresources::get();
-    auto& framecbuffer = constantbuffer.data(globalres.frameindex());
+    auto& framecbuffer = constantbuffer.data(0);
 
     framecbuffer.sundir = stdx::vec3{ 1.0f, 0.0f, 0.0f }.normalized();
     framecbuffer.campos = camera.GetCurrentPosition();
@@ -144,7 +143,6 @@ void raytrace::render(float dt)
     // bind the global root signature, heaps and frame index, other resources are bindless 
     cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
     cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    cmd_list->SetComputeRoot32BitConstant(0, UINT(globalres.frameindex()), 0);
     cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;

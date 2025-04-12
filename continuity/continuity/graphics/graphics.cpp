@@ -525,10 +525,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     
     {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootsig;
-        CD3DX12_ROOT_PARAMETER rootparams[1];
-        rootparams[0].InitAsConstants(1, 0); // pass frame index
-
-        CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(ARRAYSIZE(rootparams), rootparams);
+        CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(0, nullptr);
         rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
         // empty root signature

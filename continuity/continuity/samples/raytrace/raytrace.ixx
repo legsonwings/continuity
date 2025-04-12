@@ -1,6 +1,6 @@
 module;
 
-#include "raytracecommon.h"
+#include "shared/raytracecommon.h"
 
 export module raytrace;
 
@@ -29,5 +29,5 @@ private:
 	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;
 	gfx::structuredbuffer<rt::material, gfx::accesstype::both> materials;
 
-	gfx::constantbuffer2<rt::sceneconstants, frame_count> constantbuffer;
+	gfx::constantbuffer2<rt::sceneconstants, 1> constantbuffer;
 };

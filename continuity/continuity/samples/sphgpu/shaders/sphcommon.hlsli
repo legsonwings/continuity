@@ -48,6 +48,3 @@ struct particle_data
 
 ConstantBuffer<sphgpu_dispatch_params> sph_dispatch_params : register(b1);
 RWStructuredBuffer<particle_data> particledata: register(u0);
-RWStructuredBuffer<uint> isosurface_vertices_counter : register(u2);
-RWStructuredBuffer<uint3> render_dipatchargs : register(u1);
-RWStructuredBuffer<float3> isosurface_vertices : register(u3);

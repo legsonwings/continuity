@@ -82,7 +82,7 @@ private:
     // synchronization objects
     HANDLE m_fenceEvent;
     ComPtr<ID3D12Fence> m_fence;
-    UINT64 m_fenceValues[frame_count];
+    UINT64 m_fenceValues[1];
 
     // pipeline objects
     CD3DX12_VIEWPORT m_viewport;
@@ -90,7 +90,7 @@ private:
     ComPtr<IDXGISwapChain3> m_swapChain;
     ComPtr<ID3D12Resource> m_renderTargets[frame_count];
     ComPtr<ID3D12Resource> m_depthStencil;
-    ComPtr<ID3D12CommandAllocator> m_commandAllocators[frame_count];
+    ComPtr<ID3D12CommandAllocator> m_commandAllocators[1];
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
@@ -112,7 +112,6 @@ private:
 
     void load_pipeline();
     void create_resources();
-    void moveto_nextframe();
     void waitforgpu();   
 
     static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);

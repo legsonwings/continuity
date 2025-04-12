@@ -5,6 +5,8 @@ module;
 #include "thirdparty/d3dx12.h"
 #include "thirdparty/dxhelpers.h"
 
+#include "shared/raytracecommon.h"
+
 module sphgpu;
 
 import stdx;
@@ -49,10 +51,9 @@ static constexpr float marchingcube_size = 0.1f;
 // raytracing stuff
 static constexpr char const* hitGroupName = "MyHitGroup";
 static constexpr char const* prochitGroupName = "MyHitGroup_AABB_AnalyticPrimitive";
-static constexpr char const* raygenShaderName = "MyRaygenShader";
-static constexpr char const* closestHitShaderName = "MyClosestHitShader_Triangle";
+static constexpr char const* raygenShaderName = "raygenshader";
 static constexpr char const* procclosestHitShaderName = "MyClosestHitShader_AABB";
-static constexpr char const* missShaderName = "MyMissShader";
+static constexpr char const* missShaderName = "missshader";
 static constexpr char const* intersectionShaderName = "MyIntersectionShader_AnalyticPrimitive";
 
 struct Viewport
@@ -128,38 +129,39 @@ UINT dispatchsize(uint total_workitems, uint threads_pergroup)
 gfx::resourcelist sphgpu::create_resources()
 {
     using geometry::cube;
-    using geometry::sphere;
+    //using geometry::sphere;
     using gfx::bodyparams;
-    using gfx::material;
+    //using gfx::material;
 
     auto& globalres = gfx::globalresources::get();
-    auto& globals = globalres.cbuffer().data();
+    constantbuffer.createresource();
+    //auto& globals = globalres.cbuffer().data();
 
     // initialize lights
-    globals.numdirlights = 1;
-    globals.numpointlights = 2;
+    //globals.numdirlights = 1;
+    //globals.numpointlights = 2;
 
-    globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
-    globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
-    globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
+    //globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
+    //globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
+    //globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
 
-    globals.lights[1].position = { -15.f, 15.f, -15.f };
-    globals.lights[1].color = { 1.f, 1.f, 1.f };
-    globals.lights[1].range = 40.f;
+    //globals.lights[1].position = { -15.f, 15.f, -15.f };
+    //globals.lights[1].color = { 1.f, 1.f, 1.f };
+    //globals.lights[1].range = 40.f;
 
-    globals.lights[2].position = { 15.f, 15.f, -15.f };
-    globals.lights[2].color = { 1.f, 1.f, 1.f };
-    globals.lights[2].range = 40.f;
+    //globals.lights[2].position = { 15.f, 15.f, -15.f };
+    //globals.lights[2].color = { 1.f, 1.f, 1.f };
+    //globals.lights[2].range = 40.f;
 
-    globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
-    globalres.cbuffer().updateresource();
+    //globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
+    //globalres.cbuffer().updateresource();
 
-    globalres.addpso("sphgpu_render_particles", "", "sph_render_particles_ms.cso", "sph_render_particles_ps.cso", gfx::psoflags::transparent | gfx::psoflags::twosided);
+    //globalres.addpso("sphgpu_render_particles", "", "sph_render_particles_ms.cso", "sph_render_particles_ps.cso", gfx::psoflags::transparent | gfx::psoflags::twosided);
     globalres.addpso("sphgpu_render_debugparticles", "", "sph_render_debugparticles_ms.cso", "sph_render_particles_ps.cso");
     globalres.addcomputepso("sphgpuinit", "sphgpuinit_cs.cso");
     globalres.addcomputepso("sphgpudensitypressure", "sphgpu_densitypressure_cs.cso");
     globalres.addcomputepso("sphgpuposition", "sphgpu_position_cs.cso");
-    globalres.addcomputepso("marchingcubes", "marchingcubes_cs.cso");
+    //globalres.addcomputepso("marchingcubes", "marchingcubes_cs.cso");
 
     // todo : add engine support for indirect dispatch
     // command signature used for indirect drawing.
@@ -182,102 +184,74 @@ gfx::resourcelist sphgpu::create_resources()
     gfx::resourcelist res;
     for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) { stdx::append(b->create_resources(), res); };
 
-    //// todo : is there a way to know exactly size of particle data in cpu
-    //// todo : there is, use common header for cpp and hlsl struct, take care of padding
-    //static constexpr uint particle_datasize = 72;
+    // todo : is there a way to know exactly size of particle data in cpu
+    // todo : there is, use common header for cpp and hlsl struct, take care of padding
+    static constexpr uint particle_datasize = 72;
+    databuffer.createresources(numparticles * particle_datasize);
 
-    //databuffer.createresources("particledata", numparticles * particle_datasize);
+    // dispatch initialization compute shader
+    {
+        struct
+        {
+            uint32_t numparticles;
+            float dt;
+            float particleradius;
+            float h;
+            float containerorigin[3];
+            float hsqr;
+            float containerextents[3];
+        } rootconstants;
+        
+        rootconstants.numparticles = numparticles;
+        rootconstants.containerorigin[0] = rootconstants.containerorigin[1] = rootconstants.containerorigin[2] = 0.0f;
+        rootconstants.containerextents[0] = rootconstants.containerextents[1] = rootconstants.containerextents[2] = roomextents;
 
-    //// todo : creating the counter before vertices buffer causes a crash
-    //// what the fuck
+        auto cmd_list = globalres.cmdlist();
 
-    //// each marching cube can write upto 5 triangles(15 float3's)
-    //// this can store 66,660 vertices
-    //isosurface_vertices.createresources("isosurface_vertices", 1000000);
-    //isosurface_vertices_counter.createresources("isosurface_vertices_counter", sizeof(uint32_t));
-    //render_args.createresources("render_dispatch_args", sizeof(D3D12_DISPATCH_ARGUMENTS));
-    //namkaranres(isosurface_vertices);
-    //namkaranres(isosurface_vertices_counter);
-    //namkaranres(render_args);
+        auto const& pipelineobjects = globalres.psomap().find("sphgpuinit")->second;
 
-    //// dispatch initialization compute shader
-    //{
-    //    struct
-    //    {
-    //        uint32_t numparticles;
-    //        float dt;
-    //        float particleradius;
-    //        float h;
-    //        float containerorigin[3];
-    //        float hsqr;
-    //        float containerextents[3];
-    //    } rootconstants;
-    //    
-    //    rootconstants.numparticles = numparticles;
-    //    rootconstants.containerorigin[0] = rootconstants.containerorigin[1] = rootconstants.containerorigin[2] = 0.0f;
-    //    rootconstants.containerextents[0] = rootconstants.containerextents[1] = rootconstants.containerextents[2] = roomextents;
+        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+        cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+        cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
+        cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
+        cmd_list->SetComputeRoot32BitConstants(5, 11, &rootconstants, 0);
 
-    //    auto cmd_list = globalres.cmdlist();
+        UINT const dispatchx = dispatchsize(numparticles, 64);
+        cmd_list->Dispatch(dispatchx, 1, 1);
 
-    //    auto const& pipelineobjects = globalres.psomap().find("sphgpuinit")->second;
+        auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(databuffer.d3dresource.Get());
+        cmd_list->ResourceBarrier(1, &uavBarrier);
+    }
 
-    //    cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-    //    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    //    cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
-    //    cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-    //    cmd_list->SetComputeRoot32BitConstants(5, 11, &rootconstants, 0);
-
-    //    UINT const dispatchx = dispatchsize(numparticles, 64);
-    //    cmd_list->Dispatch(dispatchx, 1, 1);
-
-    //    auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(databuffer.d3dresource.Get());
-    //    cmd_list->ResourceBarrier(1, &uavBarrier);
-    //}
-
-    // rt triangle
     {
         gfx::raytraceshaders rtshaders;
         rtshaders.raygen = raygenShaderName;
         rtshaders.miss = missShaderName;
-        rtshaders.tri_hitgrp.name = hitGroupName;
-        rtshaders.tri_hitgrp.closesthit = closestHitShaderName;
         rtshaders.procedural_hitgroup.name = prochitGroupName;
         rtshaders.procedural_hitgroup.closesthit = procclosestHitShaderName;
         rtshaders.procedural_hitgroup.intersection = intersectionShaderName;
 
-        auto& raytraceipelinepipeline_objs = globalres.addraytracingpso("procraytrace", "raytracetrisphere_rs.cso", rtshaders);
+        auto& raytracepipeline_objs = globalres.addraytracingpso("sph_render", "sph_render_rs.cso", rtshaders);
 
         auto& device = globalres.device();
         auto& cmdlist = globalres.cmdlist();
-
-        std::vector<uint32_t> indices = { 0, 1, 2 };
-
-        float depthValue = 10.0;
-        float offset = 2;
-        std::vector<stdx::vec3> verts =
-        {
-            // Since DirectX screen space coordinates are right handed (i.e. Y axis points down).
-            // Define the vertices in counter clockwise order ~ clockwise in left handed.
-            { 0, offset, depthValue },
-            { -offset, -offset, depthValue },
-            { offset, -offset, depthValue }
-        };
 
         geometry::aabb aabb(vector3(-2, -2, 4), vector3(2, 2, 8));
 
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
         gfx::blasinstancedescs instancedescs;
 
-        gfx::rtvertexbuffer vertexbuffer;
-        gfx::rtindexbuffer indexbuffer;
+        // one material id per blas
+        std::vector<uint32> material_idsdata(1u, 0u);
+        std::vector<rt::material> materials_data(1u);
 
-        // no need for persistent vertex and index buffers here, as they are not bound to shaders
-        res.push_back(vertexbuffer.create(verts));
-        res.push_back(indexbuffer.create(indices));
+        materials_data[0] = { 0.0f, 1.0f, 0.0f, 1.0f };
+        materials_data[0].metallic = 1u;
+        materials_data[0].roughness = 0.25f;
+        materials_data[0].reflectance = 0.5f;
 
-        // cannot use stdx::join because ComPtr is too smart for its own good
-        for (auto r : triblas.build(instancedescs, opacity, vertexbuffer, indexbuffer))
-            res.push_back(r);
+        res.push_back(materialids.create(material_idsdata));
+        res.push_back(materials.create(materials_data));
 
         for (auto r : procblas.build(instancedescs, opacity, aabb))
             res.push_back(r);
@@ -286,17 +260,15 @@ gfx::resourcelist sphgpu::create_resources()
             res.push_back(r);
 
         ComPtr<ID3D12StateObjectProperties> stateobjectproperties;
-        ThrowIfFailed(raytraceipelinepipeline_objs.pso_raytracing.As(&stateobjectproperties));
+        ThrowIfFailed(raytracepipeline_objs.pso_raytracing.As(&stateobjectproperties));
         auto* stateobjectprops = stateobjectproperties.Get();
 
         // get shader id's
         void* raygenshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(raygenShaderName).c_str());
         void* missshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(missShaderName).c_str());
-        void* hitgroupshaderids_trianglegeometry = stateobjectprops->GetShaderIdentifier(utils::strtowstr(hitGroupName).c_str());
         void* hitgroupshaderids_aabbgeometry = stateobjectprops->GetShaderIdentifier(utils::strtowstr(prochitGroupName).c_str());
         
         // now build shader tables
-
         // only one records for ray gen and miss shader tables
         raygenshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
         raygenshadertable.addrecord(raygenshaderid);
@@ -304,13 +276,26 @@ gfx::resourcelist sphgpu::create_resources()
         missshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
         missshadertable.addrecord(missshaderid);
 
-        // triangle and procedural aabb records for hitgroup shader table
-        hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void, void>::size, 2);
-        hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
+        // procedural aabb records for hitgroup shader table
+        hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void, void>::size, 1);
         hitgroupshadertable.addrecord(hitgroupshaderids_aabbgeometry);
 
         raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ 720, 720 }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        raytraceoutput_uav = raytracingoutput.createuav();
+    
+        // we don't store descriptors, as the indices are hardcoded in shaders
+        // 0 const buffer for frame0 
+        // 1 const buffer for frame1
+        // 2 tlas
+        // 3 ray trace output
+        // 4 material ids
+        // 5 material data
+        // 6 particle buffers...
+        constantbuffer.createcbv();
+        tlas.createsrv();
+        raytracingoutput.createuav();
+        materialids.createsrv();
+        materials.createsrv();
+        // todo : add particle buffers to the heap
     }
 
     return res;
@@ -324,165 +309,143 @@ void sphgpu::update(float dt)
 
 void sphgpu::render(float dt)
 {
-    auto& globalres = gfx::globalresources::get();
-    auto& globals = globalres.cbuffer().data();
-
-    // hack : should use different const buffer
-    globals.viewproj = (globalres.get().view().view * globalres.get().view().proj).Invert().Transpose();
-    globalres.cbuffer().updateresource();
-
-    //// render the room inner walls
+    // render the room inner walls
+    // todo : how to blend rasterized geometry with raytraced, can do it for opaque
+    // use raytrace for transparency
     //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes)) b->render(dt, { false });
-    //
-    //// we need two additional marches in each dimensions so that we don't miss isosurface really close to the wall due to precision issues
-    //// because of particles near the walls we can have isosurfaces outside the bounds
-    //// in this case just two marches is not enough in each dimension as for large 'h' the additional cubes might never intersect surface of a sphere of radius 'h'
-    //static constexpr bool collect_isosurfaces_outside_bounds = true;
-    //uint const additional_marches_perdim = (collect_isosurfaces_outside_bounds ? stdx::ceil(h / marchingcube_size) : 1u) * 2u;
-    //uint const marches_perdim = stdx::ceil(roomextents / marchingcube_size) + additional_marches_perdim;
+    
+    // we need two additional marches in each dimensions so that we don't miss isosurface really close to the wall due to precision issues
+    // because of particles near the walls we can have isosurfaces outside the bounds
+    // in this case just two marches is not enough in each dimension as for large 'h' the additional cubes might never intersect surface of a sphere of radius 'h'
+    static constexpr bool collect_isosurfaces_outside_bounds = true;
+    uint const additional_marches_perdim = (collect_isosurfaces_outside_bounds ? stdx::ceil(h / marchingcube_size) : 1u) * 2u;
+    uint const marches_perdim = stdx::ceil(roomextents / marchingcube_size) + additional_marches_perdim;
 
-    //struct
-    //{
-    //    uint32_t numparticles;
-    //    float dt;
-    //    float particleradius;
-    //    float h;
-    //    stdx::vec3 containerorigin; // todo : is anything going to need this?
-    //    float hsqr;
-    //    stdx::vec3 containerextents;
-    //    float k;
-    //    stdx::vec3 marchingcubeoffset;
-    //    float rho0;
-    //    float viscosityconstant;
-    //    float poly6coeff;
-    //    float poly6gradcoeff;
-    //    float spikycoeff;
-    //    float viscositylapcoeff;
-    //    float isolevel;
-    //    float marchingcubesize;
-    //} rootconstants;
+    struct
+    {
+        uint32_t numparticles;
+        float dt;
+        float particleradius;
+        float h;
+        stdx::vec3 containerorigin; // todo : is anything going to need this?
+        float hsqr;
+        stdx::vec3 containerextents;
+        float k;
+        stdx::vec3 marchingcubeoffset;
+        float rho0;
+        float viscosityconstant;
+        float poly6coeff;
+        float poly6gradcoeff;
+        float spikycoeff;
+        float viscositylapcoeff;
+        float isolevel;
+        float marchingcubesize;
+    } rootconstants;
 
-    //constexpr auto halfextents = roomextents / 2.0f;
+    constexpr auto halfextents = roomextents / 2.0f;
 
-    //rootconstants.numparticles = numparticles;
-    //rootconstants.containerorigin = stdx::vec3::fill(0.0f);
-    //rootconstants.containerextents = stdx::vec3::fill(roomextents);
-    //rootconstants.marchingcubeoffset = rootconstants.containerorigin - stdx::vec3::fill(halfextents + (additional_marches_perdim / 2u) * marchingcube_size);
-    //rootconstants.dt = dt;
-    //rootconstants.particleradius = particleradius;
-    //rootconstants.h = h;
-    //rootconstants.hsqr = hsqr;
-    //rootconstants.k = k;
-    //rootconstants.rho0 = rho0;
-    //rootconstants.viscosityconstant = viscosityconstant;
-    //rootconstants.poly6coeff = poly6kernelcoeff();
-    //rootconstants.poly6gradcoeff = poly6gradcoeff();
-    //rootconstants.spikycoeff = spikykernelcoeff();
-    //rootconstants.viscositylapcoeff = viscositylaplaciancoeff();
-    //rootconstants.isolevel = isolevel;
-    //rootconstants.marchingcubesize = marchingcube_size;
+    // mosf of th
+    rootconstants.numparticles = numparticles;
+    rootconstants.containerorigin.fill(0.0f);
+    rootconstants.containerextents.fill(roomextents);
+    rootconstants.dt = dt;
+    rootconstants.particleradius = particleradius;
+    rootconstants.h = h;
+    rootconstants.hsqr = hsqr;
+    rootconstants.k = k;
+    rootconstants.rho0 = rho0;
+    rootconstants.viscosityconstant = viscosityconstant;
+    rootconstants.poly6coeff = poly6kernelcoeff();
+    rootconstants.poly6gradcoeff = poly6gradcoeff();
+    rootconstants.spikycoeff = spikykernelcoeff();
+    rootconstants.viscositylapcoeff = viscositylaplaciancoeff();
+    rootconstants.isolevel = isolevel;
+    rootconstants.marchingcubesize = marchingcube_size;
 
-    //UINT const simdispatchx = dispatchsize(numparticles, 64);
+    UINT const simdispatchx = dispatchsize(numparticles, 64);
     //UINT const marchingcubesdispatch = UINT(marches_perdim);
 
-    //auto cmd_list = globalres.cmdlist();
+    auto& globalres = gfx::globalresources::get();
+    auto cmd_list = globalres.cmdlist();
 
-    //// todo : simulation is unstable at dt, use smaller time step
-    //// todo : use timestep from courant condition, but this might be tricky in gpu implementation
-    //// sim passes
-    //{
-    //    auto const& pipelineobjects = globalres.psomap().find("sphgpudensitypressure")->second;
+     // todo : simulation is unstable at dt, use smaller time step
+     // todo : use timestep from courant condition, but this might be tricky in gpu implementation
+    // sim passes
+    {
+        auto const& pipelineobjects = globalres.psomap().find("sphgpudensitypressure")->second;
 
-    //    // root signature is same for sim shaders
-    //    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    //    cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
-    //    cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-    //    cmd_list->SetComputeRoot32BitConstants(5, 23, &rootconstants, 0);
+        // root signature is same for sim shaders
+        cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+        cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
+        cmd_list->SetComputeRoot32BitConstants(5, 23, &rootconstants, 0);
 
-    //    // todo : handle time step 
-    //    // simulation passes
-    //    // density and pressure
-    //    {
-    //        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-    //        cmd_list->SetComputeRootUnorderedAccessView(3, isosurface_vertices_counter.gpuaddress());
-    //        cmd_list->SetComputeRootUnorderedAccessView(2, render_args.gpuaddress());
-    //        
-    //        gfx::uav_barrier(cmd_list, databuffer, isosurface_vertices_counter,render_args);
+        // todo : handle time step 
+        // simulation passes
+        // density and pressure
+        {
+            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+            gfx::uav_barrier(cmd_list, databuffer);
 
-    //        cmd_list->Dispatch(simdispatchx, 1, 1);
-    //    }
+            cmd_list->Dispatch(simdispatchx, 1, 1);
+        }
 
-    //    // acceleration, velocity and position
-    //    {
-    //        auto const& pipelineobjects = globalres.psomap().find("sphgpuposition")->second;
+        // acceleration, velocity and position
+        {
+            auto const& pipelineobjects = globalres.psomap().find("sphgpuposition")->second;
 
-    //        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
 
-    //        gfx::uav_barrier(cmd_list, databuffer);
+            gfx::uav_barrier(cmd_list, databuffer);
 
-    //        cmd_list->Dispatch(simdispatchx, 1, 1);
-    //    }
-
-    //    // polygonization
-    //    {
-    //        auto const& pipelineobjects = globalres.psomap().find("marchingcubes")->second;
-
-    //        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-    //        cmd_list->SetComputeRootUnorderedAccessView(3, isosurface_vertices_counter.gpuaddress());
-    //        cmd_list->SetComputeRootUnorderedAccessView(2, render_args.gpuaddress());
-    //        cmd_list->SetComputeRootUnorderedAccessView(4, isosurface_vertices.gpuaddress());
-
-    //        gfx::uav_barrier(cmd_list, databuffer, isosurface_vertices, isosurface_vertices_counter, render_args);
-
-    //        cmd_list->Dispatch(marchingcubesdispatch, marchingcubesdispatch, marchingcubesdispatch);
-    //    }
-    //}
-
+            cmd_list->Dispatch(simdispatchx, 1, 1);
+        }
+    }
     //// rendering
     //{
-    //    bool debugp = true;
-    //    if (debugp)
-    //    {
-    //        auto const& pipelineobjects = globalres.psomap().find("sphgpu_render_debugparticles")->second;
+    //    //bool debugp = true;
+    //    //if (debugp)
+    //    //{
+    //    //    auto const& pipelineobjects = globalres.psomap().find("sphgpu_render_debugparticles")->second;
 
-    //        cmd_list->SetGraphicsRootSignature(pipelineobjects.root_signature.Get());
-    //        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-    //        cmd_list->SetGraphicsRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
-    //        cmd_list->SetGraphicsRootUnorderedAccessView(1, databuffer.gpuaddress());
-    //        cmd_list->SetGraphicsRoot32BitConstants(5, 23, &rootconstants, 0);
+    //    //    cmd_list->SetGraphicsRootSignature(pipelineobjects.root_signature.Get());
+    //    //    cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+    //    //    cmd_list->SetGraphicsRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
+    //    //    cmd_list->SetGraphicsRootUnorderedAccessView(1, databuffer.gpuaddress());
+    //    //    cmd_list->SetGraphicsRoot32BitConstants(5, 23, &rootconstants, 0);
 
-    //        UINT const dispatchdebugx = dispatchsize(numparticles, 85);
-    //        stdx::cassert(dispatchdebugx < 65536u, "Dispatch dimentsion limit reached");
-    //        cmd_list->DispatchMesh(dispatchdebugx, 1, 1);
-    //    }
+    //    //    UINT const dispatchdebugx = dispatchsize(numparticles, 85);
+    //    //    stdx::cassert(dispatchdebugx < 65536u, "Dispatch dimentsion limit reached");
+    //    //    cmd_list->DispatchMesh(dispatchdebugx, 1, 1);
+    //    //}
 
-    //    {
-    //        auto const& pipelineobjects = globalres.psomap().find("sphgpu_render_particles")->second;
+    //    //{
+    //    //    auto const& pipelineobjects = globalres.psomap().find("sphgpu_render_particles")->second;
 
-    //        cmd_list->SetGraphicsRootSignature(pipelineobjects.root_signature.Get());
-    //        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-    //        cmd_list->SetGraphicsRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
-    //        cmd_list->SetGraphicsRootUnorderedAccessView(1, databuffer.gpuaddress());
-    //        cmd_list->SetGraphicsRootUnorderedAccessView(3, isosurface_vertices_counter.gpuaddress());
-    //        cmd_list->SetGraphicsRootUnorderedAccessView(4, isosurface_vertices.gpuaddress());
-    //        cmd_list->SetGraphicsRoot32BitConstants(5, 23, &rootconstants, 0);
+    //    //    cmd_list->SetGraphicsRootSignature(pipelineobjects.root_signature.Get());
+    //    //    cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+    //    //    cmd_list->SetGraphicsRootConstantBufferView(0, globalres.cbuffer().gpuaddress());
+    //    //    cmd_list->SetGraphicsRootUnorderedAccessView(1, databuffer.gpuaddress());
+    //    //    cmd_list->SetGraphicsRootUnorderedAccessView(3, isosurface_vertices_counter.gpuaddress());
+    //    //    cmd_list->SetGraphicsRootUnorderedAccessView(4, isosurface_vertices.gpuaddress());
+    //    //    cmd_list->SetGraphicsRoot32BitConstants(5, 23, &rootconstants, 0);
 
-    //        gfx::uav_barrier(cmd_list, isosurface_vertices, isosurface_vertices_counter, render_args);
+    //    //    gfx::uav_barrier(cmd_list, isosurface_vertices, isosurface_vertices_counter, render_args);
 
-    //        cmd_list->ExecuteIndirect(render_commandsig.Get(), 1u, render_args.d3dresource.Get(), 0u, nullptr, 0u);
-    //    }
+    //    //    cmd_list->ExecuteIndirect(render_commandsig.Get(), 1u, render_args.d3dresource.Get(), 0u, nullptr, 0u);
+    //    //}
     //}
-    // 
-    // 
-    
-    auto cmd_list = globalres.cmdlist();
-    auto const& pipelineobjects = globalres.psomap().find("procraytrace")->second;
-    
-    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+
+    auto& framecbuffer = constantbuffer.data(0);
+
+    framecbuffer.sundir = stdx::vec3{ 1.0f, 0.0f, 0.0f }.normalized();
+    framecbuffer.campos = camera.GetCurrentPosition();
+    framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
+
+    auto const& pipelineobjects = globalres.psomap().find("sph_render")->second;
+
+    // bind the global root signature, heaps and frame index, other resources are bindless 
     cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
-    cmd_list->SetComputeRootDescriptorTable(0, globalres.resourceheap().gpudeschandle(raytraceoutput_uav.heapidx));
-    cmd_list->SetComputeRootShaderResourceView(1, tlas.gpuaddress());
-    cmd_list->SetComputeRootConstantBufferView(2, globalres.cbuffer().currframe_gpuaddress());
+    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
     cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;

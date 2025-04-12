@@ -2,7 +2,7 @@ module;
 
 #include <wrl.h>
 #include <d3d12.h>
-#include "sharedconstants.h"
+#include "shared/sharedconstants.h"
 #include "simplemath/simplemath.h"
 
 export module body;

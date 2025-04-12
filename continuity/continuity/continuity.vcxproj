@@ -52,9 +52,9 @@
     <ClCompile Include="sampleselection\activesample.ixx">
       <FileType>Document</FileType>
     </ClCompile>
-    <ClInclude Include="samples\raytrace\raytracecommon.h" />
-    <ClInclude Include="sharedconstants.h" />
-    <ClInclude Include="sharedtypes.h" />
+    <ClInclude Include="shared\raytracecommon.h" />
+    <ClInclude Include="shared\sharedconstants.h" />
+    <ClInclude Include="shared\sharedtypes.h" />
     <ClInclude Include="simplemath\simplemath.h" />
     <ClInclude Include="thirdparty\d3dx12.h" />
     <ClInclude Include="thirdparty\dxhelpers.h" />
@@ -67,6 +67,12 @@
     <None Include="simplemath\simplemath.inl" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="samples\sphgpu\shaders\sph_render_rs.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Library</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Library</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Library</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Library</ShaderType>
+    </FxCompile>
     <FxCompile Include="shaders\basic_ps.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>

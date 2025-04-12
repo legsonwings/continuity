@@ -49,6 +49,9 @@
     <Filter Include="samples\raytrace\shaders">
       <UniqueIdentifier>{e22f733e-880f-4eef-ad4b-e2911a8e7bb5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shared">
+      <UniqueIdentifier>{5d3d907d-6ebe-4c64-ad53-9ef0e04874f5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beziermaths\beziermaths.cpp">
@@ -146,17 +149,21 @@
     <ClInclude Include="thirdparty\d3dx12.h">
       <Filter>source\thirdparty</Filter>
     </ClInclude>
-    <ClInclude Include="sharedconstants.h" />
     <ClInclude Include="thirdparty\dxhelpers.h">
       <Filter>source\thirdparty</Filter>
     </ClInclude>
     <ClInclude Include="thirdparty\rapidobj.hpp">
       <Filter>source\thirdparty</Filter>
     </ClInclude>
-    <ClInclude Include="samples\raytrace\raytracecommon.h">
-      <Filter>samples\raytrace</Filter>
+    <ClInclude Include="shared\raytracecommon.h">
+      <Filter>shared</Filter>
     </ClInclude>
-    <ClInclude Include="sharedtypes.h" />
+    <ClInclude Include="shared\sharedconstants.h">
+      <Filter>shared</Filter>
+    </ClInclude>
+    <ClInclude Include="shared\sharedtypes.h">
+      <Filter>shared</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="simplemath\simplemath.inl">
@@ -229,6 +236,9 @@
     </FxCompile>
     <FxCompile Include="samples\raytrace\shaders\raytrace_rs.hlsl">
       <Filter>samples\raytrace\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="samples\sphgpu\shaders\sph_render_rs.hlsl">
+      <Filter>samples\sphgpu\shaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

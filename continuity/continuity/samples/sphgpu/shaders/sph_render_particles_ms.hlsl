@@ -4,17 +4,8 @@
 #define TRIANGLES_PER_GROUP 85
 #define THREADGROUP_X TRIANGLES_PER_GROUP
 
-//meshshadervertex getvertattribute(vertexin vertex)
-//{
-//    meshshadervertex outvert;
-    
-//    float4 const pos = float4(vertex.position, 1.f);
-//    outvert.position = mul(pos, objectconstants.matx).xyz;
-//    outvert.positionh = mul(pos, objectconstants.mvpmatx);
-//    outvert.normal = normalize(mul(float4(vertex.normal, 0), objectconstants.normalmatx).xyz);
-    
-//    return outvert;
-//}
+RWStructuredBuffer<float3> isosurface_vertices : register(u3);
+RWStructuredBuffer<uint> isosurface_vertices_counter : register(u2);
 
 [RootSignature(ROOTSIG_SPHGPU)]
 [NumThreads(THREADGROUP_X, 1, 1)]

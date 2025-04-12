@@ -325,6 +325,10 @@ uint2 edgevertexpair(uint index)
     return uint2(v1, v2);
 }
 
+RWStructuredBuffer<uint> isosurface_vertices_counter : register(u2);
+RWStructuredBuffer<uint3> render_dipatchargs : register(u1);
+RWStructuredBuffer<float3> isosurface_vertices : register(u3);
+
 [RootSignature(ROOTSIG_SPHGPU)]
 [numthreads(64, 1, 1)]
 void main(uint3 dtid : SV_DispatchThreadID)

@@ -6,7 +6,7 @@ module;
 
 // create a module gfx core
 // todo : find a place for shared constants
-#include "sharedconstants.h"
+#include "shared/sharedconstants.h"
 #include "simplemath/simplemath.h"
 
 export module graphicscore;

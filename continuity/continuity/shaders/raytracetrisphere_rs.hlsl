@@ -12,7 +12,7 @@
 #ifndef RAYTRACING_HLSL
 #define RAYTRACING_HLSL
 
-#include "sharedconstants.h"
+#include "shared/sharedconstants.h"
 
 struct light
 {
