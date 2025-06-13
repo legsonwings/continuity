@@ -24,7 +24,9 @@ import std;
 
 using namespace DirectX;
 
-sample_base::sample_base(view_data const& data)
+static constexpr float clearcol[4] = { 0.254901975f, 0.254901975f, 0.254901975f, 1.f };
+
+sample_base::sample_base(view_data const& data) : viewdata(data)
 {
     camera.nearplane(data.nearplane);
     camera.farplane(data.farplane);
@@ -47,8 +49,6 @@ continuity::continuity(view_data const& data)
     , m_height(data.height)
     , m_viewport(0.0f, 0.0f, static_cast<float>(data.width), static_cast<float>(data.height))
     , m_scissorRect(0, 0, static_cast<LONG>(data.width), static_cast<LONG>(data.height))
-    , m_rtvDescriptorSize(0)
-    , m_dsvDescriptorSize(0)
     , m_frameCounter(0)
     , m_fenceEvent{}
     , m_fenceValues{}
@@ -195,8 +195,7 @@ void continuity::load_pipeline()
     ThrowIfFailed(factory->MakeWindowAssociation(continuity::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
 
     ThrowIfFailed(swapChain.As(&m_swapChain));
-    gfx::globalresources::get().frameindex(m_swapChain->GetCurrentBackBufferIndex());
-
+   
     // create descriptor heaps.
     {
         // describe and create a render target view (RTV) descriptor heap.
@@ -206,32 +205,41 @@ void continuity::load_pipeline()
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
 
-        m_rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
         // describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
         dsvHeapDesc.NumDescriptors = 1;
         dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsvHeap)));
-
-        m_dsvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     }
 
-    // create frame resources.
+    // create render target
     {
+        auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, static_cast<UINT64>(m_width), static_cast<UINT>(m_height), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+
+        D3D12_CLEAR_VALUE clearcolour = {};
+        clearcolour.Format = texdesc.Format;
+        clearcolour.Color[0] = clearcol[0];
+        clearcolour.Color[1] = clearcol[1];
+        clearcolour.Color[2] = clearcol[2];
+        clearcolour.Color[3] = clearcol[3];
+
+        auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+        ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearcolour, IID_PPV_ARGS(m_renderTarget.ReleaseAndGetAddressOf())));
+        
+        NAME_D3D12_OBJECT(m_renderTarget);
+
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
+        device->CreateRenderTargetView(m_renderTarget.Get(), nullptr, rtvHandle);
+    }
 
-        // create a RTV
-        for (UINT n = 0; n < frame_count; n++)
-        {
-            ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
-            device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
-            rtvHandle.Offset(1, m_rtvDescriptorSize);
-        }
+    // create command allocator for only one frame since theres no frame buffering
+    ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[0])));
 
-        // create command allocator for only one frame since theres no frame buffering
-        ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[0])));
+    // get back buffers
+    for (UINT n = 0; n < frame_count; n++)
+    {
+        ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_backBuffers[n])));
     }
 
     // create the depth stencil view.
@@ -264,7 +272,7 @@ void continuity::load_pipeline()
 
     D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pso_desc = {};
     pso_desc.NumRenderTargets = 1;
-    pso_desc.RTVFormats[0] = m_renderTargets[0]->GetDesc().Format;
+    pso_desc.RTVFormats[0] = m_renderTarget->GetDesc().Format;
     pso_desc.DSVFormat = m_depthStencil->GetDesc().Format;
     pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);    // CW front; cull back
     pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);         // opaque
@@ -272,6 +280,8 @@ void continuity::load_pipeline()
     pso_desc.SampleMask = UINT_MAX;
     pso_desc.SampleDesc = DefaultSampleDesc();
 
+    gfx::globalresources::get().rendertarget(m_renderTarget);
+    gfx::globalresources::get().frameindex(m_swapChain->GetCurrentBackBufferIndex());
     gfx::globalresources::get().psodesc(pso_desc);
     gfx::globalresources::get().init();
 }
@@ -284,9 +294,6 @@ void continuity::create_resources()
 
     // create the command list. They are created in recording state
     ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[0].Get(), nullptr, IID_PPV_ARGS(&cmdlist)));
-
-    // intitialize render target
-    gfx::globalresources::get().rendertarget(m_renderTargets[gfx::globalresources::get().frameindex()]);
 
     // need to keep these alive till data is uploaded to gpu
     std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources();
@@ -333,7 +340,6 @@ void continuity::OnUpdate()
     }
 
     // update render target for current frame
-    gfx::globalresources::get().rendertarget(m_renderTargets[gfx::globalresources::get().frameindex()]);
     sample->update(static_cast<float>(m_timer.GetElapsedSeconds()));
 }
 
@@ -357,26 +363,30 @@ void continuity::OnRender()
     cmdlist->RSSetViewports(1, &m_viewport);
     cmdlist->RSSetScissorRects(1, &m_scissorRect);
 
-    auto resource_transition_rt = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-    // indicate that the back buffer will be used as a render target.
-    cmdlist->ResourceBarrier(1, &resource_transition_rt);
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(frameidx), m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
     cmdlist->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     // record commands.
-    const float clearColor[] = { 0.254901975f, 0.254901975f, 0.254901975f, 1.f };
-    cmdlist->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    cmdlist->ClearRenderTargetView(rtvHandle, clearcol, 0, nullptr);
     cmdlist->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
     sample->render(static_cast<float>(m_timer.GetElapsedSeconds()));
 
-    auto resource_transition_present = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[frameidx].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    auto rttocopysource = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTarget.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    auto barrier_backbuffer = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
 
-    // indicate that the back buffer will now be used to present.
-    cmdlist->ResourceBarrier(1, &resource_transition_present);
+    cmdlist->ResourceBarrier(1, &rttocopysource);
+    cmdlist->ResourceBarrier(1, &barrier_backbuffer);
+
+    // copy from render target to back buffer
+    cmdlist->CopyResource(m_backBuffers[frameidx].Get(), m_renderTarget.Get());
+
+    auto barrier_backbuffer_restore = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[frameidx].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
+    auto copysrctort = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTarget.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    cmdlist->ResourceBarrier(1, &barrier_backbuffer_restore);
+    cmdlist->ResourceBarrier(1, &copysrctort);
 
     ThrowIfFailed(cmdlist->Close());
 

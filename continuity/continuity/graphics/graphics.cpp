@@ -121,7 +121,7 @@ srv tlas::createsrv()
     return globalresources::get().resourceheap().addsrv(srvdesc, nullptr);
 }
 
-std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive>  triblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, rtvertexbuffer const& vertices, rtindexbuffer const& indices)
+std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive> triblas::build(blasinstancedescs& instancedescs, geometryopacity opacity, rtvertexbuffer const& vertices, rtindexbuffer const& indices)
 {
     D3D12_RAYTRACING_GEOMETRY_DESC geometrydesc = {};
     geometrydesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
@@ -318,7 +318,7 @@ uint texture_dynamic::size() const
     return _dims[0] * _dims[1] * dxgiformatsize(_format);
 }
 
-model::model(std::string const& objpath)
+model::model(std::string const& objpath, bool translatetoorigin)
 {
     rapidobj::Result result = rapidobj::ParseFile(std::filesystem::path(objpath), rapidobj::MaterialLibrary::Default(rapidobj::Load::Optional));
     stdx::cassert(!result.error);
@@ -326,22 +326,35 @@ model::model(std::string const& objpath)
     rapidobj::Triangulate(result);
     stdx::cassert(!result.error);
 
-    auto const& positions = result.attributes.positions;
-    auto const& objindices = result.shapes[0].mesh.indices;
-
-    for (uint i(0); i < result.shapes[0].mesh.num_face_vertices.size(); ++i)
+    for (auto const& shape : result.shapes)
     {
-        stdx::cassert(result.shapes[0].mesh.num_face_vertices[i] == 3);
-        indices.push_back(objindices[i * 3].position_index);
-        indices.push_back(objindices[i * 3 + 1].position_index);
-        indices.push_back(objindices[i * 3 + 2].position_index);
+        auto const& objindices = shape.mesh.indices;
+        for (uint i(0); i < shape.mesh.num_face_vertices.size(); ++i)
+        {
+            stdx::cassert(shape.mesh.num_face_vertices[i] == 3);
+            indices.push_back(objindices[i * 3].position_index);
+            indices.push_back(objindices[i * 3 + 1].position_index);
+            indices.push_back(objindices[i * 3 + 2].position_index);
+        }
     }
+
+    auto const& positions = result.attributes.positions;
 
     // make sure there is no padding
     static_assert(sizeof(std::decay_t<decltype(positions)>::value_type) * 3 == sizeof(stdx::vec3));
 
     stdx::vec3 const* const vert_start = reinterpret_cast<stdx::vec3 const*>(positions.data());
     vertices = std::vector<stdx::vec3>(vert_start, vert_start + (positions.size() / 3));
+
+    if (translatetoorigin)
+    {
+        geometry::aabb bounds;
+        for (auto const& v : vertices) bounds += v;
+
+        // translate to (0,0,0)
+        auto const& center = bounds.center();
+        for (auto& v : vertices) v -= center;
+    }
 }
 
 void globalresources::init()
@@ -361,6 +374,8 @@ void globalresources::init()
     addpso("wireframe", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::wireframe | psoflags::transparent);
     addpso("instancedtransparent", "default_as.cso", "instances_ms.cso", "instances_ps.cso", psoflags::transparent);
 
+    addcomputepso("blend", "blend_cs.cso");
+
     addmat("black", material().diffuse(color::black));  
 
     addmat("white", material().diffuse(color::white));
@@ -369,6 +384,21 @@ void globalresources::init()
 
     _resourceheap.d3dheap = createresourcedescriptorheap();
     _cbuffer.createresource();
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvdesc.Format = _rendertarget->GetDesc().Format;
+    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvdesc.Texture2D.MipLevels = 1;
+
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
+    uavdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    uavdesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+
+    // render target srv is at slot 0
+    // render target uav is at slot 1
+    _resourceheap.addsrv(srvdesc, _rendertarget.Get());
+    _resourceheap.adduav(uavdesc, _rendertarget.Get());
 }
 
 viewinfo& globalresources::view() { return _view; }
@@ -521,7 +551,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
         return _psos[name];
     }
 
-    // global root signatur is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+    // global root signature is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     
     {
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootsig;
@@ -736,6 +766,11 @@ ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap()
 srv createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource)
 {
     return globalresources::get().resourceheap().addsrv(srvdesc, resource);
+}
+
+uav createuav(D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc, ID3D12Resource* resource)
+{
+    return globalresources::get().resourceheap().adduav(uavdesc, resource);
 }
 
 void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* resourceheap, uint heapslot)

@@ -53,7 +53,7 @@ template <typename t>
 concept arithmetic_c = requires(t v)
 {
 	{-v}-> std::convertible_to<t>;
-	{v* v}-> std::convertible_to<t>;
+	{v * v}-> std::convertible_to<t>;
 	{v + v} -> std::convertible_to<t>;
 	{v - v} -> std::convertible_to<t>;
 	{v / v} -> std::convertible_to<t>;
@@ -70,7 +70,7 @@ template <typename t, typename u>
 concept samedecay_c = std::same_as<std::decay_t<t>, std::decay_t<u>>;
 
 template <arithmetic_c t = float>
-t constexpr tolerance = t(1e-5f);
+t constexpr tolerance = t{ 1e-5f };
 
 template <arithmetic_c t>
 struct invalid { constexpr operator t() const { return { std::numeric_limits<t>::max() }; } };

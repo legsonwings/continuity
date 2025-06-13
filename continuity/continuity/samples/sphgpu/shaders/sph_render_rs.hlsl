@@ -16,6 +16,28 @@ struct ray
     float3 direction;
 };
 
+struct sphconstants
+{
+    uint numparticles;
+    float dt;
+    float particleradius;
+    float h;
+	
+    float3 containerextents;
+    float hsqr;
+
+    float k;
+    float rho0;
+    float viscosityconstant;
+    float poly6coeff;
+
+    float poly6gradcoeff;
+    float spikycoeff;
+    float viscositylapcoeff;
+    float isolevel;
+};
+
+
 [shader("miss")]
 void missshader(inout raypayload payload)
 {
@@ -45,7 +67,7 @@ inline ray generateray(uint2 index, in float3 campos, in float4x4 projtoworld)
 [shader("raygeneration")]
 void raygenshader()
 {
-    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[0];
+    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
     
     // generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
     ray ray = generateray(DispatchRaysIndex().xy, frameconstants.campos, frameconstants.inv_viewproj);
@@ -61,24 +83,61 @@ void raygenshader()
     rayDesc.TMax = 10000;
     raypayload raypayload = { float4(0, 0, 0, 0)};
 
-    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[1];
+    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[4];
     TraceRay(scene, RAY_FLAG_CULL_FRONT_FACING_TRIANGLES, ~0, 0, 1, 0, rayDesc, raypayload);
 
-    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[2];
+    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[5];
 
     // write the raytraced color to the output texture.
     rendertarget[DispatchRaysIndex().xy] = raypayload.color;
 }
 
-struct dummyattributes 
+[shader("closesthit")]
+void tri_closesthit(inout raypayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    uint dummymember;
+    StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[6];
+    StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[7];
+    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
+    StructuredBuffer<uint> material_ids = ResourceDescriptorHeap[8];
+    StructuredBuffer<rt::material> materials = ResourceDescriptorHeap[9];
+
+    // index of blas in tlas, assume each instance only contains geometries that use same material id
+    uint const geometryinstance_idx = InstanceIndex();
+
+    rt::material geomaterial = materials[material_ids[geometryinstance_idx]];
+
+    uint const triidx = PrimitiveIndex();
+
+    float3 const v0 = vertexbuffer[indexbuffer[triidx * 3]];
+    float3 const v1 = vertexbuffer[indexbuffer[triidx * 3 + 1]];
+    float3 const v2 = vertexbuffer[indexbuffer[triidx * 3 + 2]];
+
+    float3 const barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);
+    float3 const hitpoint = barycentrics.x * v0 + barycentrics.y * v1 + barycentrics.z * v2;
+
+    // counter-clockwise winding
+    float3 n = normalize(cross(v1 - v0, v2 - v0));
+    float3 l = -frameconstants.sundir;
+    float3 v = normalize(frameconstants.campos - hitpoint);
+    float perceptual_r = geomaterial.roughness;
+    float metallic = geomaterial.metallic;
+    float4 basecolour = (float4)geomaterial.colour;
+    float reflectance = geomaterial.reflectance;
+
+    payload.color.a = 1.0f;
+    payload.color.xyz = calculatelighting(float3(50, 50, 50), basecolour.xyz, reflectance, l, v, n, metallic, perceptual_r);
+}
+
+struct fluidhitattributes 
+{
+    float density;
 };
 
 [shader("closesthit")]
-void MyClosestHitShader_AABB(inout raypayload payload, in dummyattributes dummyattr)
+void sph_closesthit(inout raypayload payload, in fluidhitattributes attr)
 {
-    payload.color = float4(0.0, 1.0, 0.0, 1);
+    float3 colour = float3(0.0, 1.0, 0.0) * attr.density;
+    payload.color = float4(colour, attr.density);
 }
 
 // Solve a quadratic equation.
@@ -186,7 +245,7 @@ bool RaySphereIntersectionTest(in ray ray, out float thit, in float3 center = fl
 // Test if a ray segment <RayTMin(), RayTCurrent()> intersects an AABB.
 // Limitation: this test does not take RayFlags into consideration and does not calculate a surface normal.
 // Ref: https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-box-intersection
-bool rayaabb_intersection(ray ray, float3 aabb[2], out float tmin, out float tmax)
+bool rayaabb_intersection1(ray ray, float3 aabb[2], out float tmin, out float tmax)
 {
     float3 tmin3, tmax3;
     int3 sign3 = ray.direction > 0;
@@ -219,16 +278,17 @@ bool rayaabb_intersection(ray ray, float3 aabb[2], out float tmin, out float tma
 }
 
 // Test if a ray with RayFlags and segment <RayTMin(), RayTCurrent()> intersects a hollow AABB.
-bool rayaabb_intersection(ray ray, float3 aabb[2], inout float thit /*inout ProceduralPrimitiveAttributes attr*/)
+bool rayaabb_intersection(ray ray, float3 aabb[2], inout float thit, inout float tend)
 {
     float tmin, tmax;
-    if (rayaabb_intersection(ray, aabb, tmin, tmax))
+    if (rayaabb_intersection1(ray, aabb, tmin, tmax))
     {
         // Only consider intersections crossing the surface from the outside.
         if (tmin < RayTMin() || tmin > RayTCurrent())
             return false;
 
         thit = tmin;
+        tend = tmax;
 
         // Set a normal to the normal of a face the hit point lays on.
         float3 hitPosition = ray.origin + thit * ray.direction;
@@ -259,43 +319,42 @@ bool rayaabb_intersection(ray ray, float3 aabb[2], inout float thit /*inout Proc
 }
 
 [shader("intersection")]
-void MyIntersectionShader_AnalyticPrimitive()
+void sph_intersection()
 {
     ray r;
     r.origin = ObjectRayOrigin();
     r.direction = ObjectRayDirection();
-    
-    //float3 const center = float3(0, 0, 0);
-    //float const extents = 1.6;
+
+    ConstantBuffer<sphconstants> sphconstants = ResourceDescriptorHeap[3];
+    StructuredBuffer<particle_data> particledata = ResourceDescriptorHeap[10];
+
     float3 aabb[2];
-    aabb[0] = (-10.0).xxx;
-    aabb[1] = (10.0).xxx;
-    
-    //ConstantBuffer<sphgpu_dispatch_params> sph_dispatch_params = ResourceDescriptorHeap[4];
-    //RWStructuredBuffer<particle_data> particledata = ResourceDescriptorHeap[5];
-
-    float thit;
-    if (rayaabb_intersection(r, aabb, thit))
+    aabb[0] = -sphconstants.containerextents;
+    aabb[1] = sphconstants.containerextents;
+    float h = 0.03f;
+    float thitmin, thitmax;
+    if (rayaabb_intersection(r, aabb, thitmin, thitmax))
     {
-        float colour = 0;
-        //for (uint j = 0; j < sph_dispatch_params.numparticles; ++j)
-        //{
-        //    float3 const c = particledata[j].p - cellcenter;
-        //    float const rcprho = rcp(particledata[j].rho);
-        //    float const c2 = dot(c, c);
+        float accumdensity = 0;
 
-        //    float const t0 = a2 + c2;
-        //    float const t1 = 2.0f;
+        for (float t = thitmin; t < thitmax; t += 0.2f)
+        {
+            for (uint j = 0; j < sphconstants.numparticles; ++j)
+            {
+                float3 hitpoint = r.origin + r.direction * t;
+                float3 toparticle = hitpoint - particledata[j].p;
+                float r2 = dot(toparticle, toparticle);
+                accumdensity += ((h * h) / r2);
+            }
+        }
 
-        //    float3 const ac = c * machingcube_halfextent;
-
-        //    colour[0] += pow(max(0.0f, sph_dispatch_params.hsqr - (t0 + t1 * (ac.x + ac.y + ac.z))), 3) * rcprho;
-        //}
-
-        dummyattributes attr;
-        ReportHit(thit, 0, attr);
+        if (accumdensity > 0.1f)
+        {
+            fluidhitattributes attr;
+            attr.density = saturate(accumdensity);
+            ReportHit(thitmin, 0, attr);
+        }
     }
 }
-
 
 #endif // RAYTRACE_HLSL

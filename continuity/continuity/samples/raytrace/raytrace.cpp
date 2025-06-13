@@ -26,10 +26,10 @@ std::unique_ptr<sample_base> create_instance<samples::raytrace>(view_data const&
 #define namkaranres(gfxresource) { gfxresource.d3dresource->SetName(utils::strtowstr(#gfxresource).c_str()); }
 
 // raytracing stuff
-static constexpr char const* hitGroupName = "trianglehitgroup";
-static constexpr char const* raygenShaderName = "raygenshader";
-static constexpr char const* closestHitShaderName = "closesthitshader_triangle";
-static constexpr char const* missShaderName = "missshader";
+static constexpr char const* hitgroupname = "trianglehitgroup";
+static constexpr char const* raygenshadername = "raygenshader";
+static constexpr char const* closesthitshadername = "closesthitshader_triangle";
+static constexpr char const* missshadername = "missshader";
 
 raytrace::raytrace(view_data const& viewdata) : sample_base(viewdata)
 {
@@ -47,10 +47,10 @@ gfx::resourcelist raytrace::create_resources()
 
     {
         gfx::raytraceshaders rtshaders;
-        rtshaders.raygen = raygenShaderName;
-        rtshaders.miss = missShaderName;
-        rtshaders.tri_hitgrp.name = hitGroupName;
-        rtshaders.tri_hitgrp.closesthit = closestHitShaderName;
+        rtshaders.raygen = raygenshadername;
+        rtshaders.miss = missshadername;
+        rtshaders.tri_hitgrp.name = hitgroupname;
+        rtshaders.tri_hitgrp.closesthit = closesthitshadername;
 
         auto& raytracepipeline_objs = globalres.addraytracingpso("raytrace", "raytrace_rs.cso", rtshaders);
 
@@ -90,9 +90,9 @@ gfx::resourcelist raytrace::create_resources()
         auto* stateobjectprops = stateobjectproperties.Get();
 
         // get shader id's
-        void* raygenshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(raygenShaderName).c_str());
-        void* missshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(missShaderName).c_str());
-        void* hitgroupshaderids_trianglegeometry = stateobjectprops->GetShaderIdentifier(utils::strtowstr(hitGroupName).c_str());
+        void* raygenshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(raygenshadername).c_str());
+        void* missshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(missshadername).c_str());
+        void* hitgroupshaderids_trianglegeometry = stateobjectprops->GetShaderIdentifier(utils::strtowstr(hitgroupname).c_str());
 
         // now build shader tables
         // only one records for ray gen and miss shader tables
@@ -102,20 +102,22 @@ gfx::resourcelist raytrace::create_resources()
         missshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
         missshadertable.addrecord(missshaderid);
 
-        // triangle and procedural aabb records for hitgroup shader table
+        // triangle record for hitgroup shader table
         hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
         hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
-        raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ 720, 720 }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        
+        raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
         // we don't store descriptors, as the indices are hardcoded in shaders
-        // 0 const buffer
-        // 1 tlas
-        // 2 ray trace output
-        // 3 vertex buffers
-        // 4 index buffers
-        // 5 material ids
-        // 6 material data
+        // 0 rt srv
+        // 1 rt uav
+        // 2 const buffer 
+        // 3 tlas
+        // 4 ray trace output
+        // 5 vertex buffers
+        // 6 index buffers
+        // 7 material ids
+        // 8 material data
         constantbuffer.createcbv();
         tlas.createsrv();
         raytracingoutput.createuav();

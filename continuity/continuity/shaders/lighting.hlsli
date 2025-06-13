@@ -142,5 +142,5 @@ float3 calculatelighting(float3 irradiance, float3 basecolour, float reflectance
     float3 reflectedcolour = diffusecolour + specularcolour;
 
     float nol = saturate(dot(n, l));
-    return irradiance * nol * reflectedcolour;
+    return irradiance * nol * reflectedcolour + float3(0.3, 0.3, 0.3); // ambient term
 }

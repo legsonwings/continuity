@@ -44,7 +44,7 @@ inline ray generateray(uint2 index, in float3 campos, in float4x4 projtoworld)
 [shader("raygeneration")]
 void raygenshader()
 {
-    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[0];
+    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
     
     // generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
     ray ray = generateray(DispatchRaysIndex().xy, frameconstants.campos, frameconstants.inv_viewproj);
@@ -60,10 +60,10 @@ void raygenshader()
     rayDesc.TMax = 10000;
     raypayload raypayload = { float4(0, 0, 0, 0)};
 
-    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[1];
+    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[3];
     TraceRay(scene, RAY_FLAG_CULL_FRONT_FACING_TRIANGLES, ~0, 0, 1, 0, rayDesc, raypayload);
 
-    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[2];
+    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[4];
 
     // write the raytraced color to the output texture.
     rendertarget[DispatchRaysIndex().xy] = raypayload.color;
@@ -72,11 +72,11 @@ void raygenshader()
 [shader("closesthit")]
 void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[3];
-    StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[4];
-    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[0];
-    StructuredBuffer<uint> material_ids = ResourceDescriptorHeap[5];
-    StructuredBuffer<rt::material> materials = ResourceDescriptorHeap[6];
+    StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[5];
+    StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[6];
+    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
+    StructuredBuffer<uint> material_ids = ResourceDescriptorHeap[7];
+    StructuredBuffer<rt::material> materials = ResourceDescriptorHeap[8];
 
     // index of blas in tlas, assume each instance only contains geometries that use same material id
     uint const geometryinstance_idx = InstanceIndex();

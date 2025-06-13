@@ -26,7 +26,8 @@ struct vec : public std::array<t, d>
 	constexpr t distancesqr(vec const& r) const;
 	constexpr t distance(vec const& r) const;
 	constexpr t length() const;
-
+	
+	static constexpr vec filled(t v) { vec r; r.std::array<t, d>::fill(v); return r; }
 	static constexpr vec unit(uint ud) { vec v{ 0 }; v[ud] = t(1); return v; }
 	static constexpr vec cross(vec const& l, vec const& r) requires (d == 3) { return l.cross(r); }
 	static constexpr t distancesqr(vec const& l, vec const& r) { return l.distancesqr(r); }
@@ -137,10 +138,11 @@ constexpr vec<d, t> vec<d, t>::normalized() const
 export namespace std
 {
 template <typename t, uint d>
-class numeric_limits<stdx::vec<d, t>>
+struct numeric_limits<stdx::vec<d, t>>
 {
-	static constexpr stdx::vec<d, t> min() noexcept { return t().fill(std::numeric_limits<stdx::containervalue_t<stdx::vec<d, t>>>::min()); }
-	static constexpr stdx::vec<d, t> max() noexcept { return t().fill(std::numeric_limits<stdx::containervalue_t<stdx::vec<d, t>>>::max()); }
-	static constexpr stdx::vec<d, t> lowest() noexcept { return t().fill(std::numeric_limits<stdx::containervalue_t<stdx::vec<d, t>>>::lowest()); }
+	using vt = stdx::vec<d, t>;
+	static constexpr vt min() noexcept { return vt::filled(std::numeric_limits<stdx::containervalue_t<vt>>::min()); }
+	static constexpr vt max() noexcept { return vt::filled(std::numeric_limits<stdx::containervalue_t<vt>>::max()); }
+	static constexpr vt lowest() noexcept { return vt::filled(std::numeric_limits<stdx::containervalue_t<vt>>::lowest()); }
 };
 }

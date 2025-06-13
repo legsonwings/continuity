@@ -120,7 +120,7 @@ std::vector<vector3> create_box_lines(vector3 const& center, vector3 const& exte
 
     static const std::vector<vector3> unitcubelines = createcubelines(unitcube);
 
-    auto const scale = vector3{ extents.x / 2.f, extents.y / 2.f, extents.z / 2.f };
+    auto const scale = extents / 2;
 
     std::vector<vector3> res;
     res.reserve(24);
@@ -133,79 +133,88 @@ std::vector<vector3> create_cube_lines(vector3 const& center, float scale)
     return create_box_lines(center, { scale, scale, scale });
 }
 
-std::vector<vector3> geometry::box::vertices() { return create_box_lines(center, extents); }
-
-geometry::aabb::aabb(vector3 const (&tri)[3])
+std::vector<stdx::vec3> geometry::box::vertices()
 {
-    vector3 const& v0 = tri[0];
-    vector3 const& v1 = tri[1];
-    vector3 const& v2 = tri[2];
+    std::vector<stdx::vec3> verts;
 
-    min_pt.x = std::min({ v0.x, v1.x, v2.x });
-    max_pt.x = std::max({ v0.x, v1.x, v2.x });
-    min_pt.y = std::min({ v0.y, v1.y, v2.y });
-    max_pt.y = std::max({ v0.y, v1.y, v2.y });
-    min_pt.z = std::min({ v0.z, v1.z, v2.z });
-    max_pt.z = std::max({ v0.z, v1.z, v2.z });
+    for (auto const& v : create_box_lines(vector3(center.data()), vector3(extents.data())))
+    {
+        // todo : create_box_lines to use vecx
+        verts.push_back({ v[0], v[1], v[2]});
+    }
+
+    return verts;
 }
 
-aabb::aabb(std::vector<vector3> const& points) : aabb(points.data(), points.size()) {}
+aabb::aabb() {}
 
-geometry::aabb::aabb(vector3 const* points, uint len)
+geometry::aabb::aabb(stdx::vec3 const (&tri)[3])
 {
-    min_pt = vector3{ std::numeric_limits<float>::max() };
-    max_pt = vector3{ std::numeric_limits<float>::lowest() };
+    stdx::vec3 const& v0 = tri[0];
+    stdx::vec3 const& v1 = tri[1];
+    stdx::vec3 const& v2 = tri[2];
 
+    min_pt[0] = std::min({ v0[0], v1[0], v2[0] });
+    max_pt[0] = std::max({ v0[0], v1[0], v2[0] });
+    min_pt[1] = std::min({ v0[1], v1[1], v2[1] });
+    max_pt[1] = std::max({ v0[1], v1[1], v2[1] });
+    min_pt[2] = std::min({ v0[2], v1[2], v2[2] });
+    max_pt[2] = std::max({ v0[2], v1[2], v2[2] });
+}
+
+aabb::aabb(std::vector<stdx::vec3> const& points) : aabb(points.data(), points.size()) {}
+
+geometry::aabb::aabb(stdx::vec3 const* points, uint len)
+{
     for (uint i = 0; i < len; ++i)
     {
-        min_pt.x = std::min(points[i].x, min_pt.x);
-        min_pt.y = std::min(points[i].y, min_pt.y);
-        min_pt.z = std::min(points[i].z, min_pt.z);
+        min_pt[0] = std::min(points[i][0], min_pt[0]);
+        min_pt[1] = std::min(points[i][1], min_pt[1]);
+        min_pt[2] = std::min(points[i][2], min_pt[2]);
 
-        max_pt.x = std::max(points[i].x, max_pt.x);
-        max_pt.y = std::max(points[i].y, max_pt.y);
-        max_pt.z = std::max(points[i].z, max_pt.z);
+        max_pt[0] = std::max(points[i][0], max_pt[0]);
+        max_pt[1] = std::max(points[i][1], max_pt[1]);
+        max_pt[2] = std::max(points[i][2], max_pt[2]);
     }
 }
 
-aabb& geometry::aabb::operator+=(vector3 const& pt)
+aabb& geometry::aabb::operator+=(stdx::vec3 const& pt)
 {
-    min_pt.x = std::min(pt.x, min_pt.x);
-    min_pt.y = std::min(pt.y, min_pt.y);
-    min_pt.z = std::min(pt.z, min_pt.z);
+    min_pt[0] = std::min(pt[0], min_pt[0]);
+    min_pt[1] = std::min(pt[1], min_pt[1]);
+    min_pt[2] = std::min(pt[2], min_pt[2]);
 
-    max_pt.x = std::max(pt.x, max_pt.x);
-    max_pt.y = std::max(pt.y, max_pt.y);
-    max_pt.z = std::max(pt.z, max_pt.z);
+    max_pt[0] = std::max(pt[0], max_pt[0]);
+    max_pt[1] = std::max(pt[1], max_pt[1]);
+    max_pt[2] = std::max(pt[2], max_pt[2]);
 
     return *this;
 }
 
-vector3 aabb::bound(vector3 const& pt) const
+stdx::vec3 aabb::bound(stdx::vec3 const& pt) const
 {
-    auto const& localpt = pt - center();
-    auto const& halfextents = span() / 2.0f;
-
-    return vector3{ std::min(std::abs(localpt.x), halfextents.x) * stdx::sign(localpt.x), std::min(std::abs(localpt.y), halfextents.y) * stdx::sign(localpt.y), std::min(std::abs(localpt.z), halfextents.z) * stdx::sign(localpt.z) } + center();
-    // can use this once switch to stdx::vec is made
-    //return stdx::clamp(stdx::abs(localpt), halfextents) * stdx::sign(localpt);
+    stdx::vec3 localpt = pt - center();
+    stdx::vec3 halfextents = span() / 2.0f;
+    return stdx::vec3{ std::min(std::abs(localpt[0]), halfextents[0]) * stdx::sign(localpt[0]), std::min(std::abs(localpt[0]), halfextents[0]) * stdx::sign(localpt[0]), std::min(std::abs(localpt[2]), halfextents[2]) * stdx::sign(localpt[2]) } + center();
+    //stdx::vec3 halfextents = span() / 2.0f;
+    //return stdx::clamp(localpt, -halfextents, halfextents);
 }
 
-bool aabb::contains(vector3 const& pt) const
+bool aabb::contains(stdx::vec3 const& pt) const
 {
     auto const& localpt = pt - center();
     auto const& halfextents = span() / 2.0f;
-    return std::abs(localpt.x) <= halfextents.x && std::abs(localpt.y) <= halfextents.y && std::abs(localpt.z) <= halfextents.z;   
+    return std::abs(localpt[0]) < halfextents[0] && std::abs(localpt[1]) < halfextents[1] && std::abs(localpt[2]) < halfextents[2];
 }
 
 std::optional<aabb> geometry::aabb::intersect(aabb const& r) const
 {
-    if (max_pt.x < r.min_pt.x || min_pt.x > r.max_pt.x) return {};
-    if (max_pt.y < r.min_pt.y || min_pt.y > r.max_pt.y) return {};
-    if (max_pt.z < r.min_pt.z || min_pt.z > r.max_pt.z) return {};
+    if (max_pt[0] < r.min_pt[0] || min_pt[0] > r.max_pt[0]) return {};
+    if (max_pt[1] < r.min_pt[1] || min_pt[1] > r.max_pt[1]) return {};
+    if (max_pt[2] < r.min_pt[2] || min_pt[2] > r.max_pt[2]) return {};
 
-    vector3 const min = { std::max(min_pt.x, r.min_pt.x), std::max(min_pt.y, r.min_pt.y), std::max(min_pt.z, r.min_pt.z) };
-    vector3 const max = { std::min(max_pt.x, r.max_pt.x), std::min(max_pt.y, r.max_pt.y), std::min(max_pt.z, r.max_pt.z) };
+    stdx::vec3 const min = { std::max(min_pt[0], r.min_pt[0]), std::max(min_pt[1], r.min_pt[1]), std::max(min_pt[2], r.min_pt[2]) };
+    stdx::vec3 const max = { std::min(max_pt[0], r.max_pt[0]), std::min(max_pt[1], r.max_pt[1]), std::min(max_pt[2], r.max_pt[2]) };
 
     return { {min, max} };
 }
@@ -215,8 +224,8 @@ aabb const& cube::bbox() const
 {
     auto createaabb = [](auto const& verts)
     {
-        std::vector<vector3> positions;
-        for (auto const& v : verts) { positions.push_back(v.position); }
+        std::vector<stdx::vec3> positions;
+        for (auto const& v : verts) { positions.push_back({ v.position[0], v.position[1], v.position[2] }); }
         return aabb(positions);
     };
 

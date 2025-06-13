@@ -110,6 +110,7 @@ ComPtr<ID3D12Resource> create_uploadbufferwithdata(void const* data_start, uint 
 ComPtr<ID3D12Resource> create_perframeuploadbufferunmapped(uint const buffersize);
 ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap();
 srv createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource);
+uav createuav(D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc, ID3D12Resource* resource);
 void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* resourceheap, uint heapslot = 0);
 ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size);
 ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size);
@@ -163,6 +164,18 @@ struct structuredbufferbase : public resource
 		srvdesc.Buffer.StructureByteStride = UINT(sizeof(t));
 
 		return gfx::createsrv(srvdesc, d3dresource.Get());
+	}
+
+	uav createuav()
+	{
+		stdx::cassert(d3dresource != nullptr);
+
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
+		uavdesc.Format = DXGI_FORMAT_UNKNOWN;
+		uavdesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+		uavdesc.Buffer.NumElements = UINT(numelements);
+		uavdesc.Buffer.StructureByteStride = UINT(sizeof(t));
+		return gfx::createuav(uavdesc, d3dresource.Get());
 	}
 
 	uint numelements = 0;
@@ -246,7 +259,7 @@ struct texture_dynamic
 struct model
 {
 	model() = default;
-	model(std::string const& objpath);
+	model(std::string const& objpath, bool translatetoorigin = false);
 
 	std::vector<uint32_t> indices;
 	std::vector<stdx::vec3> vertices;

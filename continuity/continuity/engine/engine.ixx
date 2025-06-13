@@ -48,6 +48,7 @@ public:
 
 protected:
     simplecamera camera;
+    view_data viewdata;
 
     void updateview(float dt);
 };
@@ -88,15 +89,13 @@ private:
     CD3DX12_VIEWPORT m_viewport;
     CD3DX12_RECT m_scissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12Resource> m_renderTargets[frame_count];
+    ComPtr<ID3D12Resource> m_backBuffers[frame_count];
+    ComPtr<ID3D12Resource> m_renderTarget;
     ComPtr<ID3D12Resource> m_depthStencil;
     ComPtr<ID3D12CommandAllocator> m_commandAllocators[1];
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
-
-    unsigned m_rtvDescriptorSize;
-    unsigned m_dsvDescriptorSize;
 
     steptimer m_timer;
     std::unique_ptr<sample_base> sample;

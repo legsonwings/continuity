@@ -240,5 +240,8 @@
     <FxCompile Include="samples\sphgpu\shaders\sph_render_rs.hlsl">
       <Filter>samples\sphgpu\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="shaders\blend_cs.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

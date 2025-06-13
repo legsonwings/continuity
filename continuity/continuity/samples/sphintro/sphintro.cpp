@@ -436,30 +436,31 @@ int polygonize(mcgridcell grid, float isolevel, mctriangle* triangles)
     return ntriang;
 }
 
-std::vector<vector3> fillwithspheres(geometry::aabb const& box, uint count, float radius)
+std::vector<stdx::vec3> fillwithspheres(geometry::aabb const& box, uint count, float radius)
 {
     std::unordered_set<uint> occupied;
-    std::vector<vector3> spheres;
+    std::vector<stdx::vec3> spheres;
 
-    auto const roomspan = (box.span() - stdx::tolerance<vector3>);
+    // todo : tolerance with fold expressions for container types
+    auto const roomspan = box.span() - stdx::vec3::filled(1e-5f);
 
-    stdx::cassert(roomspan.x > 0.f);
-    stdx::cassert(roomspan.y > 0.f);
-    stdx::cassert(roomspan.z > 0.f);
+    stdx::cassert(roomspan[0] > 0.f);
+    stdx::cassert(roomspan[1] > 0.f);
+    stdx::cassert(roomspan[2] > 0.f);
 
     uint const degree = static_cast<uint>(std::ceil(std::cbrt(count))) - 1;
     uint const numcells = (degree + 1) * (degree + 1) * (degree + 1);
     float const gridvol = numcells * 8 * (radius * radius * radius);
 
     // find the size of largest cube that can be fit into box
-    float const cubelen = std::min({ roomspan.x, roomspan.y, roomspan.z });
+    float const cubelen = std::min({ roomspan[0], roomspan[1], roomspan[2] });
     float const celld = cubelen / (degree + 1);
     float const cellr = celld / 2.f;;
 
     // check if this box can contain all cells
     stdx::cassert(cubelen * cubelen * cubelen > gridvol);
 
-    vector3 const gridorigin = vector3{ box.center() - vector3(cubelen / 2.f) } + vector3(0.0f, -0.5f, 0.0f);
+    auto const gridorigin = box.center() - stdx::vec3::filled(cubelen / 2.f) + stdx::vec3{ 0.0f, -0.5f, 0.0f };
     for (auto i : stdx::range(0u, count))
     {
         static std::uniform_int_distribution<uint> distvoxel(0u, numcells - 1);
@@ -470,7 +471,7 @@ std::vector<vector3> fillwithspheres(geometry::aabb const& box, uint count, floa
         occupied.insert(emptycell);
 
         auto const thecell = stdx::grididx<2>::from1d(degree, emptycell);
-        spheres.emplace_back((vector3(thecell[0] * celld, thecell[2] * celld, thecell[1] * celld) + vector3(cellr)) + gridorigin);
+        spheres.emplace_back(stdx::vec3{ thecell[0] * celld, thecell[2] * celld, thecell[1] * celld } + stdx::vec3::filled(cellr) + gridorigin);
     }
 
     return spheres;
@@ -511,7 +512,7 @@ sphfluid::sphfluid(geometry::aabb const& _bounds) : container(_bounds)
     for (auto const& center : fillwithspheres(initial_bounds, numparticles, particleradius))
     {
         particleparams.emplace_back();
-        particleparams.back().p = center;
+        particleparams.back().p = vector3(center.data());
 
         // todo : expose this limit of 5000 somewhere
         // better yet make it a template parameter of the generator function
@@ -717,21 +718,21 @@ void sphfluid::update(float dt)
 
             // collisions(just reflect velocity) and leap frog integration
             {
-                auto const& localpt = particleparam.p - containercenter;
+                auto const& localpt = particleparam.p - vector3(containercenter.data());
                 auto const localpt_abs = vector3{ std::abs(localpt.x), std::abs(localpt.y), std::abs(localpt.z) };
 
                 vector3 normal = vector3::Zero;
-                if (localpt_abs.x > halfextents.x)
+                if (localpt_abs.x > halfextents[0])
                 {
                     normal += -stdx::sign(localpt.x) * vector3::UnitX;
                 }
 
-                if (localpt_abs.y > halfextents.y)
+                if (localpt_abs.y > halfextents[1])
                 {
                     normal += -stdx::sign(localpt.y) * vector3::UnitY;
                 }
 
-                if (localpt_abs.z > halfextents.z)
+                if (localpt_abs.z > halfextents[2])
                 {
                     normal += -stdx::sign(localpt.z) * vector3::UnitZ;
                 }
@@ -740,7 +741,7 @@ void sphfluid::update(float dt)
                 {
                     normal.Normalize();
 
-                    auto const& penetration = localpt_abs - halfextents;
+                    auto const& penetration = localpt_abs - vector3(halfextents.data());
                     auto const impulsealongnormal = particleparam.v.Dot(-normal);
 
                     static constexpr float restitution = 0.3f;
@@ -770,17 +771,17 @@ void sphfluid::update(float dt)
     static constexpr float marchingcube_size = 0.1f;
 
     // assume container it is a cube
-    auto container_len = container.span().x;
+    auto container_len = container.span()[0];
     auto nummarches_perdim = stdx::ceil(container_len / marchingcube_size) + 2;
     auto nummarches = nummarches_perdim * nummarches_perdim * nummarches_perdim;
-    auto offset = container.min_pt - vector3(marchingcube_size);
+    auto offset = container.min_pt - stdx::vec3::filled(marchingcube_size);
     for (uint i = 0; i < nummarches; ++i)
     {
         auto const cell = stdx::grididx<2>::from1d(nummarches_perdim - 1u, i);
         mcgridcell gridcell;
 
         // the vertices should be sorted to form a rectangular contour
-        gridcell.p[0] = vector3(cell[0] * marchingcube_size, cell[1] * marchingcube_size, cell[2] * marchingcube_size) + offset;
+        gridcell.p[0] = vector3(cell[0] * marchingcube_size, cell[1] * marchingcube_size, cell[2] * marchingcube_size) + vector3(offset.data());
         gridcell.p[1] = gridcell.p[0] + vector3(marchingcube_size, 0.0f, 0.0f);
         gridcell.p[2] = gridcell.p[0] + vector3(marchingcube_size, marchingcube_size, 0.0f);
         gridcell.p[3] = gridcell.p[0] + vector3(0.0f, marchingcube_size, 0.0f);
