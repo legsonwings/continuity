@@ -1,5 +1,5 @@
 # continuity
- collection of templated n-d : bezier utilities, math utilities and algorithms
+toy renderer
  
 ## beziermaths
 
