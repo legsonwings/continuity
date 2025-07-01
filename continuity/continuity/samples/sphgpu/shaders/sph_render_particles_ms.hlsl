@@ -43,9 +43,9 @@ void main(
         v1.normal = trinormal;
         v2.normal = trinormal;
 
-        v0.positionh = mul(float4(v0.position, 1.0f), globals.viewproj);
-        v1.positionh = mul(float4(v1.position, 1.0f), globals.viewproj);
-        v2.positionh = mul(float4(v2.position, 1.0f), globals.viewproj);
+        //v0.positionh = mul(float4(v0.position, 1.0f), globals.viewproj);
+        //v1.positionh = mul(float4(v1.position, 1.0f), globals.viewproj);
+        //v2.positionh = mul(float4(v2.position, 1.0f), globals.viewproj);
         
         verts[v0idx] = v0;
         verts[v1idx] = v1;

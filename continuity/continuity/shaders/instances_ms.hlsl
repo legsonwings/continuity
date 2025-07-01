@@ -1,50 +1,56 @@
 #include "common.hlsli"
+#include "shared/common.h"
 
-StructuredBuffer<vertexin> triangle_vertices : register(t0);
-StructuredBuffer<instance_data> instances : register(t1);
-
-meshshadervertex getvertattribute(vertexin vertex, uint instance_idx)
+meshshadervertex getvertattribute(vertexin vertex)
 {
     meshshadervertex outvert;
     
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+    StructuredBuffer<object_constants> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+
     float4 const pos = float4(vertex.position, 1.f);
-    outvert.instanceid = instance_idx;
-    outvert.position = mul(pos, instances[instance_idx].matx).xyz;
-    outvert.positionh = mul(pos, instances[instance_idx].mvpmatx);
-    outvert.normal = normalize(mul(float4(vertex.normal, 0), instances[instance_idx].normalmatx).xyz);
+    outvert.instanceid = 0;
+    outvert.position = mul(pos, objconstants[0].matx).xyz;
+    outvert.positionh = mul(pos, objconstants[0].mvpmatx);
+    outvert.normal = normalize(mul(float4(vertex.normal, 0), objconstants[0].normalmatx).xyz);
 
     return outvert;
 }
 
-#define MAX_VERTICES_PER_GROUP (MAX_TRIANGLES_PER_GROUP * 3)
+// only output 128 to simplify things
+#define MAX_PRIMS_PER_GROUP 85
+#define MAX_VERTICES_PER_GROUP 255
 
 [RootSignature(ROOT_SIG)]
-[NumThreads(128, 1, 1)]
+[NumThreads(85, 1, 1)]
 [OutputTopology("triangle")]
 void main(
+    uint dtid : SV_DispatchThreadID,
     uint gtid : SV_GroupThreadID,
     uint gid : SV_GroupID,
     in payload payloaddata payload,
-    out indices uint3 tris[MAX_TRIANGLES_PER_GROUP],
+    out indices uint3 tris[MAX_PRIMS_PER_GROUP],
     out vertices meshshadervertex verts[MAX_VERTICES_PER_GROUP]
 )
 {
-    uint const numprims = payload.data[gid].numprims;
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+    StructuredBuffer<dispatch_parameters> dispatch_params = ResourceDescriptorHeap[descriptors[0].dispatchparams];
+    StructuredBuffer<vertexin> triangle_vertices = ResourceDescriptorHeap[descriptors[0].vertexbuffer];
+    StructuredBuffer<uint> triangle_indices = ResourceDescriptorHeap[descriptors[0].indexbuffer];
+
+    uint const numprims = min(dispatch_params[0].numprims - gid * MAX_PRIMS_PER_GROUP, MAX_PRIMS_PER_GROUP);
     SetMeshOutputCounts(numprims * 3, numprims);
 
     if (gtid < numprims)
     {
-        // The out buffers are local to group but input buffer is global
-        uint const instanceidx = (payload.data[gid].start + gtid) / dispatch_params.numprims_perinstance;
-        uint const v0idx = gtid * 3;
-        uint const v1idx = v0idx + 1;
-        uint const v2idx = v0idx + 2;
+        uint const v0idx = gtid * 3u;
 
-        tris[gtid] = uint3(v0idx, v1idx, v2idx);
-        uint const invertstart = ((payload.data[gid].start + gtid) % dispatch_params.numprims_perinstance) * 3;
-    
-        verts[v0idx] = getvertattribute(triangle_vertices[invertstart], instanceidx);
-        verts[v1idx] = getvertattribute(triangle_vertices[invertstart + 1], instanceidx);
-        verts[v2idx] = getvertattribute(triangle_vertices[invertstart + 2], instanceidx);
+        tris[gtid] = uint3(v0idx, v0idx + 1, v0idx + 2);
+
+        // the out buffers are local to group but input buffer is global
+        // not very optimal as this is writing duplicate vertices
+        verts[v0idx] = getvertattribute(triangle_vertices[triangle_indices[dtid * 3u]]);
+        verts[v0idx + 1] = getvertattribute(triangle_vertices[triangle_indices[dtid * 3u + 1]]);
+        verts[v0idx + 2] = getvertattribute(triangle_vertices[triangle_indices[dtid * 3u + 2]]);
     }
 }

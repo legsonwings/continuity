@@ -213,10 +213,16 @@ gfx::resourcelist sphgpu::create_resources()
 
         gfx::model model("models/cornellbox.obj");
 
-        res.push_back(roomvertbuffer.create(model.vertices));
-        res.push_back(roomindexbuffer.create(model.indices));
-        res.push_back(materialids.create(material_idsdata));
-        res.push_back(materials.create(materials_data));
+        //res.push_back(roomvertbuffer.create(model.vertices));
+        //res.push_back(roomindexbuffer.create(model.indices));
+        //res.push_back(materialids.create(material_idsdata));
+        //res.push_back(materials.create(materials_data));
+
+        // todo : vertices now has normals too
+        //roomvertbuffer.create(model.vertices);
+        //roomindexbuffer.create(model.indices);
+        //materialids.create(material_idsdata);
+        //materials.create(materials_data);
 
         for (auto r : triblas.build(instancedescs, gfx::geometryopacity::opaque, roomvertbuffer, roomindexbuffer))
             res.push_back(r);

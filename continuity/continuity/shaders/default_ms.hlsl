@@ -1,22 +1,25 @@
 #include "common.hlsli"
+#include "shared/common.h"
 
-StructuredBuffer<vertexin> triangle_verts : register(t0);
+//StructuredBuffer<vertexin> triangle_verts : register(t0);
 
 meshshadervertex getvertattribute(vertexin vertex)
 {
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+    StructuredBuffer<object_constants> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+
     meshshadervertex outvert;
     
     float4 const pos = float4(vertex.position, 1.f);
-    outvert.position = mul(pos, objectconstants.matx).xyz;
-    outvert.positionh = mul(pos, objectconstants.mvpmatx);
-    outvert.normal = normalize(mul(float4(vertex.normal, 0), objectconstants.normalmatx).xyz);
+    outvert.position = mul(pos, objconstants[0].matx).xyz;
+    outvert.positionh = mul(pos, objconstants[0].mvpmatx);
+    outvert.normal = normalize(mul(float4(vertex.normal, 0), objconstants[0].normalmatx).xyz);
     
     return outvert;
 }
 
 #define MAX_VERTICES_PER_GROUP (MAX_TRIANGLES_PER_GROUP * 3)
 
-[RootSignature(ROOT_SIG)]
 [NumThreads(128, 1, 1)]
 [OutputTopology("triangle")]
 void main(
@@ -39,7 +42,10 @@ void main(
 
         tris[gtid] = uint3(v0idx, v1idx, v2idx);
         int in_vertstart = (payload.data[gid].start + gtid) * 3;
-        
+     
+        StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+        StructuredBuffer<vertexin> triangle_verts = ResourceDescriptorHeap[descriptors[0].vertexbuffer];
+
         verts[v0idx] = getvertattribute(triangle_verts[in_vertstart]);
         verts[v1idx] = getvertattribute(triangle_verts[in_vertstart + 1]);
         verts[v2idx] = getvertattribute(triangle_verts[in_vertstart + 2]);

@@ -84,8 +84,8 @@ struct rootbuffer
 
 struct rootconstants
 {
-    uint32_t slot;
-    std::vector<uint8_t> values;
+    uint32 slot;
+    std::vector<uint32> values;
 };
 
 struct pipeline_objects
@@ -118,7 +118,6 @@ struct viewinfo
     matrix proj;
 };
 
-// these are passed to gpu, so be careful about alignment and padding
 struct material
 {
     // the member order is deliberate
@@ -130,6 +129,18 @@ struct material
     material& diffuse(vector4 const& _a) { a = _a; return *this; }
     material& fresnelr(vector3 const& _fr) { fr = _fr; return *this; }
 };
+
+//struct material
+//{
+//    float reflectance = 0.1f;
+//    float roughness = 0.25f;
+//    stdx::vec4 basecolour = stdx::vec4{ 1, 0, 0, 0 };
+//    uint32 metallic = 0;
+//
+//    material& roughness(float r) { roughness = r; return *this; }
+//    material& basecolour(stdx::vec4 const& colour) { basecolour = colour; return *this; }
+//    material& reflectance(float r) { reflectance = r; return *this; }
+//};
 
 // this is used in constant buffer so alignment is important
 struct instance_data
@@ -192,5 +203,11 @@ struct raytraceshaders
     trianglehitgroup tri_hitgrp;
     proceduralhitgroup procedural_hitgroup;
 };
+
+template<uint32 t_divisor>
+constexpr inline uint32 divideup(uint32 value) requires (t_divisor > 0)
+{
+    return (value + t_divisor - 1) / t_divisor;
+}
 
 }

@@ -332,29 +332,46 @@ model::model(std::string const& objpath, bool translatetoorigin)
         for (uint i(0); i < shape.mesh.num_face_vertices.size(); ++i)
         {
             stdx::cassert(shape.mesh.num_face_vertices[i] == 3);
-            indices.push_back(objindices[i * 3].position_index);
-            indices.push_back(objindices[i * 3 + 1].position_index);
-            indices.push_back(objindices[i * 3 + 2].position_index);
+            _indices.push_back(objindices[i * 3].position_index);
+            _indices.push_back(objindices[i * 3 + 1].position_index);
+            _indices.push_back(objindices[i * 3 + 2].position_index);
         }
     }
 
     auto const& positions = result.attributes.positions;
+    auto const& normals = result.attributes.normals;
 
-    // make sure there is no padding
-    static_assert(sizeof(std::decay_t<decltype(positions)>::value_type) * 3 == sizeof(stdx::vec3));
+    auto const numverts = positions.size() / 3;
 
-    stdx::vec3 const* const vert_start = reinterpret_cast<stdx::vec3 const*>(positions.data());
-    vertices = std::vector<stdx::vec3>(vert_start, vert_start + (positions.size() / 3));
-
-    if (translatetoorigin)
+    for (auto i : stdx::range(numverts))
     {
-        geometry::aabb bounds;
-        for (auto const& v : vertices) bounds += v;
+        gfx::vertex v;
+        uint posi = i * 3;
+        v.position = vector3(positions[posi], positions[posi + 1], positions[posi + 2]);
 
-        // translate to (0,0,0)
-        auto const& center = bounds.center();
-        for (auto& v : vertices) v -= center;
+        if (normals.size() > 0)
+        {
+            // todo : generate normals if not in obj
+            v.normal = vector3(normals[i], normals[i + i], normals[i + 2]);
+        }
+
+        _vertices.emplace_back(v);
     }
+
+    //if (translatetoorigin)
+    //{
+    //    geometry::aabb bounds;
+    //    for (auto const& v : _vertices) bounds += v.position;
+
+    //    // translate to (0,0,0)
+    //    auto const& center = bounds.center();
+    //    for (auto& v : _vertices) v.position -= center;
+    //}
+}
+
+std::vector<instance_data> model::instancedata() const
+{
+    return { instance_data(matrix::Identity, globalresources::get().view(), globalresources::get().mat("")) };
 }
 
 void globalresources::init()
@@ -363,16 +380,16 @@ void globalresources::init()
     GetAssetsPath(assetsPath, _countof(assetsPath));
     _assetspath = assetsPath;
 
-    addpso("lines", "default_as.cso", "lines_ms.cso", "basic_ps.cso");
-    addpso("default", "default_as.cso", "default_ms.cso", "default_ps.cso");
-    addpso("default_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::twosided | psoflags::transparent);
-    addpso("texturess", "", "texturess_ms.cso", "texturess_ps.cso");
-    addpso("instancedlines", "default_as.cso", "linesinstances_ms.cso", "basic_ps.cso");
-    addpso("instanced", "default_as.cso", "instances_ms.cso", "instances_ps.cso");
-    addpso("transparent", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent);
-    addpso("transparent_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent | psoflags::twosided);
-    addpso("wireframe", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::wireframe | psoflags::transparent);
-    addpso("instancedtransparent", "default_as.cso", "instances_ms.cso", "instances_ps.cso", psoflags::transparent);
+    //addpso("lines", "default_as.cso", "lines_ms.cso", "basic_ps.cso");
+    //addpso("default", "default_as.cso", "default_ms.cso", "default_ps.cso");
+    //addpso("default_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::twosided | psoflags::transparent);
+    //addpso("texturess", "", "texturess_ms.cso", "texturess_ps.cso");
+    //addpso("instancedlines", "default_as.cso", "linesinstances_ms.cso", "basic_ps.cso");
+    addpso("instanced", "", "instances_ms.cso", "instances_ps.cso");
+    //addpso("transparent", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent);
+    //addpso("transparent_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent | psoflags::twosided);
+    //addpso("wireframe", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::wireframe | psoflags::transparent);
+    //addpso("instancedtransparent", "default_as.cso", "instances_ms.cso", "instances_ps.cso", psoflags::transparent);
 
     addcomputepso("blend", "blend_cs.cso");
 
@@ -443,7 +460,7 @@ void globalresources::addcomputepso(std::string const& name, std::string const& 
 
     // pull root signature from the precompiled compute shader
     // todo : share root signatures?
-    ComPtr<ID3D12RootSignature>& rootsig = _rootsig.emplace_back();
+    ComPtr<ID3D12RootSignature> rootsig;
     ThrowIfFailed(_device->CreateRootSignature(0, computeshader.data, computeshader.size, IID_PPV_ARGS(rootsig.GetAddressOf())));
     _psos[name].root_signature = rootsig;
 
@@ -458,6 +475,15 @@ void globalresources::addcomputepso(std::string const& name, std::string const& 
     stream_desc.SizeInBytes = sizeof(psostream);
 
     ThrowIfFailed(_device->CreatePipelineState(&stream_desc, IID_PPV_ARGS(_psos[name].pso.GetAddressOf())));
+}
+
+void SerializeAndCreateRootSignature(ComPtr<ID3D12Device5>& device, D3D12_ROOT_SIGNATURE_DESC const& desc, ComPtr<ID3D12RootSignature>* rootSig)
+{
+    ComPtr<ID3DBlob> blob;
+    ComPtr<ID3DBlob> error;
+
+    ThrowIfFailed(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error));
+    ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
 }
 
 void globalresources::addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags)
@@ -475,10 +501,15 @@ void globalresources::addpso(std::string const& name, std::string const& as, std
     ReadDataFromFile(assetfullpath(ms).c_str(), &meshshader.data, &meshshader.size);
     ReadDataFromFile(assetfullpath(ps).c_str(), &pixelshader.data, &pixelshader.size);
     
-    // pull root signature from the precompiled mesh shaders.
-    // todo : share root signatures?
-    ComPtr<ID3D12RootSignature>& rootsig = _rootsig.emplace_back();
-    ThrowIfFailed(_device->CreateRootSignature(0, meshshader.data, meshshader.size, IID_PPV_ARGS(rootsig.GetAddressOf())));
+    CD3DX12_ROOT_PARAMETER rootparam;
+    rootparam.InitAsConstants(1, 0);
+    CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(1, &rootparam);
+    rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
+
+    // todo : shouldn't need to create same root signature for every pso
+    ComPtr<ID3D12RootSignature> rootsig;
+    SerializeAndCreateRootSignature(_device, rootsig_desc, &rootsig);
+
     _psos[name].root_signature = rootsig;
 
     D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pso_desc = _psodesc;
@@ -534,15 +565,6 @@ void globalresources::addpso(std::string const& name, std::string const& as, std
     }
 }
 
-void SerializeAndCreateRaytracingRootSignature(Microsoft::WRL::ComPtr<ID3D12Device5>& device, D3D12_ROOT_SIGNATURE_DESC& desc, Microsoft::WRL::ComPtr<ID3D12RootSignature>* rootSig)
-{
-    Microsoft::WRL::ComPtr<ID3DBlob> blob;
-    Microsoft::WRL::ComPtr<ID3DBlob> error;
-
-    ThrowIfFailed(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error));
-    ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
-}
-
 gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders)
 {
     if (auto existing = _psos.find(name); existing != _psos.cend())
@@ -554,22 +576,22 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     // global root signature is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
     
     {
-        Microsoft::WRL::ComPtr<ID3D12RootSignature> rootsig;
+        ComPtr<ID3D12RootSignature> rootsig;
         CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(0, nullptr);
         rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
         // empty root signature
-        SerializeAndCreateRaytracingRootSignature(_device, rootsig_desc, &rootsig);
+        SerializeAndCreateRootSignature(_device, rootsig_desc, &rootsig);
 
         _psos[name].root_signature = rootsig;
     }
 
     // empty local root signature
     {
-        Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
+        ComPtr<ID3D12RootSignature> rootSig;
 
         CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
-        SerializeAndCreateRaytracingRootSignature(_device, localRootSignatureDesc, &rootSig);
+        SerializeAndCreateRootSignature(_device, localRootSignatureDesc, &rootSig);
 
         _psos[name].rootsignature_local = rootSig;
     }

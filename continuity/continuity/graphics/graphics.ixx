@@ -69,7 +69,7 @@ struct resource
 // all resource views are created on the global resource heap right now
 struct resourceview
 {
-	uint heapidx;
+	uint32 heapidx;
 };
 
 struct srv : public resourceview
@@ -181,19 +181,35 @@ struct structuredbufferbase : public resource
 	uint numelements = 0;
 };
 
-// cpu writeable
 template<typename t, accesstype access>
-struct structuredbuffer : public structuredbufferbase<t>
+struct structuredbuffer : public structuredbufferbase<t> {};
+
+// cpu writeable
+template<typename t>
+struct structuredbuffer<t, accesstype::both> : public structuredbufferbase<t>
 {
-	ComPtr<ID3D12Resource> create(std::vector<t> const& data)
+	void create(std::vector<t> const& data)
 	{
 		stdx::cassert(this->d3dresource == nullptr);
 
-		auto buffers = create_defaultbuffer(data.data(), data.size() * UINT(sizeof(t)));
-		this->d3dresource = buffers.first;
+		UINT buffersize = UINT(data.size() * sizeof(t));
+		ComPtr<ID3D12Resource> uploadbuffer = create_uploadbuffer(&_mappeddata, buffersize);
+		memcpy(_mappeddata, data.data(), buffersize);
+
+		this->d3dresource = uploadbuffer;
 		this->numelements = data.size();
-		return buffers.second;
 	}
+
+	void update(std::vector<t> const& data)
+	{
+		stdx::cassert(this->d3dresource != nullptr);
+		stdx::cassert(data.size() <= this->numelements, "cannot update buffer with more data than initial size");
+
+		size_t updatesize = data.size() * sizeof(t);
+		memcpy(_mappeddata, data.data(), updatesize);
+	}
+
+	std::byte* _mappeddata = nullptr;
 };
 
 // gpu only
@@ -223,7 +239,7 @@ public:
 
 	ComPtr<ID3D12DescriptorHeap> d3dheap;
 private:
-	uint currslot = 0;
+	uint32 currslot = 0;
 };
 
 // read write by gpu only
@@ -261,8 +277,14 @@ struct model
 	model() = default;
 	model(std::string const& objpath, bool translatetoorigin = false);
 
-	std::vector<uint32_t> indices;
-	std::vector<stdx::vec3> vertices;
+	std::vector<vertex> const& vertices() const { return _vertices; }
+	std::vector<uint32> const& indices() const { return _indices; }
+
+	// center at origin for now
+	std::vector<instance_data> instancedata() const;
+
+	std::vector<uint32> _indices;
+	std::vector<vertex> _vertices;
 };
 
 uint align(uint unalignedsize, uint alignment) { return stdx::nextpowoftwomultiple(unalignedsize, alignment); }
@@ -526,8 +548,6 @@ class globalresources
 	resourceheap _resourceheap;
 	ComPtr<ID3D12Device5> _device;
 
-	// todo : o we need to store root signature twice?
-	std::vector<ComPtr<ID3D12RootSignature>> _rootsig;
 	ComPtr<ID3D12Resource> _rendertarget;
 	ComPtr<ID3D12GraphicsCommandList6> _commandlist;
 	std::unordered_map<std::string, pipeline_objects> _psos;

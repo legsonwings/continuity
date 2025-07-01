@@ -13,18 +13,18 @@ void dispatch(resource_bindings const& bindings, bool wireframe, uint dispatchx)
 
     cmd_list->SetGraphicsRootSignature(bindings.pipelineobjs.root_signature.Get());
     cmd_list->SetDescriptorHeaps(1, gfx::globalresources::get().resourceheap().d3dheap.GetAddressOf());
-    cmd_list->SetGraphicsRootConstantBufferView(bindings.constant.slot, bindings.constant.address);
-    
-    if (bindings.objectconstant.address != 0)
-        cmd_list->SetGraphicsRootConstantBufferView(bindings.objectconstant.slot, bindings.objectconstant.address);
-    cmd_list->SetGraphicsRootShaderResourceView(bindings.vertex.slot, bindings.vertex.address);
-    cmd_list->SetGraphicsRoot32BitConstants(bindings.rootconstants.slot, static_cast<UINT>(bindings.rootconstants.values.size() / 4), bindings.rootconstants.values.data(), 0);
+    //cmd_list->SetGraphicsRootConstantBufferView(bindings.constant.slot, bindings.constant.address);
+    //
+    //if (bindings.objectconstant.address != 0)
+    //    cmd_list->SetGraphicsRootConstantBufferView(bindings.objectconstant.slot, bindings.objectconstant.address);
+    //cmd_list->SetGraphicsRootShaderResourceView(bindings.vertex.slot, bindings.vertex.address);
+    cmd_list->SetGraphicsRoot32BitConstants(bindings.rootconstants.slot, static_cast<UINT>(bindings.rootconstants.values.size()), bindings.rootconstants.values.data(), 0);
 
-    if (bindings.instance.address != 0)
-        cmd_list->SetGraphicsRootShaderResourceView(bindings.instance.slot, bindings.instance.address);
+   /* if (bindings.instance.address != 0)
+        cmd_list->SetGraphicsRootShaderResourceView(bindings.instance.slot, bindings.instance.address);*/
 
-    if(bindings.texture.deschandle.ptr)
-        cmd_list->SetGraphicsRootDescriptorTable(bindings.texture.slot, bindings.texture.deschandle);
+    /*if(bindings.texture.deschandle.ptr)
+        cmd_list->SetGraphicsRootDescriptorTable(bindings.texture.slot, bindings.texture.deschandle);*/
 
     if (wireframe && bindings.pipelineobjs.pso_wireframe)
         cmd_list->SetPipelineState(bindings.pipelineobjs.pso_wireframe.Get());

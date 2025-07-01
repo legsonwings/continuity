@@ -574,6 +574,11 @@ std::vector<gfx::vertex> sphfluid::vertices() const
     return fluidsurface;
 }
 
+std::vector<uint32> const& sphfluid::indices() const
+{
+    return fluidsurfaceindices;
+}
+
 std::vector<gfx::instance_data> sphfluid::instancedata() const
 {
     std::vector<gfx::instance_data> particles_instancedata;
@@ -767,6 +772,7 @@ void sphfluid::update(float dt)
     }
 
     fluidsurface.clear();
+    fluidsurfaceindices.clear();
 
     static constexpr float marchingcube_size = 0.1f;
 
@@ -838,6 +844,8 @@ void sphfluid::update(float dt)
                 fluidsurface.push_back(gfx::vertex{ triangles[j].p[0], triangles[j].n[0] });
                 fluidsurface.push_back(gfx::vertex{ triangles[j].p[1], triangles[j].n[1] });
                 fluidsurface.push_back(gfx::vertex{ triangles[j].p[2], triangles[j].n[2] });
+
+                // todo : populate fluidsurfaceindices
             }
         }
     }

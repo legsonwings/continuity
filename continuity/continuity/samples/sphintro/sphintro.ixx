@@ -56,10 +56,12 @@ public:
 	vector3 center();
 	std::vector<uint8_t> texturedata() const;
 	std::vector<gfx::vertex> vertices() const;
+	std::vector<uint32> const& indices() const;
 	std::vector<gfx::instance_data> instancedata() const;
 	std::vector<gfx::vertex> particlevertices() const;
 	void update(float dt);
 	std::vector<gfx::vertex> fluidsurface;
+	std::vector<uint32> fluidsurfaceindices;
 };
 
 export class sphfluidintro : public sample_base

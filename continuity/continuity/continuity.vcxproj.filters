@@ -52,6 +52,9 @@
     <Filter Include="shared">
       <UniqueIdentifier>{5d3d907d-6ebe-4c64-ad53-9ef0e04874f5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="samples\playground">
+      <UniqueIdentifier>{83accfb3-527a-4c5b-9e12-60b6f254d7a2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beziermaths\beziermaths.cpp">
@@ -141,6 +144,12 @@
     <ClCompile Include="samples\raytrace\raytrace.ixx">
       <Filter>samples\raytrace</Filter>
     </ClCompile>
+    <ClCompile Include="samples\playground\playground.cpp">
+      <Filter>samples\playground</Filter>
+    </ClCompile>
+    <ClCompile Include="samples\playground\playground.ixx">
+      <Filter>samples\playground</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simplemath\simplemath.h">
@@ -164,6 +173,9 @@
     <ClInclude Include="shared\sharedtypes.h">
       <Filter>shared</Filter>
     </ClInclude>
+    <ClInclude Include="shared\common.h">
+      <Filter>shared</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="simplemath\simplemath.inl">
@@ -184,9 +196,6 @@
       <Filter>shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\default_as.hlsl">
-      <Filter>shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="shaders\default_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\default_ps.hlsl">
@@ -241,6 +250,9 @@
       <Filter>samples\sphgpu\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\blend_cs.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\default_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
   </ItemGroup>

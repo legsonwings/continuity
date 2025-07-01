@@ -102,6 +102,12 @@ struct object_constants
     material mat;
 };
 
-ConstantBuffer<sceneconstants> globals : register(b0);
-ConstantBuffer<object_constants> objectconstants : register(b1);
-ConstantBuffer<dispatch_parameters> dispatch_params : register(b2);
+struct objectdescriptors_index
+{
+    uint value;
+};
+
+ConstantBuffer<objectdescriptors_index> descriptorsidx : register(b0);
+// ConstantBuffer<sceneconstants> globals : register(b0);
+//ConstantBuffer<object_constants> objectconstants : register(b1);
+//ConstantBuffer<dispatch_parameters> dispatch_params : register(b2);

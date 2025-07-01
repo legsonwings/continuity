@@ -1,4 +1,5 @@
 #include "common.hlsli"
+#include "shared/common.h"
 
 struct linevertexin
 {
@@ -34,7 +35,10 @@ void main(
         lines[gtid] = uint2(outv0idx, outv1idx);
         uint const inputvert_start = payload.data[gid].start + gtid * 2;
 
-        verts[outv0idx].position = mul(float4(in_vertices[inputvert_start].position, 1), objectconstants.mvpmatx);
-        verts[outv1idx].position = mul(float4(in_vertices[inputvert_start + 1].position, 1), objectconstants.mvpmatx);
+        StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+        StructuredBuffer<object_constants> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+
+        verts[outv0idx].position = mul(float4(in_vertices[inputvert_start].position, 1), objconstants[0].mvpmatx);
+        verts[outv1idx].position = mul(float4(in_vertices[inputvert_start + 1].position, 1), objconstants[0].mvpmatx);
     }
 }

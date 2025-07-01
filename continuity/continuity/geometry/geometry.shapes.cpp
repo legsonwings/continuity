@@ -238,6 +238,21 @@ std::vector<gfx::vertex> cube::vertices() const
     return create_cube(vector3::Zero, extents);
 }
 
+std::vector<uint32> const& cube::indices() const
+{
+    static const std::vector<uint32> indices = []()
+    {
+        std::vector<uint32> indices;
+        indices.reserve(36);
+        for (auto i : stdx::range(36))
+            indices.push_back(uint32(i));
+
+        return indices;
+    }();
+    
+    return indices;
+}
+
 std::vector<gfx::vertex> cube::vertices_flipped() const
 {
     auto invert = [](auto const& verts)

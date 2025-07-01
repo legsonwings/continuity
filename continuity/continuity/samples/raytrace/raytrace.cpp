@@ -73,10 +73,17 @@ gfx::resourcelist raytrace::create_resources()
         materials_data[0].roughness = 0.25f;
         materials_data[0].reflectance = 0.5f;
 
-        res.push_back(vertexbuffer.create(model.vertices));
-        res.push_back(indexbuffer.create(model.indices));
-        res.push_back(materialids.create(material_idsdata));
-        res.push_back(materials.create(materials_data));
+        // todo 
+        //res.push_back(vertexbuffer.create(model.vertices));
+        //res.push_back(indexbuffer.create(model.indices));
+        //res.push_back(materialids.create(material_idsdata));
+        //res.push_back(materials.create(materials_data));
+
+        // todo vertices now has normal too 
+        //vertexbuffer.create(model.vertices);
+        //indexbuffer.create(model.indices);
+        //materialids.create(material_idsdata);
+        //materials.create(materials_data);
 
         // cannot use stdx::join because ComPtr is too smart for its own good
         for (auto r : triblas.build(instancedescs, opacity, vertexbuffer, indexbuffer))

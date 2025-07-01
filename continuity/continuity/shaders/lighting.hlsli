@@ -1,5 +1,9 @@
 #include "common.hlsli"
 
+// todo : temp
+ConstantBuffer<sceneconstants> globals : register(b0);
+ConstantBuffer<object_constants> objectconstants : register(b1);
+
 float attenuation(float range, float distance)
 {
 	return 1.f / (1.f + (distance * distance) / (range * range));

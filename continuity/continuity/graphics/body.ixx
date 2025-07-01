@@ -4,6 +4,7 @@ module;
 #include <d3d12.h>
 #include "shared/sharedconstants.h"
 #include "simplemath/simplemath.h"
+#include "shared/common.h"
 
 export module body;
 
@@ -28,6 +29,14 @@ using line = geometry::line;
 export namespace gfx
 {
 
+struct dispatchparams
+{
+    uint32_t numprims;
+    uint32_t numverts_perprim;
+    uint32_t maxprims_permsgroup;
+    uint32_t numprims_perinstance;
+};
+
 struct instances_data
 {
     std::vector<instance_data> data;
@@ -36,7 +45,7 @@ struct instances_data
 template<typename t>
 concept hasvertices = requires(t v)
 {
-    { v.vertices() } -> std::same_as<std::vector<gfx::vertex>>;
+    { v.vertices() } -> std::convertible_to<std::vector<vertex>>;
 };
 
 template<typename t>
@@ -48,7 +57,7 @@ concept hasupdate = requires(t v)
 template<typename t>
 concept hasinstancedata = requires(t v)
 {
-    { v.instancedata() } -> std::same_as<std::vector<instance_data>>;
+    { v.instancedata() } -> std::convertible_to<std::vector<instance_data>>;
 };
 
 template<typename t>
@@ -116,16 +125,26 @@ class body_static : public bodyinterface
     using rawbody_t = std::decay_t<body_t>;
     using vertextype = typename topologyconstants<prim_t>::vertextype;
 
+    uint32 _vbindex;
+    uint32 _descriptorsindex;
     body_t body;
-    staticbuffer<vertextype> _vertexbuffer;
-    dynamicbuffer<instance_data> _instancebuffer;
+    structuredbuffer<instance_data, accesstype::both> _objconstants;
+    structuredbuffer<objdescriptors, accesstype::both> _descriptors;
+    structuredbuffer<dispatchparams, accesstype::both> _dispatchparams;
+    structuredbuffer<vertextype, accesstype::both> _vertexbuffer;
+    structuredbuffer<uint32, accesstype::both> _indexbuffer;
+    //staticbuffer<vertextype> _vertexbuffer;
+    //dynamicbuffer<instance_data> _instancebuffer;
 
     using vertexfetch_r = std::vector<vertextype>;
+    using indexfetch_r = std::vector<uint32>;
     using vertexfetch = std::function<vertexfetch_r(rawbody_t const&)>;
+    using indexfetch = std::function<indexfetch_r(rawbody_t const&)>;
     using instancedatafetch_r = std::vector<instance_data>;
     using instancedatafetch = std::function<instancedatafetch_r(rawbody_t const&)>;
 
     vertexfetch get_vertices;
+    indexfetch get_indices;
     instancedatafetch get_instancedata;
 
 public:
@@ -139,6 +158,9 @@ public:
     gfx::resourcelist create_resources() override;
     void update(float dt) override;
     void render(float dt, renderparams const&) override;
+
+    void descriptorsindex(uint index) { _descriptorsindex = index; }
+    uint descriptorsindex() const { return descriptorsindex; }
 
     constexpr body_t& get() { return body; }
     constexpr body_t const& get() const { return body; }
@@ -194,6 +216,7 @@ inline body_static<body_t, prim_t>::body_static(body_c_t&& _body, bodyparams con
 {
     get_vertices = [](body_t const& geom) { return geom.vertices(); };
     get_instancedata = [](body_t const& geom) { return geom.instancedata(); };
+    get_indices = [](body_t const& geom) { return geom.indices(); };
 }
 
 template<sbody_c body_t, topology prim_t>
@@ -202,18 +225,44 @@ inline body_static<body_t, prim_t>::body_static(body_c_t&& _body, vertexfetch_r(
 {
     get_vertices = [vfun](body_t const& geom) { return std::invoke(vfun, geom); };
     get_instancedata = [ifun](body_t const& geom) { return std::invoke(ifun, geom); };
+
+    // todo : no function for indices yet
+    get_indices = [](body_t const& geom) { return geom.indices(); };
 }
 
 template<sbody_c body_t, topology prim_t>
 std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resources()
 {
-    auto const vbupload = _vertexbuffer.createresources(get_vertices(body));
-    _instancebuffer.createresource(getparams().maxinstances);
+    std::vector<ComPtr<ID3D12Resource>> res;
 
-    stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
+    // better to create static vertex buffers in default heap
+    _vertexbuffer.create(get_vertices(body));
+    _indexbuffer.create(get_indices(body));
+    //_instancebuffer.createresource(getparams().maxinstances);
 
-    // return the upload buffer so that engine can keep it alive until vertex data has been uploaded to gpu
-    return { vbupload };
+    stdx::cassert(_vertexbuffer.numelements < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
+
+    dispatchparams dispatch_params;
+    dispatch_params.numverts_perprim = topologyconstants<prim_t>::numverts_perprim;
+    dispatch_params.numprims_perinstance = static_cast<uint32>(_indexbuffer.numelements / topologyconstants<prim_t>::numverts_perprim);
+    dispatch_params.numprims = static_cast<uint32>(dispatch_params.numprims_perinstance);
+    dispatch_params.maxprims_permsgroup = topologyconstants<prim_t>::maxprims_permsgroup;
+
+    _dispatchparams.create({ dispatch_params });
+
+    _objconstants.create(get_instancedata(body));
+
+    objdescriptors descriptors;
+    descriptors.vertexbuffer = _vertexbuffer.createsrv().heapidx;
+    descriptors.indexbuffer = _indexbuffer.createsrv().heapidx;
+    descriptors.dispatchparams = _dispatchparams.createsrv().heapidx;
+    descriptors.objconstants = _objconstants.createsrv().heapidx;
+
+    _descriptors.create({ descriptors });
+    _descriptorsindex = _descriptors.createsrv().heapidx;
+
+    // return any upload buffers so that engine can keep it alive until data has been uploaded to gpu
+    return res;
 }
 
 template<sbody_c body_t, topology prim_t>
@@ -222,14 +271,6 @@ void body_static<body_t, prim_t>::update(float dt)
     // update only if we own this body
     if constexpr (std::is_same_v<body_t, rawbody_t> && hasupdate<rawbody_t>) body.update(dt);
 }
-
-struct dispatchparams
-{
-    uint32_t numprims;
-    uint32_t numverts_perprim;
-    uint32_t maxprims_permsgroup;
-    uint32_t numprims_perinstance;
-};
 
 template<sbody_c body_t, topology prim_t>
 inline void body_static<body_t, prim_t>::render(float dt, renderparams const& params)
@@ -241,26 +282,22 @@ inline void body_static<body_t, prim_t>::render(float dt, renderparams const& pa
         return;
     }
 
-    _instancebuffer.updateresource(get_instancedata(body));
+    //instance_data data = get_instancedata(body);
 
-    dispatchparams dispatch_params;
-    dispatch_params.numverts_perprim = topologyconstants<prim_t>::numverts_perprim;
-    dispatch_params.numprims_perinstance = static_cast<uint32_t>(_vertexbuffer.count() / topologyconstants<prim_t>::numverts_perprim);
-    dispatch_params.numprims = static_cast<uint32_t>(_instancebuffer.count() * dispatch_params.numprims_perinstance);
-    dispatch_params.maxprims_permsgroup = topologyconstants<prim_t>::maxprims_permsgroup;
+    //_instancebuffer.updateresource(get_instancedata(body));
+    _objconstants.update({ get_instancedata(body) });
 
     resource_bindings bindings;
-    bindings.constant = { 0, globalresources::get().cbuffer().currframe_gpuaddress() };
-    bindings.vertex = { 3, _vertexbuffer.gpuaddress() };
-    bindings.instance = { 4, _instancebuffer.gpuaddress() };
     bindings.pipelineobjs = foundpso->second;
-    bindings.rootconstants.slot = 2;
-    bindings.rootconstants.values.resize(sizeof(dispatch_params));
+    bindings.rootconstants.slot = 0;
+    bindings.rootconstants.values.push_back(uint32(_descriptorsindex));
 
-    uint const numasthreads = static_cast<uint>(std::ceil(static_cast<float>(dispatch_params.numprims) / static_cast<float>(ASGROUP_SIZE * dispatch_params.maxprims_permsgroup)));
-    stdx::cassert(numasthreads < 128);
-    memcpy(bindings.rootconstants.values.data(), &dispatch_params, sizeof(dispatch_params));
-    dispatch(bindings, params.wireframe, numasthreads);
+    auto const numprims = static_cast<uint32>(_indexbuffer.numelements / topologyconstants<prim_t>::numverts_perprim);
+
+    // each thread outputs one primitive and 3 vertices
+    // each threadgroup can output 85 primitives because output vertices cannot be referenced across thread groups
+    uint32 const dispatchx = gfx::divideup<85>(numprims);
+    dispatch(bindings, params.wireframe, dispatchx);
 }
 
 template<dbody_c body_t, topology prim_t>
@@ -320,18 +357,18 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
 
     resource_bindings bindings;
     bindings.constant = { 0, globalresources::get().cbuffer().currframe_gpuaddress() };
-    bindings.objectconstant = { 1, _cbuffer.currframe_gpuaddress() };
-    bindings.vertex = { 3, _vertexbuffer.gpuaddress() };
+    //bindings.objectconstant = { 1, _cbuffer.currframe_gpuaddress() };
+    //bindings.vertex = { 3, _vertexbuffer.gpuaddress() };
     bindings.pipelineobjs = foundpso->second;
-    bindings.rootconstants.slot = 2;
-    bindings.rootconstants.values.resize(sizeof(dispatch_params));
+    bindings.rootconstants.slot = 0;
+    //bindings.rootconstants.values.resize(sizeof(dispatch_params) / sizeof(uint32));
 
     if (_texture.size() > 0)
         bindings.texture = { 5, _texture.deschandle() };
 
     uint const numasthreads = static_cast<uint>(std::ceil(static_cast<float>(dispatch_params.numprims) / static_cast<float>(ASGROUP_SIZE * dispatch_params.maxprims_permsgroup)));
     stdx::cassert(numasthreads < 128);
-    memcpy(bindings.rootconstants.values.data(), &dispatch_params, sizeof(dispatch_params));
+    //memcpy(bindings.rootconstants.values.data(), &dispatch_params, sizeof(dispatch_params));
     dispatch(bindings, params.wireframe, numasthreads);
 }
 // bodyimpl

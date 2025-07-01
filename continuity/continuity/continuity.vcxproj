@@ -40,6 +40,8 @@
     <ClCompile Include="geometry\geometry.ixx" />
     <ClCompile Include="graphics\graphicscore.ixx" />
     <ClCompile Include="sampleselection\activesample.cpp" />
+    <ClCompile Include="samples\playground\playground.cpp" />
+    <ClCompile Include="samples\playground\playground.ixx" />
     <ClCompile Include="samples\raytrace\raytrace.cpp" />
     <ClCompile Include="samples\raytrace\raytrace.ixx" />
     <ClCompile Include="samples\sphgpu\sphgpu.cpp" />
@@ -52,6 +54,7 @@
     <ClCompile Include="sampleselection\activesample.ixx">
       <FileType>Document</FileType>
     </ClCompile>
+    <ClInclude Include="shared\common.h" />
     <ClInclude Include="shared\raytracecommon.h" />
     <ClInclude Include="shared\sharedconstants.h" />
     <ClInclude Include="shared\sharedtypes.h" />
@@ -90,6 +93,7 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Mesh</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Mesh</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Mesh</ShaderType>
+      <FileType>Document</FileType>
     </FxCompile>
     <FxCompile Include="shaders\default_ps.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
