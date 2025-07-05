@@ -41,11 +41,22 @@ public:
 
 private:
 
+	struct viewglobals
+	{
+		stdx::vec3 campos;
+		stdx::matrix4x4 viewproj;
+	};
+
+	struct sceneglobals
+	{
+		uint32 matbuffer;
+	};
+
 	std::vector<gfx::body_static<gfx::model>> models;
 	std::vector<gfx::body_static<geometry::cube>> boxes;
 
-	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;
-	gfx::structuredbuffer<gfx::material, gfx::accesstype::both> materials;
+	gfx::structuredbuffer<viewglobals, gfx::accesstype::both> viewglobalsbuffer;
+	gfx::structuredbuffer<sceneglobals, gfx::accesstype::both> sceneglobalsbuffer;
 };
 
 

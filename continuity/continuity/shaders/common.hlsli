@@ -70,15 +70,28 @@ struct light
 
 struct material
 {
-    float3 fresnelr;
+    float4 colour;
     float roughness;
-    float4 diffuse;
+    float reflectance;
+    uint metallic;
 };
 
+struct viewconstants
+{
+    float3 campos;
+    float4x4 viewproj;
+};
+
+struct sceneglobals
+{
+    uint matbuffer;
+};
+
+// todo : move camera and proj matrices to view constants
 struct sceneconstants
 {
     float3 campos;
-    uint padding0;
+    uint matbuffer;
     float4 ambient;
     light lights[MAX_NUM_LIGHTS];
     float4x4 viewproj;
@@ -91,23 +104,23 @@ struct instance_data
     float4x4 matx;
     float4x4 normalmatx;
     float4x4 mvpmatx;
-    material mat;
+    uint mat;
 };
 
+// todo : replace with instance data
 struct object_constants
 {
     float4x4 matx;
     float4x4 normalmatx;
     float4x4 mvpmatx;
-    material mat;
+    uint mat;
 };
 
-struct objectdescriptors_index
+struct rootconstants
 {
-    uint value;
+    uint objdescriptors;
+    uint viewglobals;
+    uint sceneglobals;
 };
 
-ConstantBuffer<objectdescriptors_index> descriptorsidx : register(b0);
-// ConstantBuffer<sceneconstants> globals : register(b0);
-//ConstantBuffer<object_constants> objectconstants : register(b1);
-//ConstantBuffer<dispatch_parameters> dispatch_params : register(b2);
+ConstantBuffer<rootconstants> descriptorsidx : register(b0);

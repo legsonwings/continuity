@@ -371,7 +371,7 @@ model::model(std::string const& objpath, bool translatetoorigin)
 
 std::vector<instance_data> model::instancedata() const
 {
-    return { instance_data(matrix::Identity, globalresources::get().view(), globalresources::get().mat("")) };
+    return { instance_data(matrix::Identity, globalresources::get().view()) };
 }
 
 void globalresources::init()
@@ -393,11 +393,10 @@ void globalresources::init()
 
     addcomputepso("blend", "blend_cs.cso");
 
-    addmat("black", material().diffuse(color::black));  
-
-    addmat("white", material().diffuse(color::white));
-    addmat("red", material().diffuse(color::red));
-    addmat("water", material().diffuse(color::water));
+    addmat(material().colour(color::black));  
+    addmat(material().colour(color::white));
+    addmat(material().colour(color::red));
+    addmat(material().colour(color::water));
 
     _resourceheap.d3dheap = createresourcedescriptorheap();
     _cbuffer.createresource();
@@ -414,13 +413,20 @@ void globalresources::init()
 
     // render target srv is at slot 0
     // render target uav is at slot 1
-    _resourceheap.addsrv(srvdesc, _rendertarget.Get());
-    _resourceheap.adduav(uavdesc, _rendertarget.Get());
+    //_resourceheap.addsrv(srvdesc, _rendertarget.Get());
+    //_resourceheap.adduav(uavdesc, _rendertarget.Get());
+}
+
+void globalresources::create_resources()
+{
+    materialsbuffer.create(_materials);
+    _materialsbuffer_idx = materialsbuffer.createsrv().heapidx;
 }
 
 viewinfo& globalresources::view() { return _view; }
 psomapref globalresources::psomap() const { return _psos; }
-matmapref globalresources::matmap() const { return _materials; }
+//matmapref globalresources::matmap() const { return _materials; }
+uint32 globalresources::materialsbuffer_idx() const { return _materialsbuffer_idx; }
 materialcref globalresources::defaultmat() const { return _defaultmat; }
 constantbuffer<sceneconstants>& globalresources::cbuffer() { return _cbuffer; }
 void globalresources::rendertarget(ComPtr<ID3D12Resource>& rendertarget) { _rendertarget = rendertarget; }
@@ -432,19 +438,22 @@ void globalresources::frameindex(uint idx) { _frameindex = idx; }
 uint globalresources::frameindex() const { return _frameindex; }
 std::string globalresources::assetfullpath(std::string const& path) const { return _assetspath + path; }
 void globalresources::psodesc(D3DX12_MESH_SHADER_PIPELINE_STATE_DESC const& psodesc) { _psodesc = psodesc; }
-materialcref globalresources::addmat(std::string const& name, material const& mat, bool twosided) { return _materials.insert({ name, {mat, twosided} }).first->second; }
+
+uint32 globalresources::addmat(material const& mat) 
+{
+    stdx::cassert(_materials.size() < max_materials);
+    _materials.push_back(mat);
+    return uint32(_materials.size() - 1);
+}
 
 uint globalresources::dxgisize(DXGI_FORMAT format)
 {
     return _dxgisizes.contains(format) ? _dxgisizes[format] : stdx::invalid<uint>();
 }
 
-materialcref globalresources::mat(std::string const& name)
+material& globalresources::mat(uint32 id)
 {
-    if (auto const& found = _materials.find(name); found != _materials.end())
-        return found->second;
-
-    return _defaultmat;
+    return _materials[id];
 }
 
 void globalresources::addcomputepso(std::string const& name, std::string const& cs)
@@ -502,7 +511,7 @@ void globalresources::addpso(std::string const& name, std::string const& as, std
     ReadDataFromFile(assetfullpath(ps).c_str(), &pixelshader.data, &pixelshader.size);
     
     CD3DX12_ROOT_PARAMETER rootparam;
-    rootparam.InitAsConstants(1, 0);
+    rootparam.InitAsConstants(3, 0);
     CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(1, &rootparam);
     rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
@@ -664,25 +673,25 @@ globalresources& globalresources::get()
     return res;
 }
 
-std::string generaterandom_matcolor(stdx::ext<material, bool> definition, std::optional<std::string> const& preferred_name)
-{
-    std::random_device rd;
-    static std::mt19937 re(rd());
-    static constexpr uint matgenlimit = 10000u;
-    static std::uniform_int_distribution<uint> matnumberdist(0, matgenlimit);
-    static std::uniform_real_distribution<float> colordist(0.f, 1.f);
-
-    vector3 const color = { colordist(re), colordist(re), colordist(re) };
-    std::string basename("mat");
-
-    std::string matname = (preferred_name.has_value() ? preferred_name.value() : basename) + std::to_string(matnumberdist(re));
-
-    while (globalresources::get().matmap().find(matname) != globalresources::get().matmap().end()) { matname = basename + std::to_string(matnumberdist(re)); }
-
-    definition->a = vector4(color.x, color.y, color.z, definition->a.w);
-    globalresources::get().addmat(matname, definition, definition.ex());
-    return matname;
-}
+//std::string generaterandom_matcolor(stdx::ext<material, bool> definition, std::optional<std::string> const& preferred_name)
+//{
+//    std::random_device rd;
+//    static std::mt19937 re(rd());
+//    static constexpr uint matgenlimit = 10000u;
+//    static std::uniform_int_distribution<uint> matnumberdist(0, matgenlimit);
+//    static std::uniform_real_distribution<float> colordist(0.f, 1.f);
+//
+//    stdx::vec3 const color = { colordist(re), colordist(re), colordist(re) };
+//    std::string basename("mat");
+//
+//    std::string matname = (preferred_name.has_value() ? preferred_name.value() : basename) + std::to_string(matnumberdist(re));
+//
+//    while (globalresources::get().matmap().find(matname) != globalresources::get().matmap().end()) { matname = basename + std::to_string(matnumberdist(re)); }
+//
+//    definition->basecolour = stdx::vec4{ color[0], color[1], color[2], definition->basecolour[3]};
+//    globalresources::get().addmat(matname, definition, definition.ex());
+//    return matname;
+//}
 
 void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, uint const perframe_buffersize)
 {

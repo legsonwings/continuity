@@ -2,18 +2,29 @@
 #include "common.hlsli"
 #include "shared/common.h"
 
-//StructuredBuffer<instance_data> instances : register(t1);
-
 float4 main(meshshadervertex input) : SV_TARGET
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
     StructuredBuffer<object_constants> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+    StructuredBuffer<viewconstants> viewgloabls = ResourceDescriptorHeap[descriptorsidx.viewglobals];
+    StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
 
-    float4 const ambientcolor = 0.5 * objconstants[0].mat.diffuse;
-    //float4 const color = computelighting(globals.lights, instances[input.instanceid].mat, input.position, normalize(input.normal));
+    StructuredBuffer<material> materials = ResourceDescriptorHeap[sceneglobals[0].matbuffer];
 
-    float4 finalcolor = float4(1, 0, 0, 1);
-    finalcolor.a = objconstants[0].mat.diffuse.a;
+    material m = materials[objconstants[0].mat];
+
+    float4 const basecolour = m.colour;
+    float3 const ambientcolor = 0.1f * basecolour.xyz;
+
+    // todo : sundir should come from outside
+    float3 l = -float3(1, -1, 1);
+    float3 shadingpos = input.position;
+
+    float3 n = normalize(input.normal);
+    float3 v = normalize(viewgloabls[0].campos - shadingpos);
+
+    float3 colour = calculatelighting(float3(20, 20, 20), m, l, v, n);
+    float4 finalcolor = float4(colour + ambientcolor, m.colour.a);
 
     return finalcolor;
 }

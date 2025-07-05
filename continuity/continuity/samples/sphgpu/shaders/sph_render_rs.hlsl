@@ -4,6 +4,7 @@
 #include "shared/raytracecommon.h"
 #include "shaders/lighting.hlsli"
 #include "sphcommon.hlsli"
+#include "shaders/common.hlsli"
 
 struct raypayload
 {
@@ -99,12 +100,12 @@ void tri_closesthit(inout raypayload payload, in BuiltInTriangleIntersectionAttr
     StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[7];
     ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
     StructuredBuffer<uint> material_ids = ResourceDescriptorHeap[8];
-    StructuredBuffer<rt::material> materials = ResourceDescriptorHeap[9];
+    StructuredBuffer<material> materials = ResourceDescriptorHeap[9];
 
     // index of blas in tlas, assume each instance only contains geometries that use same material id
     uint const geometryinstance_idx = InstanceIndex();
 
-    rt::material geomaterial = materials[material_ids[geometryinstance_idx]];
+    material geomaterial = materials[material_ids[geometryinstance_idx]];
 
     uint const triidx = PrimitiveIndex();
 
@@ -119,13 +120,9 @@ void tri_closesthit(inout raypayload payload, in BuiltInTriangleIntersectionAttr
     float3 n = normalize(cross(v1 - v0, v2 - v0));
     float3 l = -frameconstants.sundir;
     float3 v = normalize(frameconstants.campos - hitpoint);
-    float perceptual_r = geomaterial.roughness;
-    float metallic = geomaterial.metallic;
-    float4 basecolour = (float4)geomaterial.colour;
-    float reflectance = geomaterial.reflectance;
 
     payload.color.a = 1.0f;
-    payload.color.xyz = calculatelighting(float3(50, 50, 50), basecolour.xyz, reflectance, l, v, n, metallic, perceptual_r);
+    payload.color.xyz = calculatelighting(float3(50, 50, 50), geomaterial, l, v, n) + float3(0.3, 0.3, 0.3); // ambient term;
 }
 
 struct fluidhitattributes 

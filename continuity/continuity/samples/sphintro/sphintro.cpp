@@ -500,8 +500,9 @@ sphfluid::sphfluid(geometry::aabb const& _bounds) : container(_bounds)
 {
     particlegeometry = geometry::sphere{ {0.0f, 0.0f, 0.0f }, particleradius };
    
-    auto const& redmaterial = gfx::globalresources::get().mat("ball");
+    //auto const& redmaterial = gfx::globalresources::get().mat("ball");
     particleparams.reserve(numparticles);
+    
     static std::uniform_real_distribution<float> distvel(-0.1f, 0.1f);
     static std::uniform_real_distribution<float> distacc(-0.1f, 0.1f);
 
@@ -517,7 +518,9 @@ sphfluid::sphfluid(geometry::aabb const& _bounds) : container(_bounds)
         // todo : expose this limit of 5000 somewhere
         // better yet make it a template parameter of the generator function
         stdx::cassert(numparticles <= 5000u);
-        particleparams.back().matname = gfx::generaterandom_matcolor(redmaterial);
+        
+        // todo : material id
+        //particleparams.back().matname = gfx::generaterandom_matcolor(redmaterial);
 
         particleparams.back().v = particleparams.back().a = vector3::Zero;
         // give small random acceleration and velocity to particles
@@ -584,7 +587,7 @@ std::vector<gfx::instance_data> sphfluid::instancedata() const
     std::vector<gfx::instance_data> particles_instancedata;
     for (auto const& particleparam : particleparams)
     {
-        particles_instancedata.emplace_back(matrix::CreateTranslation(particleparam.p), gfx::globalresources::get().view(), gfx::globalresources::get().mat(particleparam.matname));
+        particles_instancedata.emplace_back(matrix::CreateTranslation(particleparam.p), gfx::globalresources::get().view());
     }
 
     return particles_instancedata;
@@ -887,7 +890,7 @@ gfx::resourcelist sphfluidintro::create_resources()
 
     // since these use static vertex buffers, just send 0 as maxverts
     boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{roomextents} }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });
-    fluid.emplace_back(sphfluid(boxes[0]->bbox()), bodyparams{ 20000, 1, "default_twosided", "water"});
+    fluid.emplace_back(sphfluid(boxes[0]->bbox()), bodyparams{ 20000, 1, "default_twosided", 0});
     fluidparticles.emplace_back(fluid.back().get(), &sphfluid::particlevertices, &sphfluid::instancedata, bodyparams{0, numparticles, "instanced"});
 
     gfx::resourcelist res;

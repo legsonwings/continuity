@@ -297,6 +297,9 @@ void continuity::create_resources()
 
     // need to keep these alive till data is uploaded to gpu
     std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources();
+    
+    gfx::globalresources::get().create_resources();
+
     ThrowIfFailed(cmdlist->Close());
 
     ID3D12CommandList* ppCommandLists[] = { cmdlist.Get() };

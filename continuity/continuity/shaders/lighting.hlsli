@@ -20,14 +20,14 @@ float3 blinnphong(float3 toeye, float3 normal, float3 intensity, material mat, f
 	float const m = (1.f - mat.roughness) * 256.f;
 	float3 const h = normalize((lightvec + toeye));
 
-	float3 const specular = specularcoefficient(mat.fresnelr, h, lightvec);
+	float3 const specular = specularcoefficient(mat.reflectance.xxx, h, lightvec);
 	float3 const roughness =  (m + 8.f ) * pow(max(dot(h, normal), 0.f), m) / 8.f;
 	float3 specalbedo = specular * roughness;
 	
 	// specalbedo can go out of range [0 1] which LDR doesn't support
 	specalbedo = specalbedo / (specalbedo + 1.0f);
 
-	return (mat.diffuse.rgb + specalbedo) * intensity;
+	return (mat.colour.rgb + specalbedo) * intensity;
 }
 
 float3 directionallight(light l, material m, float3 normal, float3 toeye)
@@ -120,9 +120,12 @@ float3 specularbrdf(float3 l, float3 v, float3 n, float r, float3 f0)
 // irradiance is amount of light energy a surface recieves per unit area, at normal incidence
 // assume all surfaces recieve same amount of light energy at normal incidence for now,
 // this assumption holds well for directional lights which are assumed to be infinitely far away, but for point and spot lights we would need to attenuate the irradiance
-float3 calculatelighting(float3 irradiance, float3 basecolour, float reflectance, float3 l, float3 v, float3 n, float metallic, float r)
+float3 calculatelighting(float3 irradiance, material m, float3 l, float3 v, float3 n)
 {
-    bool ismetallic = metallic > 0.001f;
+    float3 basecolour = m.colour.xyz;
+    float reflectance = m.reflectance;
+    bool ismetallic = m.metallic > 0.001f;
+    float r = m.roughness;
 
     // metals do not have diffuse reflectance and non-metals have low specular reflectance
     float3 diffusealbedo = ismetallic ? (float3) 0.0f : basecolour;
@@ -146,5 +149,5 @@ float3 calculatelighting(float3 irradiance, float3 basecolour, float reflectance
     float3 reflectedcolour = diffusecolour + specularcolour;
 
     float nol = saturate(dot(n, l));
-    return irradiance * nol * reflectedcolour + float3(0.3, 0.3, 0.3); // ambient term
+    return irradiance * nol * reflectedcolour;
 }

@@ -53,10 +53,10 @@ struct vertex
 
 struct color
 {
-    static inline vector4 red = vector4{ 1.f, 0.f, 0.f, 1.f };
-    static inline vector4 black = vector4{ 0.f, 0.f, 0.f, 1.f };
-    static inline vector4 white = vector4{ 1.f, 1.f, 1.f, 1.f };
-	static inline vector4 water = vector4{ 0.2f, 0.4f, 0.6f, 0.7f };
+    static constexpr auto red = stdx::vec4{ 1.f, 0.f, 0.f, 1.f };
+    static constexpr auto black = stdx::vec4{ 0.f, 0.f, 0.f, 1.f };
+    static constexpr auto white = stdx::vec4{ 1.f, 1.f, 1.f, 1.f };
+	static constexpr auto water = stdx::vec4{ 0.2f, 0.4f, 0.6f, 0.7f };
 };
 
 struct shader
@@ -120,27 +120,13 @@ struct viewinfo
 
 struct material
 {
-    // the member order is deliberate
-    vector3 fr = { 0.01f, 0.01f, 0.01f };
-    float r = 0.25f;
-    vector4 a = vector4::One;
+    stdx::vec4 basecolour = stdx::vec4{ 1, 0, 0, 0 };
+    float roughness = 0.25f;
+    float reflectance = 0.1f;
+    uint32 metallic = 0;
 
-    material& roughness(float _r) { r = _r; return *this; }
-    material& diffuse(vector4 const& _a) { a = _a; return *this; }
-    material& fresnelr(vector3 const& _fr) { fr = _fr; return *this; }
+    material& colour(stdx::vec4 const& colour) { basecolour = colour; return *this; }
 };
-
-//struct material
-//{
-//    float reflectance = 0.1f;
-//    float roughness = 0.25f;
-//    stdx::vec4 basecolour = stdx::vec4{ 1, 0, 0, 0 };
-//    uint32 metallic = 0;
-//
-//    material& roughness(float r) { roughness = r; return *this; }
-//    material& basecolour(stdx::vec4 const& colour) { basecolour = colour; return *this; }
-//    material& reflectance(float r) { reflectance = r; return *this; }
-//};
 
 // this is used in constant buffer so alignment is important
 struct instance_data
@@ -148,16 +134,16 @@ struct instance_data
     matrix matx;
     matrix normalmatx;
     matrix mvpmatx;
-    material mat;
+    uint32 mat;
     instance_data() = default;
-    instance_data(matrix const& m, viewinfo const& v, material const& _material)
-        : matx(m.Transpose()), normalmatx(m.Invert()), mvpmatx((m * v.view * v.proj).Transpose()), mat(_material) {}
+    instance_data(matrix const& m, viewinfo const& v)
+        : matx(m.Transpose()), normalmatx(m.Invert()), mvpmatx((m * v.view * v.proj).Transpose()) {}
 };
 
 struct alignas(256) objectconstants : public instance_data
 {
     objectconstants() = default;
-    objectconstants(matrix const& m, viewinfo const& v, material const& _material) : instance_data(m, v, _material) {}
+    objectconstants(matrix const& m, viewinfo const& v) : instance_data(m, v) {}
 };
 
 struct light
@@ -170,10 +156,11 @@ struct light
     uint8_t padding2[4];
 };
 
+
 struct alignas(256) sceneconstants
 {
     stdx::vec3 campos;
-    uint8_t padding[4];
+    uint32 padding0;
     vector4 ambient;
     light lights[MAX_NUM_LIGHTS];
 	matrix viewproj;

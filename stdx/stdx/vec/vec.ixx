@@ -39,7 +39,7 @@ struct vec : public std::array<t, d>
 	constexpr std::string str() const;
 };
 
-// could merge vec and matrix, if I was immortal
+// todo : could merge vec and matrix(use recursive template array)
 template<uint r, uint c, stdx::arithmeticpure_c t = float>
 struct matrix : public std::array<vec<c, t>, r>
 {

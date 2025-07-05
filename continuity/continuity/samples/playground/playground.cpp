@@ -21,10 +21,11 @@ std::unique_ptr<sample_base> create_instance<samples::playground>(view_data cons
 
 using namespace DirectX;
 
+
 playground::playground(view_data const& viewdata) : sample_base(viewdata)
 {
 	camera.Init({ 0.f, 0.f, -30.f });
-	camera.SetMoveSpeed(100.0f);
+	camera.SetMoveSpeed(20.0f);
 }
 
 gfx::resourcelist playground::create_resources()
@@ -35,38 +36,26 @@ gfx::resourcelist playground::create_resources()
     using gfx::material;
 
     auto& globalres = gfx::globalresources::get();
-    auto& globals = globalres.cbuffer().data();
 
-    // initialize lights
-    globals.numdirlights = 1;
-    globals.numpointlights = 2;
+    viewglobalsbuffer.create();
+    sceneglobalsbuffer.create();
 
-    globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
-    globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
-    globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
+    gfx::material mat;
+    mat.basecolour = stdx::vec4{ 0.0f, 1.0, 0.0, 1.0f };
+    mat.metallic = 0u;
+    mat.roughness = 0.25f;
+    mat.reflectance = 0.5f;
 
-    globals.lights[1].position = { -15.f, 15.f, -15.f };
-    globals.lights[1].color = { 1.f, 1.f, 1.f };
-    globals.lights[1].range = 40.f;
+    auto matid = globalres.addmat(mat);
 
-    globals.lights[2].position = { 15.f, 15.f, -15.f };
-    globals.lights[2].color = { 1.f, 1.f, 1.f };
-    globals.lights[2].range = 40.f;
-
-    globalres.cbuffer().updateresource();
-
-    //std::vector<material> materials_data(1u);
-
-    //materials_data[0].colour = stdx::vec4{ 0.0f, 1.0, 0.0, 1.0f };
-    //materials_data[0].metallic = 1u;
-    //materials_data[0].roughness = 0.25f;
-    //materials_data[0].reflectance = 0.5f;
-
-    //materialids.create(material_idsdata);
-    //materials.create(materials_data);
+    // no need to write objdesc as it is written by body
+    gfx::rootdescriptors rootdescs;
+    rootdescs.viewglobalsdesc = viewglobalsbuffer.createsrv().heapidx;
+    rootdescs.sceneglobalsdesc = sceneglobalsbuffer.createsrv().heapidx;
 
     // since these use static vertex buffers, just send 0 as maxverts
-    models.emplace_back(gfx::model("models/spot.obj", true), bodyparams{ 0, 1, "instanced" } );
+    auto &model = models.emplace_back(gfx::model("models/spot.obj", true), bodyparams{ 0, 1, "instanced", matid } );
+    model.rootdescriptors() = rootdescs;
 
     gfx::resourcelist res;
     for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) { stdx::append(b->create_resources(), res); };
@@ -77,6 +66,18 @@ void playground::update(float dt)
 {
     sample_base::update(dt);
     for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->update(dt);
+
+    viewglobals viewdata;
+    sceneglobals scenedata;
+
+    auto& globalres = gfx::globalresources::get();
+
+    viewdata.campos = camera.GetCurrentPosition();
+    viewdata.viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj));
+    scenedata.matbuffer = globalres.materialsbuffer_idx();
+
+    viewglobalsbuffer.update({ viewdata });
+    sceneglobalsbuffer.update({ scenedata });
 }
 
 void playground::render(float dt)

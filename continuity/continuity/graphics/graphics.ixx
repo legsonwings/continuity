@@ -188,6 +188,17 @@ struct structuredbuffer : public structuredbufferbase<t> {};
 template<typename t>
 struct structuredbuffer<t, accesstype::both> : public structuredbufferbase<t>
 {
+	// create without intitial data
+	void create(uint32 numelements = 1)
+	{
+		stdx::cassert(this->d3dresource == nullptr);
+
+		UINT buffersize = UINT(numelements * sizeof(t));
+		ComPtr<ID3D12Resource> uploadbuffer = create_uploadbuffer(&_mappeddata, buffersize);
+		this->d3dresource = uploadbuffer;
+		this->numelements = numelements;
+	}
+
 	void create(std::vector<t> const& data)
 	{
 		stdx::cassert(this->d3dresource == nullptr);
@@ -551,18 +562,27 @@ class globalresources
 	ComPtr<ID3D12Resource> _rendertarget;
 	ComPtr<ID3D12GraphicsCommandList6> _commandlist;
 	std::unordered_map<std::string, pipeline_objects> _psos;
-	std::unordered_map<std::string, stdx::ext<material, bool>> _materials;
+	//std::unordered_map<std::string, stdx::ext<material, bool>> _materials;
 	stdx::ext<material, bool> _defaultmat{ {}, false };
+
+	std::vector<material> _materials;
 	std::unordered_map<DXGI_FORMAT, uint> _dxgisizes{ {DXGI_FORMAT_R8G8B8A8_UNORM, 4} };
 	D3DX12_MESH_SHADER_PIPELINE_STATE_DESC _psodesc{};
+
+	uint32 _materialsbuffer_idx = -1;//stdx::invalid<uint32>;
+	gfx::structuredbuffer<material, gfx::accesstype::both> materialsbuffer;
 
 	std::string assetfullpath(std::string const& path) const;
 public:
 	void init();
+	void create_resources();
+
+	static constexpr uint32 max_materials = 100;
 
 	viewinfo& view();
 	psomapref psomap() const;
 	matmapref matmap() const;
+	uint32 materialsbuffer_idx() const;
 	materialcref defaultmat() const;
 	constantbuffer<sceneconstants>& cbuffer();
 	void rendertarget(ComPtr<ID3D12Resource>& rendertarget);
@@ -573,9 +593,9 @@ public:
 	void frameindex(uint idx);
 	uint frameindex() const;
 	uint dxgisize(DXGI_FORMAT format);
-	materialcref mat(std::string const& name);
+	material& mat(uint32 matid);
 	void psodesc(D3DX12_MESH_SHADER_PIPELINE_STATE_DESC const& psodesc);
-	materialcref addmat(std::string const& name, material const& mat, bool twosided = false);
+	uint32 addmat(material const& mat);
 	void addcomputepso(std::string const& name, std::string const& cs);
 	void addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags = psoflags::none);
 	pipeline_objects& addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders);

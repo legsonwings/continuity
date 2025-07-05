@@ -63,12 +63,8 @@ gfx::resourcelist raytrace::create_resources()
 
         // one material id per blas
         std::vector<uint32> material_idsdata(1u, 0u);
-        std::vector<rt::material> materials_data(1u);
-
-        materials_data[0].colour[0] = 0.0f;
-        materials_data[0].colour[1] = 1.0f;
-        materials_data[0].colour[2] = 0.0f;
-        materials_data[0].colour[3] = 1.0f;
+        std::vector<gfx::material> materials_data(1u);
+        materials_data[0].basecolour = { 0.0f, 1.0f, 0.0f, 1.0f };
         materials_data[0].metallic = 1u;
         materials_data[0].roughness = 0.25f;
         materials_data[0].reflectance = 0.5f;
@@ -115,6 +111,7 @@ gfx::resourcelist raytrace::create_resources()
 
         raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
+        // todo : these are incorrect now
         // we don't store descriptors, as the indices are hardcoded in shaders
         // 0 rt srv
         // 1 rt uav

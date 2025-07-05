@@ -201,12 +201,12 @@ gfx::resourcelist sphgpu::create_resources()
 
         // one material id per blas
         std::vector<uint32> material_idsdata(2u);
-        std::vector<rt::material> materials_data(1u);
+        std::vector<gfx::material> materials_data(1u);
 
         material_idsdata[0] = 0;
         material_idsdata[1] = 0;
 
-        materials_data[0].colour = { 1.0f, 0.0f, 0.0f, 1.0f };
+        materials_data[0].basecolour = { 1.0f, 0.0f, 0.0f, 1.0f };
         materials_data[0].metallic = 1u;
         materials_data[0].roughness = 0.25f;
         materials_data[0].reflectance = 0.5f;

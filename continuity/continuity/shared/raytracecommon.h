@@ -13,14 +13,6 @@ import vec;
 namespace rt
 {
 
-struct material
-{
-    float4 colour;
-    float roughness;
-    float reflectance;
-    uint32 metallic;
-};
-
 #if __cplusplus
 
 struct alignas(256) sceneconstants

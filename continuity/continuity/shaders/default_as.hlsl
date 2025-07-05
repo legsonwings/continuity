@@ -4,7 +4,7 @@
 [NumThreads(ASGROUP_SIZE, 1, 1)]
 void main(uint dtid : SV_DispatchThreadID, uint gtid : SV_GroupThreadID, uint gid : SV_GroupID)
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
     StructuredBuffer<dispatch_parameters> dispatch_params = ResourceDescriptorHeap[descriptors[0].dispatchparams];
 
     uint const maxprimsperasg = dispatch_params[0].maxprims_permsgroup * ASGROUP_SIZE;

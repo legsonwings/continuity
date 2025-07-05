@@ -31,7 +31,7 @@ void main(
 
     if (gtid < numprims)
     {
-        StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+        StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
         StructuredBuffer<dispatch_parameters> dispatch_params = ResourceDescriptorHeap[descriptors[0].dispatchparams];
 
         // The out buffers are local to group but input buffer is global

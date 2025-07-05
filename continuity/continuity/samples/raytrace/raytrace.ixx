@@ -27,7 +27,7 @@ private:
 	gfx::rtvertexbuffer vertexbuffer;
 	gfx::rtindexbuffer indexbuffer;
 	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;
-	gfx::structuredbuffer<rt::material, gfx::accesstype::both> materials;
+	gfx::structuredbuffer<gfx::material, gfx::accesstype::both> materials;
 
 	gfx::constantbuffer2<rt::sceneconstants, 1> constantbuffer;
 };

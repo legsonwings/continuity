@@ -37,6 +37,13 @@ struct dispatchparams
     uint32_t numprims_perinstance;
 };
 
+struct rootdescriptors
+{
+    uint32 objdesc;
+    uint32 viewglobalsdesc;
+    uint32 sceneglobalsdesc;
+};
+
 struct instances_data
 {
     std::vector<instance_data> data;
@@ -85,7 +92,7 @@ struct bodyparams
     uint maxverts;
     uint maxinstances;
     std::string psoname;
-    std::string matname;
+    uint32 mat;
 
     stdx::vecui2 dims;
 };
@@ -133,8 +140,7 @@ class body_static : public bodyinterface
     structuredbuffer<dispatchparams, accesstype::both> _dispatchparams;
     structuredbuffer<vertextype, accesstype::both> _vertexbuffer;
     structuredbuffer<uint32, accesstype::both> _indexbuffer;
-    //staticbuffer<vertextype> _vertexbuffer;
-    //dynamicbuffer<instance_data> _instancebuffer;
+    rootdescriptors _rootdescs;
 
     using vertexfetch_r = std::vector<vertextype>;
     using indexfetch_r = std::vector<uint32>;
@@ -161,6 +167,9 @@ public:
 
     void descriptorsindex(uint index) { _descriptorsindex = index; }
     uint descriptorsindex() const { return descriptorsindex; }
+
+    gfx::rootdescriptors const& rootdescriptors() const { return _rootdescs; }
+    gfx::rootdescriptors& rootdescriptors() { return _rootdescs; }
 
     constexpr body_t& get() { return body; }
     constexpr body_t const& get() const { return body; }
@@ -250,7 +259,10 @@ std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resource
 
     _dispatchparams.create({ dispatch_params });
 
-    _objconstants.create(get_instancedata(body));
+    auto bodydata = get_instancedata(body);
+    // only one instance right now
+    bodydata[0].mat = getparams().mat;
+    _objconstants.create(bodydata);
 
     objdescriptors descriptors;
     descriptors.vertexbuffer = _vertexbuffer.createsrv().heapidx;
@@ -282,15 +294,18 @@ inline void body_static<body_t, prim_t>::render(float dt, renderparams const& pa
         return;
     }
 
-    //instance_data data = get_instancedata(body);
+    auto bodydata = get_instancedata(body);
 
-    //_instancebuffer.updateresource(get_instancedata(body));
-    _objconstants.update({ get_instancedata(body) });
+    // only one instance right now 
+    bodydata[0].mat = getparams().mat;
+    _objconstants.update(bodydata);
 
     resource_bindings bindings;
     bindings.pipelineobjs = foundpso->second;
     bindings.rootconstants.slot = 0;
     bindings.rootconstants.values.push_back(uint32(_descriptorsindex));
+    bindings.rootconstants.values.push_back(_rootdescs.viewglobalsdesc);
+    bindings.rootconstants.values.push_back(_rootdescs.sceneglobalsdesc);
 
     auto const numprims = static_cast<uint32>(_indexbuffer.numelements / topologyconstants<prim_t>::numverts_perprim);
 
@@ -347,7 +362,7 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
 
     _vertexbuffer.updateresource(get_vertices(body));
     _texture.updateresource(body.texturedata());
-    _cbuffer.updateresource(objectconstants{ matrix::CreateTranslation(body.center()), globalresources::get().view(), globalresources::get().mat(getparams().matname) });
+    _cbuffer.updateresource(objectconstants(matrix::CreateTranslation(body.center()), globalresources::get().view()));
     stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
 
     dispatchparams dispatch_params;

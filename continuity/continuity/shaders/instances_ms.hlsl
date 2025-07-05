@@ -1,18 +1,20 @@
 #include "common.hlsli"
 #include "shared/common.h"
 
-meshshadervertex getvertattribute(vertexin vertex)
+meshshadervertex getvertattribute(vertexin vertex, float3 n)
 {
     meshshadervertex outvert;
     
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
     StructuredBuffer<object_constants> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
 
     float4 const pos = float4(vertex.position, 1.f);
     outvert.instanceid = 0;
     outvert.position = mul(pos, objconstants[0].matx).xyz;
     outvert.positionh = mul(pos, objconstants[0].mvpmatx);
-    outvert.normal = normalize(mul(float4(vertex.normal, 0), objconstants[0].normalmatx).xyz);
+
+    // world space face normal(todo : vertex normals aren't passed in yet)
+    outvert.normal = normalize(mul(float4(n, 0), objconstants[0].normalmatx).xyz);
 
     return outvert;
 }
@@ -33,7 +35,7 @@ void main(
     out vertices meshshadervertex verts[MAX_VERTICES_PER_GROUP]
 )
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.value];
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
     StructuredBuffer<dispatch_parameters> dispatch_params = ResourceDescriptorHeap[descriptors[0].dispatchparams];
     StructuredBuffer<vertexin> triangle_vertices = ResourceDescriptorHeap[descriptors[0].vertexbuffer];
     StructuredBuffer<uint> triangle_indices = ResourceDescriptorHeap[descriptors[0].indexbuffer];
@@ -49,8 +51,14 @@ void main(
 
         // the out buffers are local to group but input buffer is global
         // not very optimal as this is writing duplicate vertices
-        verts[v0idx] = getvertattribute(triangle_vertices[triangle_indices[dtid * 3u]]);
-        verts[v0idx + 1] = getvertattribute(triangle_vertices[triangle_indices[dtid * 3u + 1]]);
-        verts[v0idx + 2] = getvertattribute(triangle_vertices[triangle_indices[dtid * 3u + 2]]);
+        vertexin v0 = triangle_vertices[triangle_indices[dtid * 3u]];
+        vertexin v1 = triangle_vertices[triangle_indices[dtid * 3u + 1]];
+        vertexin v2 = triangle_vertices[triangle_indices[dtid * 3u + 2]];
+
+        // counter-clockwise
+        float3 n = normalize(cross(v1.position - v0.position, v2.position - v0.position));
+        verts[v0idx] = getvertattribute(v0, n);
+        verts[v0idx + 1] = getvertattribute(v1, n);
+        verts[v0idx + 2] = getvertattribute(v2, n);
     }
 }
