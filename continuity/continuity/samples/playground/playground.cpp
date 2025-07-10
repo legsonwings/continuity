@@ -25,7 +25,7 @@ using namespace DirectX;
 playground::playground(view_data const& viewdata) : sample_base(viewdata)
 {
 	camera.Init({ 0.f, 0.f, -30.f });
-	camera.SetMoveSpeed(10.0f);
+	camera.SetMoveSpeed(200.0f);
 }
 
 gfx::resourcelist playground::create_resources()
@@ -51,7 +51,7 @@ gfx::resourcelist playground::create_resources()
     rootdescs.sceneglobalsdesc = sceneglobalsbuffer.createsrv().heapidx;
 
     // since these use static vertex buffers, just send 0 as maxverts
-    auto &model = models.emplace_back(gfx::model("models/spot.obj", true), bodyparams{ 0, 1, "instanced", matid } );
+    auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj", true), bodyparams{ 0, 1, "instanced", matid } );
     model.rootdescriptors() = rootdescs;
 
     gfx::resourcelist res;
@@ -72,6 +72,7 @@ void playground::update(float dt)
     viewdata.campos = camera.GetCurrentPosition();
     viewdata.viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj));
     scenedata.matbuffer = globalres.materialsbuffer_idx();
+    scenedata.viewdirshading = viewdirshading;
 
     viewglobalsbuffer.update({ viewdata });
     sceneglobalsbuffer.update({ scenedata });
@@ -80,4 +81,14 @@ void playground::update(float dt)
 void playground::render(float dt)
 {
     for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { false });
+}
+
+void playground::on_key_up(unsigned key)
+{
+    if (key == '1')
+    {
+        viewdirshading = 1 - viewdirshading;
+    }
+
+    sample_base::on_key_up(key);
 }

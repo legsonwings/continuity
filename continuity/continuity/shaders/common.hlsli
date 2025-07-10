@@ -85,6 +85,7 @@ struct viewconstants
 struct sceneglobals
 {
     uint matbuffer;
+    uint viewdirshading;
 };
 
 // todo : move camera and proj matrices to view constants

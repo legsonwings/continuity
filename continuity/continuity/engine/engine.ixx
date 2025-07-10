@@ -2,6 +2,7 @@ module;
 
 // todo : anyway to avoid this?
 #define __SPECSTRINGS_STRICT_LEVEL 0
+#define NOMINMAX
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include "thirdparty/d3dx12.h"
@@ -25,7 +26,7 @@ export struct view_data
     unsigned width = 720;
     unsigned height = 720;
     float nearplane = 0.1f;
-    float farplane = 1000.f;
+    float farplane = std::numeric_limits<float>::max();
 
     float get_aspect_ratio() const { return static_cast<float>(width) / static_cast<float>(height); }
 };

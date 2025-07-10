@@ -38,6 +38,7 @@ public:
 	gfx::resourcelist create_resources() override;
 	void update(float dt) override;
 	void render(float dt) override;  
+	void on_key_up(unsigned key) override;
 
 private:
 
@@ -50,6 +51,7 @@ private:
 	struct sceneglobals
 	{
 		uint32 matbuffer;
+		uint32 viewdirshading;
 	};
 
 	std::vector<gfx::body_static<gfx::model>> models;
@@ -57,6 +59,8 @@ private:
 
 	gfx::structuredbuffer<viewglobals, gfx::accesstype::both> viewglobalsbuffer;
 	gfx::structuredbuffer<sceneglobals, gfx::accesstype::both> sceneglobalsbuffer;
+
+	uint32 viewdirshading = 0;
 };
 
 

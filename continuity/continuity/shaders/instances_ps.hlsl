@@ -11,11 +11,6 @@ float4 main(meshshadervertex input) : SV_TARGET
 
     StructuredBuffer<material> materials = ResourceDescriptorHeap[sceneglobals[0].matbuffer];
 
-    material m = materials[objconstants[0].mat];
-
-    float4 const basecolour = m.colour;
-    float3 const ambientcolor = 0.1f * basecolour.xyz;
-
     // todo : sundir should come from outside
     float3 l = -float3(1, -1, 1);
     float3 shadingpos = input.position;
@@ -23,8 +18,20 @@ float4 main(meshshadervertex input) : SV_TARGET
     float3 n = normalize(input.normal);
     float3 v = normalize(viewgloabls[0].campos - shadingpos);
 
-    float3 colour = calculatelighting(float3(20, 20, 20), m, l, v, n);
-    float4 finalcolor = float4(colour + ambientcolor, m.colour.a);
+    if (sceneglobals[0].viewdirshading == 1)
+    {
+        return float4(abs(dot(v, n)).xxx, 1);
+    }
+    else
+    {
+        material m = materials[objconstants[0].mat];
 
-    return finalcolor;
+        float4 const basecolour = m.colour;
+        float3 const ambientcolor = 0.1f * basecolour.xyz;
+
+        float3 colour = calculatelighting(float3(20, 20, 20), m, l, v, n);
+        float4 finalcolor = float4(colour + ambientcolor, m.colour.a);
+
+        return finalcolor;
+    }
 }
