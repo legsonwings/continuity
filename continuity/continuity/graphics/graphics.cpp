@@ -417,6 +417,11 @@ void globalresources::init()
     //_resourceheap.adduav(uavdesc, _rendertarget.Get());
 }
 
+void globalresources::deinit()
+{
+    get() = {};
+}
+
 void globalresources::create_resources()
 {
     materialsbuffer.create(_materials);

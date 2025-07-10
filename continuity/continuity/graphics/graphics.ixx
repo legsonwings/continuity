@@ -575,6 +575,7 @@ class globalresources
 	std::string assetfullpath(std::string const& path) const;
 public:
 	void init();
+	void deinit();
 	void create_resources();
 
 	static constexpr uint32 max_materials = 100;

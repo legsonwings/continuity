@@ -25,15 +25,12 @@ using namespace DirectX;
 playground::playground(view_data const& viewdata) : sample_base(viewdata)
 {
 	camera.Init({ 0.f, 0.f, -30.f });
-	camera.SetMoveSpeed(20.0f);
+	camera.SetMoveSpeed(10.0f);
 }
 
 gfx::resourcelist playground::create_resources()
 {
-    using geometry::cube;
-    using geometry::sphere;
     using gfx::bodyparams;
-    using gfx::material;
 
     auto& globalres = gfx::globalresources::get();
 

@@ -3,6 +3,7 @@ module;
 #define NOMINMAX
 #include <wtypes.h>
 #include <DirectXMath.h>
+#include "simplemath/simplemath.h"
 
 module engine:simplecamera;
 
@@ -10,12 +11,16 @@ import std;
 
 using namespace DirectX;
 
+using vector3 = DirectX::SimpleMath::Vector3;
+using vector4 = DirectX::SimpleMath::Vector4;
+using matrix = DirectX::SimpleMath::Matrix;
+
 static constexpr XMFLOAT3 defaultlook_dir = { 0.f, 0.f, 1.f };
 
 simplecamera::simplecamera() :
     m_initialPosition{ 0, 0, 0 },
     m_position{ m_initialPosition },
-    m_yaw(XM_PI),
+    m_yaw(0),
     m_pitch(0.0f),
     m_lookDirection(defaultlook_dir),
     m_upDirection(0, 1, 0),
@@ -28,6 +33,7 @@ simplecamera::simplecamera() :
 void simplecamera::Init(stdx::vec3 position)
 {
     m_initialPosition = position;
+    m_cameramatx.Translation(vector3(&m_initialPosition[0]));
     Reset();
 }
 
@@ -44,14 +50,36 @@ void simplecamera::SetTurnSpeed(float radiansPerSecond)
 void simplecamera::Reset()
 {
     m_position = m_initialPosition;
-    m_yaw = 0.f;
+    m_cameramatx.Translation(vector3(&m_position[0]));
+    m_yaw = 0;
     m_pitch = 0.0f;
     m_lookDirection = { defaultlook_dir };
 }
 
 void simplecamera::Update(float elapsedSeconds)
 {
+    POINT pos;
+    RECT client;
+    GetCursorPos(&pos);
+    ScreenToClient(m_window, &pos);
+    GetClientRect(m_window, &client);
+
+    stdx::veci2 topleft{ client.left, client.top }, botright{ client.right, client.bottom };
+    stdx::vec2 clientsz = (botright - topleft).castas<float>();
+    stdx::vec2 center = clientsz / 2;
+
+    // normalized cursor pos
+    cursorpos = (stdx::vec2{ float(pos.x), float(pos.y) } - center) / clientsz;
+
+    auto deltacursor = (cursorpos - lastcursorpos) * 2.0f;
+
     if (_locked) return;
+
+    if (GetKeyState(VK_LBUTTON) < 0 && GetActiveWindow() == m_window)
+    {
+        m_yaw += deltacursor[0];
+        m_pitch += deltacursor[1];
+    }
 
     // Calculate the move vector in camera space.
     XMFLOAT3 move(0, 0, 0);
@@ -61,9 +89,9 @@ void simplecamera::Update(float elapsedSeconds)
     if (m_keysPressed.d)
         move.x += 1.0f;
     if (m_keysPressed.w)
-        move.z -= 1.0f;
-    if (m_keysPressed.s)
         move.z += 1.0f;
+    if (m_keysPressed.s)
+        move.z -= 1.0f;
 
     if (fabs(move.x) > 0.1f && fabs(move.z) > 0.1f)
     {
@@ -76,29 +104,42 @@ void simplecamera::Update(float elapsedSeconds)
     float rotateInterval = m_turnSpeed * elapsedSeconds;
 
     if (m_keysPressed.left)
-        m_yaw -= rotateInterval;
-    if (m_keysPressed.right)
         m_yaw += rotateInterval;
+    if (m_keysPressed.right)
+        m_yaw -= rotateInterval;
     if (m_keysPressed.up)
-        m_pitch += rotateInterval;
-    if (m_keysPressed.down)
         m_pitch -= rotateInterval;
+    if (m_keysPressed.down)
+        m_pitch += rotateInterval;
 
-    // Prevent looking too far up or down.
-    m_pitch = std::min(m_pitch, XM_PIDIV4);
-    m_pitch = std::max(-XM_PIDIV4, m_pitch);
+    m_pitch = std::min(m_pitch, (XM_PIDIV2 - 0.00001f));
+    m_pitch = std::max((-XM_PIDIV2 + 0.00001f), m_pitch);
 
-    // Move the camera in model space.
-    float x = move.x * cosf(m_yaw) - move.z * sinf(m_yaw);
-    float z = -move.x * sinf(m_yaw) - move.z * cosf(m_yaw);
-    m_position[0] += x * moveInterval;
-    m_position[2] += z * moveInterval;
+    if (m_yaw > XM_PI)
+        m_yaw -= XM_2PI;
+    else if (m_yaw <= -XM_PI)
+        m_yaw += XM_2PI;
 
-    // Determine the look direction.
-    float r = cosf(m_pitch);
-    m_lookDirection.x = r * sinf(m_yaw);
-    m_lookDirection.y = sinf(m_pitch);
-    m_lookDirection.z = r * cosf(m_yaw);
+    vector3 camfwd;
+    // this is slighty different from convential construction, but this generates +z when yaw = 0
+    camfwd.x = -(std::sin(m_yaw) * cos(m_pitch));
+    camfwd.y = -std::sin(m_pitch);
+    camfwd.z = std::cos(m_yaw) * std::cos(m_pitch);
+
+    camfwd.Normalize();
+
+    vector3 campos = vector3(m_position[0], m_position[1], m_position[2]);
+
+    vector3 camright = vector3::UnitY.Cross(camfwd);
+
+    campos += camfwd * move.z * moveInterval + camright * move.x * moveInterval;
+
+    // this constructs a world to view matrix
+    m_cameramatx = XMMatrixLookToLH(campos, camfwd, vector3::UnitY);
+
+    m_position = stdx::vec3{ campos.x, campos.y, campos.z };
+
+    lastcursorpos = cursorpos;
 }
 
 stdx::vec3 simplecamera::GetCurrentPosition() const
@@ -108,8 +149,7 @@ stdx::vec3 simplecamera::GetCurrentPosition() const
 
 XMMATRIX simplecamera::GetViewMatrix()
 {
-    XMFLOAT3 pos = { m_position[0], m_position[1], m_position[2] };
-    return XMMatrixLookToLH(XMLoadFloat3(&pos), XMLoadFloat3(&m_lookDirection), XMLoadFloat3(&m_upDirection));
+    return m_cameramatx;
 }
 
 XMMATRIX simplecamera::GetProjectionMatrix(float fov)
@@ -135,6 +175,8 @@ void simplecamera::farplane(float farp) { _farp = farp; }
 void simplecamera::width(unsigned width) { _width = width; }
 
 void simplecamera::height(unsigned height) { _height = height; }
+
+HWND& simplecamera::window() { return m_window; }
 
 void simplecamera::TopView()
 {

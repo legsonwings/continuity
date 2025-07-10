@@ -43,6 +43,7 @@ public:
     virtual void update(float dt) { updateview(dt); };
     virtual void render(float dt) = 0;
 
+    void onwindowcreated();
     virtual void on_key_down(unsigned key) { camera.OnKeyDown(key); };
     virtual void on_key_up(unsigned key) { camera.OnKeyUp(key); };
 

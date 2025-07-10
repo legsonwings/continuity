@@ -34,6 +34,11 @@ sample_base::sample_base(view_data const& data) : viewdata(data)
     camera.height(data.height);
 }
 
+void sample_base::onwindowcreated()
+{
+    camera.window() = continuity::GetHwnd();
+}
+
 void sample_base::updateview(float dt)
 {
     camera.Update(dt);
@@ -546,6 +551,8 @@ int continuity::Run(continuity* pSample, HINSTANCE hInstance, int nCmdShow)
         nullptr,        // we aren't using menus.
         hInstance,
         pSample);
+
+    pSample->sample->onwindowcreated();
 
     // initialize the sample. OnInit is defined in each child-implementation of DXSample.
     pSample->OnInit();
