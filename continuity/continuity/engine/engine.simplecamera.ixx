@@ -66,8 +66,8 @@ private:
     DirectX::SimpleMath::Matrix m_cameramatx;
 
     bool _locked = false;
-    float _nearp = 0.01f;
-    float _farp = 1000.f;
+    float _nearp = std::numeric_limits<float>::max();
+    float _farp = 0.0001f;
     unsigned _width = 0;
     unsigned _height = 0;
 

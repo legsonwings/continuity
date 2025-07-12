@@ -1,0 +1,320 @@
+module;
+
+#include "thirdparty/dxhelpers.h"
+#include "thirdparty/d3dx12.h"
+
+module graphics:globalresources;
+
+//import vec;
+import engine;
+
+using Microsoft::WRL::ComPtr;
+
+namespace gfx
+{
+
+void globalresources::init()
+{
+    CHAR assetsPath[512];
+    GetAssetsPath(assetsPath, _countof(assetsPath));
+    _assetspath = assetsPath;
+
+    //addpso("lines", "default_as.cso", "lines_ms.cso", "basic_ps.cso");
+    //addpso("default", "default_as.cso", "default_ms.cso", "default_ps.cso");
+    //addpso("default_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::twosided | psoflags::transparent);
+    //addpso("texturess", "", "texturess_ms.cso", "texturess_ps.cso");
+    //addpso("instancedlines", "default_as.cso", "linesinstances_ms.cso", "basic_ps.cso");
+    addpso("instanced", "", "instances_ms.cso", "instances_ps.cso");
+    //addpso("transparent", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent);
+    //addpso("transparent_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent | psoflags::twosided);
+    //addpso("wireframe", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::wireframe | psoflags::transparent);
+    //addpso("instancedtransparent", "default_as.cso", "instances_ms.cso", "instances_ps.cso", psoflags::transparent);
+
+    addcomputepso("blend", "blend_cs.cso");
+
+    addmat(material().colour(color::black));
+    addmat(material().colour(color::white));
+    addmat(material().colour(color::red));
+    addmat(material().colour(color::water));
+
+    _resourceheap.d3dheap = createresourcedescriptorheap();
+    _cbuffer.createresource();
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvdesc.Format = _rendertarget->GetDesc().Format;
+    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvdesc.Texture2D.MipLevels = 1;
+
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
+    uavdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    uavdesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+
+    // render target srv is at slot 0
+    // render target uav is at slot 1
+    //_resourceheap.addsrv(srvdesc, _rendertarget.Get());
+    //_resourceheap.adduav(uavdesc, _rendertarget.Get());
+}
+
+void globalresources::deinit()
+{
+    get() = {};
+}
+
+void globalresources::create_resources()
+{
+    materialsbuffer.create(_materials);
+    _materialsbuffer_idx = materialsbuffer.createsrv().heapidx;
+}
+
+viewinfo& globalresources::view() { return _view; }
+psomapref globalresources::psomap() const { return _psos; }
+//matmapref globalresources::matmap() const { return _materials; }
+uint32 globalresources::materialsbuffer_idx() const { return _materialsbuffer_idx; }
+materialcref globalresources::defaultmat() const { return _defaultmat; }
+constantbuffer<sceneconstants>& globalresources::cbuffer() { return _cbuffer; }
+void globalresources::rendertarget(ComPtr<ID3D12Resource>& rendertarget) { _rendertarget = rendertarget; }
+ComPtr<ID3D12Resource>& globalresources::rendertarget() { return _rendertarget; }
+resourceheap& globalresources::resourceheap() { return _resourceheap; }
+ComPtr<ID3D12Device5>& globalresources::device() { return _device; }
+ComPtr<ID3D12GraphicsCommandList6>& globalresources::cmdlist() { return _commandlist; }
+void globalresources::frameindex(uint idx) { _frameindex = idx; }
+uint globalresources::frameindex() const { return _frameindex; }
+std::string globalresources::assetfullpath(std::string const& path) const { return _assetspath + path; }
+void globalresources::psodesc(D3DX12_MESH_SHADER_PIPELINE_STATE_DESC const& psodesc) { _psodesc = psodesc; }
+
+uint32 globalresources::addmat(material const& mat)
+{
+    stdx::cassert(_materials.size() < max_materials);
+    _materials.push_back(mat);
+    return uint32(_materials.size() - 1);
+}
+
+uint globalresources::dxgisize(DXGI_FORMAT format)
+{
+    return _dxgisizes.contains(format) ? _dxgisizes[format] : stdx::invalid<uint>();
+}
+
+material& globalresources::mat(uint32 id)
+{
+    return _materials[id];
+}
+
+void globalresources::addcomputepso(std::string const& name, std::string const& cs)
+{
+    if (_psos.find(name) != _psos.cend())
+    {
+        stdx::cassert(false, "trying to add pso of speciifed name when it already exists");
+    }
+
+    shader computeshader;
+    if (!cs.empty())
+        ReadDataFromFile(assetfullpath(cs).c_str(), &computeshader.data, &computeshader.size);
+
+    // pull root signature from the precompiled compute shader
+    // todo : share root signatures?
+    ComPtr<ID3D12RootSignature> rootsig;
+    ThrowIfFailed(_device->CreateRootSignature(0, computeshader.data, computeshader.size, IID_PPV_ARGS(rootsig.GetAddressOf())));
+    _psos[name].root_signature = rootsig;
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psodesc = {};
+    psodesc.pRootSignature = rootsig.Get();
+    psodesc.CS = { computeshader.data, computeshader.size };
+
+    auto psostream = CD3DX12_PIPELINE_STATE_STREAM2(psodesc);
+
+    D3D12_PIPELINE_STATE_STREAM_DESC stream_desc;
+    stream_desc.pPipelineStateSubobjectStream = &psostream;
+    stream_desc.SizeInBytes = sizeof(psostream);
+
+    ThrowIfFailed(_device->CreatePipelineState(&stream_desc, IID_PPV_ARGS(_psos[name].pso.GetAddressOf())));
+}
+
+void SerializeAndCreateRootSignature(ComPtr<ID3D12Device5>& device, D3D12_ROOT_SIGNATURE_DESC const& desc, ComPtr<ID3D12RootSignature>* rootSig)
+{
+    ComPtr<ID3DBlob> blob;
+    ComPtr<ID3DBlob> error;
+
+    ThrowIfFailed(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error));
+    ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
+}
+
+void globalresources::addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags)
+{
+    if (_psos.find(name) != _psos.cend())
+    {
+        stdx::cassert(false, "trying to add pso of speciifed name when it already exists");
+    }
+
+    shader ampshader, meshshader, pixelshader;
+
+    if (!as.empty())
+        ReadDataFromFile(assetfullpath(as).c_str(), &ampshader.data, &ampshader.size);
+
+    ReadDataFromFile(assetfullpath(ms).c_str(), &meshshader.data, &meshshader.size);
+    ReadDataFromFile(assetfullpath(ps).c_str(), &pixelshader.data, &pixelshader.size);
+
+    CD3DX12_ROOT_PARAMETER rootparam;
+    rootparam.InitAsConstants(3, 0);
+    CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(1, &rootparam);
+    rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
+
+    // todo : shouldn't need to create same root signature for every pso
+    ComPtr<ID3D12RootSignature> rootsig;
+    SerializeAndCreateRootSignature(_device, rootsig_desc, &rootsig);
+
+    _psos[name].root_signature = rootsig;
+
+    D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pso_desc = _psodesc;
+    pso_desc.pRootSignature = _psos[name].root_signature.Get();
+
+    if (!as.empty())
+        pso_desc.AS = { ampshader.data, ampshader.size };
+
+    pso_desc.MS = { meshshader.data, meshshader.size };
+    pso_desc.PS = { pixelshader.data, pixelshader.size };
+
+    if (flags & psoflags::transparent)
+    {
+        D3D12_RENDER_TARGET_BLEND_DESC transparency_blenddesc = CD3DX12_RENDER_TARGET_BLEND_DESC(D3D12_DEFAULT);
+        transparency_blenddesc.BlendEnable = true;
+        transparency_blenddesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+        transparency_blenddesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+
+        pso_desc.BlendState.RenderTarget[0] = transparency_blenddesc;
+    }
+
+    auto psostream = CD3DX12_PIPELINE_MESH_STATE_STREAM(pso_desc);
+
+    D3D12_PIPELINE_STATE_STREAM_DESC stream_desc;
+    stream_desc.pPipelineStateSubobjectStream = &psostream;
+    stream_desc.SizeInBytes = sizeof(psostream);
+
+    ThrowIfFailed(_device->CreatePipelineState(&stream_desc, IID_PPV_ARGS(_psos[name].pso.GetAddressOf())));
+
+    if (flags & psoflags::wireframe)
+    {
+        D3DX12_MESH_SHADER_PIPELINE_STATE_DESC wireframepso = pso_desc;
+        wireframepso.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+        wireframepso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+        auto psostream = CD3DX12_PIPELINE_MESH_STATE_STREAM(wireframepso);
+        D3D12_PIPELINE_STATE_STREAM_DESC stream_desc;
+        stream_desc.pPipelineStateSubobjectStream = &psostream;
+        stream_desc.SizeInBytes = sizeof(psostream);
+        ThrowIfFailed(_device->CreatePipelineState(&stream_desc, IID_PPV_ARGS(_psos[name].pso_wireframe.GetAddressOf())));
+    }
+
+    if (flags & psoflags::twosided)
+    {
+        pso_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        auto psostream_twosides = CD3DX12_PIPELINE_MESH_STATE_STREAM(pso_desc);
+
+        D3D12_PIPELINE_STATE_STREAM_DESC stream_desc_twosides;
+        stream_desc_twosides.pPipelineStateSubobjectStream = &psostream_twosides;
+        stream_desc_twosides.SizeInBytes = sizeof(psostream_twosides);
+
+        ThrowIfFailed(_device->CreatePipelineState(&stream_desc_twosides, IID_PPV_ARGS(_psos[name].pso_twosided.GetAddressOf())));
+    }
+}
+
+gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders)
+{
+    if (auto existing = _psos.find(name); existing != _psos.cend())
+    {
+        stdx::cassert(false, "trying to add pso of speciifed name when it already exists");
+        return _psos[name];
+    }
+
+    // global root signature is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+
+    {
+        ComPtr<ID3D12RootSignature> rootsig;
+        CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(0, nullptr);
+        rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
+
+        // empty root signature
+        SerializeAndCreateRootSignature(_device, rootsig_desc, &rootsig);
+
+        _psos[name].root_signature = rootsig;
+    }
+
+    // empty local root signature
+    {
+        ComPtr<ID3D12RootSignature> rootSig;
+
+        CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
+        SerializeAndCreateRootSignature(_device, localRootSignatureDesc, &rootSig);
+
+        _psos[name].rootsignature_local = rootSig;
+    }
+
+    shader raytracinglib;
+    ReadDataFromFile(assetfullpath(libname).c_str(), &raytracinglib.data, &raytracinglib.size);
+
+    CD3DX12_STATE_OBJECT_DESC raytracingpipeline{ D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE };
+
+    // DXIL library
+    // this contains the shaders and their entrypoints for the state object.
+    // since shaders are not considered a subobject, they need to be passed in via DXIL library subobjects.
+    auto lib = raytracingpipeline.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
+    D3D12_SHADER_BYTECODE libdxil = CD3DX12_SHADER_BYTECODE((void*)raytracinglib.data, raytracinglib.size);
+    lib->SetDXILLibrary(&libdxil);
+
+    auto const& trihitgrp = shaders.tri_hitgrp;
+    auto const& prochitgrp = shaders.procedural_hitgroup;
+
+    if (!trihitgrp.name.empty())
+    {
+        // we do not define any exports so all shaders will be exported
+        auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
+        hitGroup->SetClosestHitShaderImport(utils::strtowstr(shaders.tri_hitgrp.closesthit).c_str());
+        hitGroup->SetHitGroupExport(utils::strtowstr(shaders.tri_hitgrp.name).c_str());
+        hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
+    }
+
+    if (!prochitgrp.name.empty())
+    {
+        auto hitGroup = raytracingpipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
+        hitGroup->SetIntersectionShaderImport(utils::strtowstr(prochitgrp.intersection).c_str());
+
+        if (!prochitgrp.anyhit.empty())
+            hitGroup->SetAnyHitShaderImport(utils::strtowstr(prochitgrp.anyhit).c_str());
+
+        hitGroup->SetClosestHitShaderImport(utils::strtowstr(prochitgrp.closesthit).c_str());
+        hitGroup->SetHitGroupExport(utils::strtowstr(prochitgrp.name).c_str());
+        hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_PROCEDURAL_PRIMITIVE);
+    }
+
+    // defines the maximum sizes in bytes for the ray payload and attribute structure.
+    auto shaderConfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
+
+    UINT payloadSize = 4 * sizeof(float);   // float4 color
+    UINT attributeSize = 2 * sizeof(float); // float2 for barycentrics
+    shaderConfig->Config(payloadSize, attributeSize);
+
+    // empty local root signature
+    auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
+    localrootsignature->SetRootSignature(_psos[name].rootsignature_local.Get());
+
+    // global root signature
+    // this is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
+    auto globalrootsig = raytracingpipeline.CreateSubobject<CD3DX12_GLOBAL_ROOT_SIGNATURE_SUBOBJECT>();
+    globalrootsig->SetRootSignature(_psos[name].root_signature.Get());
+
+    auto pipelineconfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_PIPELINE_CONFIG_SUBOBJECT>();
+    pipelineconfig->Config(1); // primary rays only. 
+
+    // create the state object.
+    ThrowIfFailed(_device->CreateStateObject(raytracingpipeline, IID_PPV_ARGS(&_psos[name].pso_raytracing)));
+
+    return _psos[name];
+}
+
+globalresources& globalresources::get()
+{
+    static globalresources res;
+    return res;
+}
+
+}

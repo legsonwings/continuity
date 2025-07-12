@@ -88,6 +88,27 @@ struct rootconstants
     std::vector<uint32> values;
 };
 
+// all resource views are created on the global resource heap right now
+struct resourceview
+{
+    uint32 heapidx;
+};
+
+struct srv : public resourceview
+{
+    D3D12_SHADER_RESOURCE_VIEW_DESC desc;
+};
+
+struct uav : public resourceview
+{
+    D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+};
+
+struct cbv : public resourceview
+{
+    D3D12_CONSTANT_BUFFER_VIEW_DESC desc;
+};
+
 struct pipeline_objects
 {
     ComPtr<ID3D12PipelineState> pso;
@@ -156,6 +177,11 @@ struct light
     uint8_t padding2[4];
 };
 
+template<uint32 t_divisor>
+constexpr inline uint32 divideup(uint32 value) requires (t_divisor > 0)
+{
+    return (value + t_divisor - 1) / t_divisor;
+}
 
 struct alignas(256) sceneconstants
 {
@@ -168,6 +194,7 @@ struct alignas(256) sceneconstants
     uint32_t numpointlights;
 };
 
+// ray trace stuff below
 struct trianglehitgroup
 {
     std::string anyhit;
@@ -190,11 +217,5 @@ struct raytraceshaders
     trianglehitgroup tri_hitgrp;
     proceduralhitgroup procedural_hitgroup;
 };
-
-template<uint32 t_divisor>
-constexpr inline uint32 divideup(uint32 value) requires (t_divisor > 0)
-{
-    return (value + t_divisor - 1) / t_divisor;
-}
 
 }

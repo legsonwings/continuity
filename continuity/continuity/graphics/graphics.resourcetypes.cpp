@@ -1,0 +1,347 @@
+module;
+
+#include "thirdparty/d3dx12.h"
+#include "thirdparty/dxhelpers.h"
+
+module graphics:resourcetypes;
+
+import engine;
+import :globalresources;
+
+alignedlinearallocator::alignedlinearallocator(uint alignment) : _alignment(alignment)
+{
+    std::size_t sz = buffersize;
+    stdx::cassert([&] { return stdx::ispowtwo(_alignment); });
+    void* ptr = _buffer;
+    _currentpos = reinterpret_cast<std::byte*>(std::align(_alignment, buffersize - alignment, ptr, sz));
+}
+
+bool alignedlinearallocator::canallocate(uint size) const { return ((_currentpos - &_buffer[0]) + size) < buffersize; }
+
+namespace gfx
+{
+
+void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, uint const perframe_buffersize)
+{
+    for (uint i = 0; i < frame_count; ++i)
+        memcpy(mapped_buffer + perframe_buffersize * i, data_start, perframe_buffersize);
+}
+
+cbv createcbv(uint size, ID3D12Resource* res)
+{
+    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvdesc = {};
+    cbvdesc.SizeInBytes = UINT(size);
+    cbvdesc.BufferLocation = res->GetGPUVirtualAddress();
+
+    return globalresources::get().resourceheap().addcbv(cbvdesc, res);
+}
+
+uint srvcbvuav_descincrementsize()
+{
+    auto device = globalresources::get().device();
+    return static_cast<uint>(device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+}
+
+uint dxgiformatsize(DXGI_FORMAT format)
+{
+    return globalresources::get().dxgisize(format);
+}
+
+ComPtr<ID3D12Resource> create_uploadbuffer(std::byte** mapped_buffer, uint const buffersize)
+{
+    auto device = globalresources::get().device();
+
+    ComPtr<ID3D12Resource> b_upload;
+    if (buffersize > 0)
+    {
+        auto resource_desc = CD3DX12_RESOURCE_DESC::Buffer(buffersize);
+        auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
+
+        // we do not intend to read from this resource on the CPU.
+        ThrowIfFailed(b_upload->Map(0, nullptr, reinterpret_cast<void**>(mapped_buffer)));
+    }
+
+    return b_upload;
+}
+
+ComPtr<ID3D12Resource> create_perframeuploadbuffers(std::byte** mapped_buffer, uint const buffersize)
+{
+    auto device = globalresources::get().device();
+
+    ComPtr<ID3D12Resource> b_upload;
+    if (buffersize > 0)
+    {
+        auto resource_desc = CD3DX12_RESOURCE_DESC::Buffer(frame_count * buffersize);
+        auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
+
+        // we do not intend to read from this resource on the CPU.
+        ThrowIfFailed(b_upload->Map(0, nullptr, reinterpret_cast<void**>(mapped_buffer)));
+    }
+
+    return b_upload;
+}
+
+ComPtr<ID3D12Resource> create_uploadbufferwithdata(void const* data_start, uint const buffersize)
+{
+    // create upload buffer and copy data into it
+    std::byte* _mappeddata = nullptr;
+    ComPtr<ID3D12Resource> uploadresource = create_uploadbuffer(&_mappeddata, buffersize);
+    memcpy(_mappeddata, data_start, buffersize);
+
+    return uploadresource;
+}
+
+ComPtr<ID3D12Resource> create_perframeuploadbufferunmapped(uint const buffersize)
+{
+    auto device = globalresources::get().device();
+
+    ComPtr<ID3D12Resource> b_upload;
+    if (buffersize > 0)
+    {
+        auto resource_desc = CD3DX12_RESOURCE_DESC::Buffer(frame_count * buffersize);
+        auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
+    }
+
+    return b_upload;
+}
+
+ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap()
+{
+    auto device = globalresources::get().device();
+
+    D3D12_DESCRIPTOR_HEAP_DESC heapdesc = {};
+    heapdesc.NumDescriptors = 100; // todo : arbitrary limit, make a class for resource heap
+    heapdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    heapdesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+    ComPtr<ID3D12DescriptorHeap> heap;
+    ThrowIfFailed(device->CreateDescriptorHeap(&heapdesc, IID_PPV_ARGS(heap.ReleaseAndGetAddressOf())));
+    return heap;
+}
+
+srv createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource)
+{
+    return globalresources::get().resourceheap().addsrv(srvdesc, resource);
+}
+
+uav createuav(D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc, ID3D12Resource* resource)
+{
+    return globalresources::get().resourceheap().adduav(uavdesc, resource);
+}
+
+void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* resourceheap, uint heapslot)
+{
+    auto device = globalresources::get().device();
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(resourceheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(heapslot * srvcbvuav_descincrementsize()));
+    device->CreateShaderResourceView(resource, &srvdesc, deschandle);
+}
+
+ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size)
+{
+    auto device = globalresources::get().device();
+    auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+    ComPtr<ID3D12Resource> b;
+
+    // create buffer on the default heap
+    auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
+    return b;
+}
+
+ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size)
+{
+    auto device = globalresources::get().device();
+    auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+    ComPtr<ID3D12Resource> b;
+
+    // create buffer on the default heap
+    auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
+    return b;
+}
+
+default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const b_size)
+{
+    auto device = globalresources::get().device();
+
+    ComPtr<ID3D12Resource> b;
+    ComPtr<ID3D12Resource> b_upload;
+
+    if (b_size > 0)
+    {
+        // allow unordered access on default buffers, for convenience
+        auto b_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        auto ub_desc = CD3DX12_RESOURCE_DESC::Buffer(b_size);
+
+        // create buffer on the default heap
+        auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+        ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &b_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(b.ReleaseAndGetAddressOf())));
+
+        // create resource on the upload heap
+        auto uploadheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        ThrowIfFailed(device->CreateCommittedResource(&uploadheap_desc, D3D12_HEAP_FLAG_NONE, &ub_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(b_upload.GetAddressOf())));
+
+        {
+            uint8_t* b_upload_start = nullptr;
+
+            // we do not intend to read from this resource on the CPU.
+            b_upload->Map(0, nullptr, reinterpret_cast<void**>(&b_upload_start));
+
+            // copy data to upload heap
+            memcpy(b_upload_start, datastart, b_size);
+
+            b_upload->Unmap(0, nullptr);
+        }
+
+        auto resource_transition = CD3DX12_RESOURCE_BARRIER::Transition(b.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+
+        auto cmdlist = globalresources::get().cmdlist();
+
+        // copy data from upload heap to default heap
+        cmdlist->CopyResource(b.Get(), b_upload.Get());
+        cmdlist->ResourceBarrier(1, &resource_transition);
+    }
+
+    return { b, b_upload };
+}
+
+ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format, D3D12_RESOURCE_STATES state)
+{
+    auto device = globalresources::get().device();
+
+    // all unordered access on all textures(on some architecutres unordered access might lead to suboptimal texture layout, but its 2025)
+    auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(format, static_cast<UINT64>(width), static_cast<UINT>(height), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+    ComPtr<ID3D12Resource> texdefault;
+    auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, state, nullptr, IID_PPV_ARGS(texdefault.ReleaseAndGetAddressOf())));
+    return texdefault;
+}
+
+void update_buffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size)
+{
+    memcpy(mapped_buffer, data_start, data_size);
+}
+
+uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata)
+{
+    auto cmdlist = globalresources::get().cmdlist();
+    return UpdateSubresources(cmdlist.Get(), dest, upload, 0, 0, 1, srcdata);
+}
+
+D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, std::size_t perframe_buffersize)
+{
+    auto frame_idx = globalresources::get().frameindex();
+    return start + perframe_buffersize * frame_idx;
+}
+
+void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize)
+{
+    auto frame_idx = globalresources::get().frameindex();
+    memcpy(mapped_buffer + perframe_buffersize * frame_idx, data_start, data_size);
+}
+
+
+srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resource* res)
+{
+    auto device = globalresources::get().device();
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * srvcbvuav_descincrementsize()));
+    device->CreateShaderResourceView(res, &viewdesc, deschandle);
+    return { currslot++, viewdesc };
+}
+
+uav resourceheap::adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC viewdesc, ID3D12Resource* res)
+{
+    auto device = globalresources::get().device();
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * srvcbvuav_descincrementsize()));
+    device->CreateUnorderedAccessView(res, nullptr, &viewdesc, deschandle);
+    return { currslot++, viewdesc };
+}
+
+cbv resourceheap::addcbv(D3D12_CONSTANT_BUFFER_VIEW_DESC viewdesc, ID3D12Resource* res)
+{
+    auto device = globalresources::get().device();
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * srvcbvuav_descincrementsize()));
+    device->CreateConstantBufferView(&viewdesc, deschandle);
+    return { currslot++, viewdesc };
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE resourceheap::gpudeschandle(uint slot) const
+{
+    return CD3DX12_GPU_DESCRIPTOR_HANDLE(d3dheap->GetGPUDescriptorHandleForHeapStart(), 0, UINT(slot * gfx::srvcbvuav_descincrementsize()));
+}
+
+texture::texture(DXGI_FORMAT dxgiformat, stdx::vecui2 dimensions, D3D12_RESOURCE_STATES state) : format(dxgiformat), dims(dimensions)
+{
+    d3dresource = createtexture_default(dims[0], dims[1], format, state);
+}
+
+srv texture::createsrv() const
+{
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvdesc.Format = format;
+    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvdesc.Texture2D.MipLevels = 1;
+
+    return globalresources::get().resourceheap().addsrv(srvdesc, d3dresource.Get());
+}
+
+uav texture::createuav() const
+{
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
+    uavdesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    return globalresources::get().resourceheap().adduav(uavdesc, d3dresource.Get());
+}
+
+void texture_dynamic::createresource(stdx::vecui2 dims, std::vector<uint8_t> const& texturedata)
+{
+    // textures cannot be 0 sized
+    // todo : min/max should be specailized for stdx::vec0
+    // perhaps we should create dummy objects
+    _dims = { std::max<uint>(dims[0], 1u), std::max<uint>(dims[1], 1u) };
+    _bufferupload = create_perframeuploadbufferunmapped(size());
+    _texture = createtexture_default(_dims[0], _dims[1], _format, D3D12_RESOURCE_STATE_COPY_DEST);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvdesc.Format = _format;
+    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvdesc.Texture2D.MipLevels = 1;
+
+    _srv = globalresources::get().resourceheap().addsrv(srvdesc, _texture.Get());
+    updateresource(texturedata);
+}
+
+void texture_dynamic::updateresource(std::vector<uint8_t> const& texturedata)
+{
+    // use 4 bytes per texel for now
+    stdx::cassert([&] { return texturedata.size() == _dims[0] * _dims[1] * 4; });
+    D3D12_SUBRESOURCE_DATA subresdata;
+    subresdata.pData = texturedata.data();
+    subresdata.RowPitch = _dims[0] * 4;
+    subresdata.SlicePitch = _dims[0] * _dims[1] * 4;
+
+    updatesubres(_texture.Get(), _bufferupload.Get(), &subresdata);
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE texture_dynamic::deschandle() const
+{
+    return CD3DX12_GPU_DESCRIPTOR_HANDLE(globalresources::get().resourceheap().d3dheap->GetGPUDescriptorHandleForHeapStart(), static_cast<INT>(_srv.heapidx * srvcbvuav_descincrementsize()));
+}
+
+uint texture_dynamic::size() const
+{
+    return _dims[0] * _dims[1] * dxgiformatsize(_format);
+}
+
+}
