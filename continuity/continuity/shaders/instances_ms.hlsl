@@ -1,7 +1,7 @@
 #include "common.hlsli"
 #include "shared/common.h"
 
-meshshadervertex getvertattribute(vertexin vertex, float3 n)
+meshshadervertex getvertattribute(vertexin vertex)
 {
     meshshadervertex outvert;
     
@@ -13,8 +13,7 @@ meshshadervertex getvertattribute(vertexin vertex, float3 n)
     outvert.position = mul(pos, objconstants[0].matx).xyz;
     outvert.positionh = mul(pos, objconstants[0].mvpmatx);
 
-    // world space face normal(todo : vertex normals aren't passed in yet)
-    outvert.normal = normalize(mul(float4(n, 0), objconstants[0].normalmatx).xyz);
+    outvert.normal = normalize(mul(float4(vertex.normal, 0), objconstants[0].normalmatx).xyz);
 
     return outvert;
 }
@@ -55,10 +54,8 @@ void main(
         vertexin v1 = triangle_vertices[triangle_indices[dtid * 3u + 1]];
         vertexin v2 = triangle_vertices[triangle_indices[dtid * 3u + 2]];
 
-        // counter-clockwise
-        float3 n = normalize(cross(v1.position - v0.position, v2.position - v0.position));
-        verts[v0idx] = getvertattribute(v0, n);
-        verts[v0idx + 1] = getvertattribute(v1, n);
-        verts[v0idx + 2] = getvertattribute(v2, n);
+        verts[v0idx] = getvertattribute(v0);
+        verts[v0idx + 1] = getvertattribute(v1);
+        verts[v0idx + 2] = getvertattribute(v2);
     }
 }

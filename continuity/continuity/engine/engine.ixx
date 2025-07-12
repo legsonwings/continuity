@@ -23,10 +23,10 @@ using namespace DirectX;
 
 export struct view_data
 {
-    unsigned width = 720;
-    unsigned height = 720;
-    float nearplane = 0.1f;
-    float farplane = std::numeric_limits<float>::max();
+    unsigned width = 1920;
+    unsigned height = 1080;
+    float nearplane = std::numeric_limits<float>::max();
+    float farplane = 0.0001f;
 
     float get_aspect_ratio() const { return static_cast<float>(width) / static_cast<float>(height); }
 };

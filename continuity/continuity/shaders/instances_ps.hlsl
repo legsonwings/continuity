@@ -20,7 +20,7 @@ float4 main(meshshadervertex input) : SV_TARGET
 
     if (sceneglobals[0].viewdirshading == 1)
     {
-        return float4(abs(dot(v, n)).xxx, 1);
+        return float4(max(dot(v, n), 0).xxx, 1);
     }
     else
     {
