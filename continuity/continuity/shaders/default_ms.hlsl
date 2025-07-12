@@ -6,7 +6,7 @@
 meshshadervertex getvertattribute(vertexin vertex)
 {
     StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
-    StructuredBuffer<object_constants> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+    StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
 
     meshshadervertex outvert;
     

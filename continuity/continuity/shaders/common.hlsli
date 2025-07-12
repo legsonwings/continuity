@@ -94,15 +94,6 @@ struct instance_data
     uint mat;
 };
 
-// todo : replace with instance data
-struct object_constants
-{
-    float4x4 matx;
-    float4x4 normalmatx;
-    float4x4 mvpmatx;
-    uint mat;
-};
-
 struct rootconstants
 {
     uint objdescriptors;

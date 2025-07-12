@@ -36,7 +36,7 @@ void main(
         uint const inputvert_start = payload.data[gid].start + gtid * 2;
 
         StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
-        StructuredBuffer<object_constants> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+        StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
 
         verts[outv0idx].position = mul(float4(in_vertices[inputvert_start].position, 1), objconstants[0].mvpmatx);
         verts[outv1idx].position = mul(float4(in_vertices[inputvert_start + 1].position, 1), objconstants[0].mvpmatx);

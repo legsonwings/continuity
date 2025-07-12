@@ -5,7 +5,7 @@
 float4 main(meshshadervertex input) : SV_TARGET
 {
     StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
-    StructuredBuffer<object_constants> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+    StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
     StructuredBuffer<viewconstants> viewgloabls = ResourceDescriptorHeap[descriptorsidx.viewglobals];
     StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
 
