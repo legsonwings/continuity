@@ -45,8 +45,6 @@ void sample_base::updateview(float dt)
 
     gfx::globalresources::get().view().view = camera.GetViewMatrix();
     gfx::globalresources::get().view().proj = camera.GetProjectionMatrix(XM_PI / 3.0f);
-    gfx::globalresources::get().cbuffer().data().campos = camera.GetCurrentPosition();
-    gfx::globalresources::get().cbuffer().updateresource();
 }
 
 continuity::continuity(view_data const& data)

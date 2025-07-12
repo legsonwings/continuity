@@ -41,7 +41,7 @@ gfx::resourcelist raytrace::create_resources()
 {
     auto& globalres = gfx::globalresources::get();
 
-    constantbuffer.createresource();
+    //constantbuffer.createresource();
 
     gfx::resourcelist res;
 
@@ -122,13 +122,15 @@ gfx::resourcelist raytrace::create_resources()
         // 6 index buffers
         // 7 material ids
         // 8 material data
-        constantbuffer.createcbv();
-        tlas.createsrv();
-        raytracingoutput.createuav();
-        vertexbuffer.createsrv();
-        indexbuffer.createsrv();
-        materialids.createsrv();
-        materials.createsrv();
+ 
+        // todo : bindless isn't hardcorded anymore
+        //constantbuffer.createcbv();
+        //tlas.createsrv();
+        //raytracingoutput.createuav();
+        //vertexbuffer.createsrv();
+        //indexbuffer.createsrv();
+        //materialids.createsrv();
+        //materials.createsrv();
     }
 
     return res;
@@ -137,11 +139,11 @@ gfx::resourcelist raytrace::create_resources()
 void raytrace::render(float dt)
 {
     auto& globalres = gfx::globalresources::get();
-    auto& framecbuffer = constantbuffer.data(0);
+    //auto& framecbuffer = constantbuffer.data(0);
 
-    framecbuffer.sundir = stdx::vec3{ 1.0f, 0.0f, 0.0f }.normalized();
-    framecbuffer.campos = camera.GetCurrentPosition();
-    framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
+    //framecbuffer.sundir = stdx::vec3{ 1.0f, 0.0f, 0.0f }.normalized();
+    //framecbuffer.campos = camera.GetCurrentPosition();
+    //framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
 
     auto cmd_list = globalres.cmdlist();
     auto const& pipelineobjects = globalres.psomap().find("raytrace")->second;

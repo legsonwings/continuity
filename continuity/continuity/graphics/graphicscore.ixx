@@ -172,9 +172,7 @@ struct light
     vector3 color;
     float range;
     vector3 position;
-    uint8_t padding1[4];
     vector3 direction;
-    uint8_t padding2[4];
 };
 
 template<uint32 t_divisor>
@@ -182,17 +180,6 @@ constexpr inline uint32 divideup(uint32 value) requires (t_divisor > 0)
 {
     return (value + t_divisor - 1) / t_divisor;
 }
-
-struct alignas(256) sceneconstants
-{
-    stdx::vec3 campos;
-    uint32 padding0;
-    vector4 ambient;
-    light lights[MAX_NUM_LIGHTS];
-	matrix viewproj;
-    uint32_t numdirlights = 0;
-    uint32_t numpointlights;
-};
 
 // ray trace stuff below
 struct trianglehitgroup

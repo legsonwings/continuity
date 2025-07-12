@@ -8,16 +8,6 @@ module graphics:resourcetypes;
 import engine;
 import :globalresources;
 
-alignedlinearallocator::alignedlinearallocator(uint alignment) : _alignment(alignment)
-{
-    std::size_t sz = buffersize;
-    stdx::cassert([&] { return stdx::ispowtwo(_alignment); });
-    void* ptr = _buffer;
-    _currentpos = reinterpret_cast<std::byte*>(std::align(_alignment, buffersize - alignment, ptr, sz));
-}
-
-bool alignedlinearallocator::canallocate(uint size) const { return ((_currentpos - &_buffer[0]) + size) < buffersize; }
-
 namespace gfx
 {
 
@@ -25,15 +15,6 @@ void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, ui
 {
     for (uint i = 0; i < frame_count; ++i)
         memcpy(mapped_buffer + perframe_buffersize * i, data_start, perframe_buffersize);
-}
-
-cbv createcbv(uint size, ID3D12Resource* res)
-{
-    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvdesc = {};
-    cbvdesc.SizeInBytes = UINT(size);
-    cbvdesc.BufferLocation = res->GetGPUVirtualAddress();
-
-    return globalresources::get().resourceheap().addcbv(cbvdesc, res);
 }
 
 uint srvcbvuav_descincrementsize()

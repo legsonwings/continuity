@@ -38,7 +38,6 @@ void globalresources::init()
     addmat(material().colour(color::water));
 
     _resourceheap.d3dheap = createresourcedescriptorheap();
-    _cbuffer.createresource();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
     srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -72,7 +71,6 @@ psomapref globalresources::psomap() const { return _psos; }
 //matmapref globalresources::matmap() const { return _materials; }
 uint32 globalresources::materialsbuffer_idx() const { return _materialsbuffer_idx; }
 materialcref globalresources::defaultmat() const { return _defaultmat; }
-constantbuffer<sceneconstants>& globalresources::cbuffer() { return _cbuffer; }
 void globalresources::rendertarget(ComPtr<ID3D12Resource>& rendertarget) { _rendertarget = rendertarget; }
 ComPtr<ID3D12Resource>& globalresources::rendertarget() { return _rendertarget; }
 resourceheap& globalresources::resourceheap() { return _resourceheap; }

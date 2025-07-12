@@ -29,7 +29,6 @@ class globalresources
 	viewinfo _view;
 	uint _frameindex{ 0 };
 	std::string _assetspath;
-	constantbuffer<sceneconstants> _cbuffer;
 	resourceheap _resourceheap;
 	ComPtr<ID3D12Device5> _device;
 
@@ -59,7 +58,6 @@ public:
 	matmapref matmap() const;
 	uint32 materialsbuffer_idx() const;
 	materialcref defaultmat() const;
-	constantbuffer<sceneconstants>& cbuffer();
 	void rendertarget(ComPtr<ID3D12Resource>& rendertarget);
 	ComPtr<ID3D12Resource>& rendertarget();
 	ComPtr<ID3D12Device5>& device();

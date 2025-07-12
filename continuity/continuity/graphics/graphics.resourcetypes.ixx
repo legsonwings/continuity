@@ -14,40 +14,6 @@ import graphicscore;
 
 using Microsoft::WRL::ComPtr;
 
-struct alignedlinearallocator
-{
-	alignedlinearallocator(uint alignment);
-
-	template<typename t>
-		requires std::default_initializable<t>
-	t* allocate()
-	{
-		uint const alignedsize = stdx::nextpowoftwomultiple(sizeof(t), _alignment);
-
-		stdx::cassert(_currentpos != nullptr);
-		stdx::cassert(canallocate(alignedsize));
-		t* r = reinterpret_cast<t*>(_currentpos);
-		stdx::cassert(r != nullptr);
-		*r = t{};
-		_currentpos += alignedsize;
-		return r;
-	}
-private:
-
-	bool canallocate(uint size) const;
-
-	static constexpr uint buffersize = 51200;
-	std::byte _buffer[buffersize];
-	std::byte* _currentpos = &_buffer[0];
-	uint _alignment;
-};
-
-struct cballocationhelper
-{
-	static constexpr unsigned cbalignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-	static alignedlinearallocator& allocator() { static alignedlinearallocator allocator{ cbalignment }; return allocator; }
-};
-
 export namespace gfx
 {
 
@@ -74,7 +40,6 @@ uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURC
 D3D12_GPU_VIRTUAL_ADDRESS get_perframe_gpuaddress(D3D12_GPU_VIRTUAL_ADDRESS start, UINT64 perframe_buffersize);
 void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size, std::size_t const perframe_buffersize);
 void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, uint const perframe_buffersize);
-cbv createcbv(uint size, ID3D12Resource* res);
 uint align(uint unalignedsize, uint alignment) { return stdx::nextpowoftwomultiple(unalignedsize, alignment); }
 
 struct resource
@@ -190,80 +155,6 @@ struct structuredbuffer<t, accesstype::gpu> : public structuredbufferbase<t>
 		this->d3dresource = create_default_uavbuffer(sizeof(t) * numelems);
 		this->numelements = numelems;
 	}
-};
-
-// todo : everything below should be deleted at some point
-template<typename t>
-requires (sizeof(t) % 256 == 0 && stdx::triviallycopyable_c<t>)
-struct constantbuffer : public resource
-{
-	void createresource()
-	{
-		_data = cballocationhelper::allocator().allocate<t>();
-		d3dresource = create_perframeuploadbuffers(&_mappeddata, size());
-	}
-
-	cbv createcbv() const
-	{
-		// todo : should this be size of whole resource
-		return gfx::createcbv(size(), d3dresource.Get());
-	}
-
-	t& data() const { return *_data; }
-	void updateresource() { update_currframebuffer(_mappeddata, _data, size(), size()); }
-
-	template<typename u>
-	requires std::same_as<t, std::decay_t<u>>
-	void updateresource(u&& data)
-	{
-		*_data = data;
-		update_currframebuffer(_mappeddata, _data, size(), size());
-	}
-
-	uint size() const { return sizeof(t); }
-	D3D12_GPU_VIRTUAL_ADDRESS currframe_gpuaddress() const { return get_perframe_gpuaddress(d3dresource->GetGPUVirtualAddress(), size()); }
-
-	t* _data = nullptr;
-	std::byte* _mappeddata = nullptr;
-
-private:
-	// todo : hide base class function so we fail on its use
-	// todo : replace uses with currframe_gpuaddress()
-	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const {}
-};
-
-template<typename t, uint n>
-requires (sizeof(t) % D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT == 0 && stdx::triviallycopyable_c<t>)
-struct constantbuffer2
-{
-	void createresource()
-	{
-		alignedsize = align(size(), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-		for (uint i(0); i < n; ++i)
-		{
-			buffers[i] = create_uploadbuffer(&_mappeddata[i], alignedsize);
-		}
-	}
-
-	std::array<cbv, n> createcbv() const
-	{
-		std::array<cbv, n> r;
-		for (uint i(0); i < n; ++i)
-		{
-			r[i] = gfx::createcbv(alignedsize, buffers[i].Get());
-		}
-
-		return r;
-	}
-
-	t& data(uint i) const { return *reinterpret_cast<t*>(_mappeddata[i]); }
-
-	uint size() const { return sizeof(t); }
-
-private:
-	uint alignedsize = 0;
-	ComPtr<ID3D12Resource> buffers[n];
-	std::byte* _mappeddata[n];
 };
 
 template<typename t>

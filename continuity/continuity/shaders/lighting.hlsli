@@ -1,9 +1,5 @@
 #include "common.hlsli"
 
-// todo : temp
-ConstantBuffer<sceneconstants> globals : register(b0);
-ConstantBuffer<object_constants> objectconstants : register(b1);
-
 float attenuation(float range, float distance)
 {
 	return 1.f / (1.f + (distance * distance) / (range * range));
@@ -51,18 +47,18 @@ float3 pointlight(light l, material m, float3 normal, float3 pos, float3 toeye)
 float4 computelighting(light lights[MAX_NUM_LIGHTS], material m, float3 pos, float3 normal)
 {
 	float3 result = 0;
-	float3 const toeye = normalize(globals.campos - pos);
-	
-	int i = 0;
-	for (; i < globals.numdirlights; ++i)
-	{
-		result += directionallight(lights[i], m, normal, toeye);
-	}
+	//float3 const toeye = normalize(globals.campos - pos);
+	//
+	//int i = 0;
+	//for (; i < globals.numdirlights; ++i)
+	//{
+	//	result += directionallight(lights[i], m, normal, toeye);
+	//}
 
-	for (; i < globals.numdirlights + globals.numpointlights; ++i)
-	{
-		result += pointlight(lights[i], m, normal, pos, toeye);
-	}
+	//for (; i < globals.numdirlights + globals.numpointlights; ++i)
+	//{
+	//	result += pointlight(lights[i], m, normal, pos, toeye);
+	//}
 
 	return float4(result, 1.f);
 }

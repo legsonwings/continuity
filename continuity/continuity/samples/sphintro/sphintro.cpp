@@ -868,25 +868,27 @@ gfx::resourcelist sphfluidintro::create_resources()
     using gfx::material;
 
     auto& globalres = gfx::globalresources::get();
-    auto& globals = globalres.cbuffer().data();
+    
+    // todo : no constbuffers anymore
+    //auto& globals = globalres.cbuffer().data();
 
-    // initialize lights
-    globals.numdirlights = 1;
-    globals.numpointlights = 2;
+    //// initialize lights
+    //globals.numdirlights = 1;
+    //globals.numpointlights = 2;
 
-    globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
-    globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
-    globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
+    //globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
+    //globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
+    //globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
 
-    globals.lights[1].position = { -15.f, 15.f, -15.f };
-    globals.lights[1].color = { 1.f, 1.f, 1.f };
-    globals.lights[1].range = 40.f;
+    //globals.lights[1].position = { -15.f, 15.f, -15.f };
+    //globals.lights[1].color = { 1.f, 1.f, 1.f };
+    //globals.lights[1].range = 40.f;
 
-    globals.lights[2].position = { 15.f, 15.f, -15.f };
-    globals.lights[2].color = { 1.f, 1.f, 1.f };
-    globals.lights[2].range = 40.f;
+    //globals.lights[2].position = { 15.f, 15.f, -15.f };
+    //globals.lights[2].color = { 1.f, 1.f, 1.f };
+    //globals.lights[2].range = 40.f;
 
-    globalres.cbuffer().updateresource();
+    //globalres.cbuffer().updateresource();
 
     // since these use static vertex buffers, just send 0 as maxverts
     boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{roomextents} }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });

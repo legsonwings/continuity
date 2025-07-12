@@ -133,8 +133,8 @@ gfx::resourcelist sphgpu::create_resources()
     using gfx::bodyparams;
 
     auto& globalres = gfx::globalresources::get();
-    constantbuffer.createresource();
-    sphconstants.createresource();
+    //constantbuffer.createresource();
+    //sphconstants.createresource();
 
     globalres.addpso("sphgpu_render_debugparticles", "", "sph_render_debugparticles_ms.cso", "sph_render_particles_ps.cso");
     globalres.addcomputepso("sphgpuinit", "sphgpuinit_cs.cso");
@@ -168,7 +168,9 @@ gfx::resourcelist sphgpu::create_resources()
 
         cmd_list->SetPipelineState(pipelineobjects.pso.Get());
         cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-        cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
+        
+        // todo cbuffer removed
+        //cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
         cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
         cmd_list->SetComputeRoot32BitConstants(5, 11, &rootconstants, 0);
 
@@ -272,15 +274,17 @@ gfx::resourcelist sphgpu::create_resources()
         // 8 material ids
         // 9 material data
         // 10 particle data buffer
-        constantbuffer.createcbv();
-        sphconstants.createcbv();
-        tlas.createsrv();
-        raytracingoutput.createuav();
-        roomvertbuffer.createsrv();
-        roomindexbuffer.createsrv();
-        materialids.createsrv();
-        materials.createsrv();
-        databuffer.createsrv();
+        
+        // todo : bindless isn't hardcorded anymore
+        //constantbuffer.createcbv();
+        //sphconstants.createcbv();
+        //tlas.createsrv();
+        //raytracingoutput.createuav();
+        //roomvertbuffer.createsrv();
+        //roomindexbuffer.createsrv();
+        //materialids.createsrv();
+        //materials.createsrv();
+        //databuffer.createsrv();
     }
 
     return res;
@@ -371,28 +375,29 @@ void sphgpu::render(float dt)
         }
     }
 
-    auto& sphparams = sphconstants.data(0);
+    // todo : pass these to ResourceDescriptorHeap
+    //sphconstants sphparams;
 
-    sphparams.numparticles = numparticles;
-    sphparams.containerextents.fill(5);
-    sphparams.dt = dt;
-    sphparams.particleradius = particleradius;
-    sphparams.h = h;
-    sphparams.hsqr = hsqr;
-    sphparams.k = k;
-    sphparams.rho0 = rho0;
-    sphparams.viscosityconstant = viscosityconstant;
-    sphparams.poly6coeff = poly6kernelcoeff();
-    sphparams.poly6gradcoeff = poly6gradcoeff();
-    sphparams.spikycoeff = spikykernelcoeff();
-    sphparams.viscositylapcoeff = viscositylaplaciancoeff();
-    sphparams.isolevel = isolevel;
+    //sphparams.numparticles = numparticles;
+    //sphparams.containerextents.fill(5);
+    //sphparams.dt = dt;
+    //sphparams.particleradius = particleradius;
+    //sphparams.h = h;
+    //sphparams.hsqr = hsqr;
+    //sphparams.k = k;
+    //sphparams.rho0 = rho0;
+    //sphparams.viscosityconstant = viscosityconstant;
+    //sphparams.poly6coeff = poly6kernelcoeff();
+    //sphparams.poly6gradcoeff = poly6gradcoeff();
+    //sphparams.spikycoeff = spikykernelcoeff();
+    //sphparams.viscositylapcoeff = viscositylaplaciancoeff();
+    //sphparams.isolevel = isolevel;
 
-    auto& framecbuffer = constantbuffer.data(0);
+    //auto& framecbuffer = constantbuffer.data(0);
 
-    framecbuffer.sundir = stdx::vec3::filled(1.0f).normalized();
-    framecbuffer.campos = camera.GetCurrentPosition();
-    framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
+    //framecbuffer.sundir = stdx::vec3::filled(1.0f).normalized();
+    //framecbuffer.campos = camera.GetCurrentPosition();
+    //framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
 
     auto const& pipelineobjects = globalres.psomap().find("sph_render")->second;
 

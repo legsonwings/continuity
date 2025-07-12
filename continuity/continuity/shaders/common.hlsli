@@ -9,7 +9,7 @@
 // ps texture
 // ps sampler
 
-
+// todo : no constant bufffers anymore. this singature should be deleted as it is outdated
 #define ROOT_SIG "CBV(b0), \
                   CBV(b1), \
                   RootConstants(b2, num32bitconstants=7), \
@@ -63,9 +63,7 @@ struct light
     float3 color;
     float range;
     float3 position;
-    float padding1;
     float3 direction;
-    float padding2;
 };
 
 struct material
@@ -86,18 +84,6 @@ struct sceneglobals
 {
     uint matbuffer;
     uint viewdirshading;
-};
-
-// todo : move camera and proj matrices to view constants
-struct sceneconstants
-{
-    float3 campos;
-    uint matbuffer;
-    float4 ambient;
-    light lights[MAX_NUM_LIGHTS];
-    float4x4 viewproj;
-    uint numdirlights;
-    uint numpointlights;
 };
 
 struct instance_data

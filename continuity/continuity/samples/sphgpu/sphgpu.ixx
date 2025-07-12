@@ -88,8 +88,8 @@ private:
 	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;
 	gfx::structuredbuffer<gfx::material, gfx::accesstype::both> materials;
 
-	gfx::constantbuffer2<rt::sceneconstants, 1> constantbuffer;
-	gfx::constantbuffer2<sphconstants, 1> sphconstants;
+	//gfx::constantbuffer2<rt::sceneconstants, 1> constantbuffer;
+	//gfx::constantbuffer2<sphconstants, 1> sphconstants;
 
 	gfx::rtvertexbuffer roomvertbuffer;
 	gfx::rtindexbuffer roomindexbuffer;

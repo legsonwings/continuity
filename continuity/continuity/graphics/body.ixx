@@ -186,7 +186,7 @@ class body_dynamic : public bodyinterface
     using vertextype = typename topologyconstants<prim_t>::vertextype;
 
     body_t body;
-    constantbuffer<objectconstants> _cbuffer;
+    //constantbuffer<objectconstants> _cbuffer;
     dynamicbuffer<vertextype> _vertexbuffer;
     texture_dynamic _texture{ DXGI_FORMAT_R8G8B8A8_UNORM };
 
@@ -334,7 +334,7 @@ inline body_dynamic<body_t, prim_t>::body_dynamic(body_c_t&& _body, vertexfetch_
 template<dbody_c body_t, topology prim_t>
 inline std::vector<ComPtr<ID3D12Resource>> body_dynamic<body_t, prim_t>::create_resources()
 {
-    _cbuffer.createresource();
+    //_cbuffer.createresource();
     auto const& verts = get_vertices(body);
     _vertexbuffer.createresource(getparams().maxverts);
     _texture.createresource(getparams().dims, body.texturedata());
@@ -362,7 +362,7 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
 
     _vertexbuffer.updateresource(get_vertices(body));
     _texture.updateresource(body.texturedata());
-    _cbuffer.updateresource(objectconstants(matrix::CreateTranslation(body.center()), globalresources::get().view()));
+    //_cbuffer.updateresource(objectconstants(matrix::CreateTranslation(body.center()), globalresources::get().view()));
     stdx::cassert(_vertexbuffer.count() < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
 
     dispatchparams dispatch_params;
@@ -371,7 +371,8 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
     dispatch_params.maxprims_permsgroup = topologyconstants<prim_t>::maxprims_permsgroup;
 
     resource_bindings bindings;
-    bindings.constant = { 0, globalresources::get().cbuffer().currframe_gpuaddress() };
+
+    //bindings.constant = { 0, globalresources::get().cbuffer().currframe_gpuaddress() };
     //bindings.objectconstant = { 1, _cbuffer.currframe_gpuaddress() };
     //bindings.vertex = { 3, _vertexbuffer.gpuaddress() };
     bindings.pipelineobjs = foundpso->second;
