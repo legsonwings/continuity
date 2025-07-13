@@ -82,7 +82,7 @@ private:
 	gfx::shadertable missshadertable;
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
-	gfx::texture raytracingoutput;
+	gfx::rtouttexture raytracingoutput;
 
 	// todo : should be in engine
 	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;

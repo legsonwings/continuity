@@ -109,7 +109,7 @@ gfx::resourcelist raytrace::create_resources()
         hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
         hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
-        raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        raytracingoutput.create(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         // todo : these are incorrect now
         // we don't store descriptors, as the indices are hardcoded in shaders

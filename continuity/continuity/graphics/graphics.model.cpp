@@ -5,7 +5,9 @@ module;
 
 module graphics:model;
 
+import vec;
 import :globalresources;
+import engine;
 
 namespace gfx
 {
@@ -20,17 +22,80 @@ model::model(std::string const& objpath, bool translatetoorigin)
 
     auto const& positions = result.attributes.positions;
     auto const& normals = result.attributes.normals;
+    auto const& texcoords = result.attributes.texcoords;
 
     auto const numverts = positions.size() / 3;
-
+     
     _vertices.resize(numverts);
 
+    std::filesystem::path path = objpath;
+    auto const modeldir = path.parent_path().string();
+
+    auto createtexture = [&modeldir](std::string filename)
+    {
+        texture<accesstype::gpu> tex;
+        std::filesystem::path filepath = filename;
+        std::filesystem::path texturepath = globalresources::get().assetfullpath(modeldir + "/" + filepath.string());
+        auto pathstr = texturepath.generic_string();
+
+        if (!std::filesystem::exists(pathstr) || !std::filesystem::is_regular_file(pathstr))
+            return tex;
+
+        tex.createfromfile(pathstr);
+        return tex;
+    };
+
+    std::vector<uint32> materialidxtodescidx;
+    for (auto const& m : result.materials)
+    {
+        material mat;
+        if (auto diffuse = createtexture(m.diffuse_texname); diffuse.valid())
+        {
+            mat.diffusetex = diffuse.createsrv().heapidx;
+            _textures.push_back(diffuse);
+        }
+        else
+        {
+            // expect same single channel transmittance
+            mat.basecolour = stdx::vec4{ m.diffuse[0], m.diffuse[1], m.diffuse[2], (1.0f - m.transmittance[0]) };
+        }
+
+        if (auto roughness = createtexture(m.roughness_texname); roughness.valid())
+        {
+            mat.roughnesstex = roughness.createsrv().heapidx;
+            _textures.push_back(roughness);
+        }
+        else
+        {
+            mat.roughness = 1.0f - sqrt(m.shininess / 1000.0f);
+        }
+
+        if (auto metallic = createtexture(m.metallic_texname); metallic.valid())
+        {
+            mat.metallictex = metallic.createsrv().heapidx;
+            _textures.push_back(metallic);
+        }
+        else
+        {
+            stdx::vec3 spec{ m.specular[0], m.specular[1], m.specular[2] };
+            mat.metallic = spec.length() > 0.08f;
+        }
+
+        materialidxtodescidx.push_back(globalresources::get().addmat(mat));
+    }
+
+    uint32 const numprims = uint32(numverts / 3);
+    std::vector<uint32> primitivematerials;
+    primitivematerials.reserve(numprims);
     for (auto const& shape : result.shapes)
     {
         auto const& objindices = shape.mesh.indices;
         for (uint i(0); i < shape.mesh.num_face_vertices.size(); ++i)
         {
+            auto facematerial = shape.mesh.material_ids[i];
+            primitivematerials.push_back(materialidxtodescidx[facematerial]);
             stdx::cassert(shape.mesh.num_face_vertices[i] == 3);
+
             for (auto j : stdx::range(3u))
             {
                 auto vindex = objindices[i * 3 + j].position_index;
@@ -38,8 +103,10 @@ model::model(std::string const& objpath, bool translatetoorigin)
 
                 // index into flat array of floats
                 auto posarridx = vindex * 3;
+                auto texcoordarridx = objindices[i * 3 + j].texcoord_index * 2;
 
                 _vertices[vindex].position = vector3(positions[posarridx], positions[posarridx + 1], positions[posarridx + 2]);
+                _vertices[vindex].texcoord = vector2(texcoords[texcoordarridx], texcoords[texcoordarridx + 1]);
 
                 if (normals.size() > 0)
                 {
@@ -65,6 +132,9 @@ model::model(std::string const& objpath, bool translatetoorigin)
         }
     }
 
+    _primitivematerials.create(primitivematerials);
+    _primmaterialsdescidx = _primitivematerials.createsrv().heapidx;
+
     //if (translatetoorigin)
     //{
     //    geometry::aabb bounds;
@@ -78,7 +148,9 @@ model::model(std::string const& objpath, bool translatetoorigin)
 
 std::vector<instance_data> model::instancedata() const
 {
-    return { instance_data(matrix::Identity, globalresources::get().view()) };
+    instance_data data(matrix::Identity, globalresources::get().view());
+    data.primmaterialsidx = _primmaterialsdescidx;
+    return { data };
 }
 
 }

@@ -7,6 +7,7 @@ export module graphics:model;
 import stdxcore;
 import stdx;
 import std;
+import :resourcetypes;
 
 import graphicscore;
 
@@ -26,6 +27,10 @@ export struct model
 
 	std::vector<uint32> _indices;
 	std::vector<vertex> _vertices;
+	std::vector<texture<accesstype::gpu>> _textures;
+
+	uint32 _primmaterialsdescidx;
+	structuredbuffer<uint32, gfx::accesstype::both> _primitivematerials;
 };
 
 }

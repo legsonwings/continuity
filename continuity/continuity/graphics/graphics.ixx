@@ -50,7 +50,7 @@ void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... res
 }
 
 // raytrace stuff below
-
+using rtouttexture = texture<accesstype::gpu>;
 using rtvertexbuffer = structuredbuffer<stdx::vec3, accesstype::both>;
 using rtindexbuffer = structuredbuffer<uint32_t, accesstype::both>;
 
@@ -172,7 +172,7 @@ struct proceduralblas : public blas
 struct raytrace
 {
 	void dispatchrays(shadertable const& raygen, shadertable const& miss, shadertable const& hitgroup, ID3D12StateObject* stateobject, uint width, uint height);
-	void copyoutputtorendertarget(texture const& rtoutput);
+	void copyoutputtorendertarget(rtouttexture const& rtoutput);
 };
 
 }

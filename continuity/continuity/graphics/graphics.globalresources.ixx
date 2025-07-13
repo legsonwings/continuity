@@ -30,6 +30,7 @@ class globalresources
 	uint _frameindex{ 0 };
 	std::string _assetspath;
 	resourceheap _resourceheap;
+	samplerheap _samplerheap;
 	ComPtr<ID3D12Device5> _device;
 
 	ComPtr<ID3D12Resource> _rendertarget;
@@ -45,13 +46,13 @@ class globalresources
 	uint32 _materialsbuffer_idx = -1;//stdx::invalid<uint32>;
 	gfx::structuredbuffer<material, gfx::accesstype::both> materialsbuffer;
 
-	std::string assetfullpath(std::string const& path) const;
 public:
 	void init();
 	void deinit();
 	void create_resources();
 
-	static constexpr uint32 max_materials = 100;
+	static constexpr uint32 max_heapdescriptors = 1000;
+	static constexpr uint32 max_materials = 1000;
 
 	viewinfo& view();
 	psomapref psomap() const;
@@ -62,6 +63,7 @@ public:
 	ComPtr<ID3D12Resource>& rendertarget();
 	ComPtr<ID3D12Device5>& device();
 	resourceheap& resourceheap();
+	samplerheap& samplerheap();
 	ComPtr<ID3D12GraphicsCommandList6>& cmdlist();
 	void frameindex(uint idx);
 	uint frameindex() const;
@@ -72,6 +74,7 @@ public:
 	void addcomputepso(std::string const& name, std::string const& cs);
 	void addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags = psoflags::none);
 	pipeline_objects& addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders);
+	std::string assetfullpath(std::string const& path) const;
 
 	static globalresources& get();
 };

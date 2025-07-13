@@ -23,7 +23,7 @@ private:
 	gfx::shadertable missshadertable;
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
-	gfx::texture raytracingoutput;
+	gfx::rtouttexture raytracingoutput;
 	gfx::rtvertexbuffer vertexbuffer;
 	gfx::rtindexbuffer indexbuffer;
 	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;

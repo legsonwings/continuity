@@ -2,6 +2,7 @@ module;
 
 #include "thirdparty/d3dx12.h"
 #include "thirdparty/dxhelpers.h"
+#include "thirdparty/wictextureloader12.h"
 
 module graphics:resourcetypes;
 
@@ -89,13 +90,13 @@ ComPtr<ID3D12Resource> create_perframeuploadbufferunmapped(uint const buffersize
     return b_upload;
 }
 
-ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap()
+ComPtr<ID3D12DescriptorHeap> createdescriptorheap(uint maxnumdesc, D3D12_DESCRIPTOR_HEAP_TYPE type)
 {
     auto device = globalresources::get().device();
 
     D3D12_DESCRIPTOR_HEAP_DESC heapdesc = {};
-    heapdesc.NumDescriptors = 100; // todo : arbitrary limit, make a class for resource heap
-    heapdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    heapdesc.NumDescriptors = UINT(maxnumdesc);
+    heapdesc.Type = type;
     heapdesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
     ComPtr<ID3D12DescriptorHeap> heap;
@@ -228,6 +229,15 @@ void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, st
     memcpy(mapped_buffer + perframe_buffersize * frame_idx, data_start, data_size);
 }
 
+samplerv samplerheap::addsampler(D3D12_SAMPLER_DESC samplerdesc)
+{
+    auto device = globalresources::get().device();
+    auto samplerdesc_incrementsize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * samplerdesc_incrementsize));
+    device->CreateSampler(&samplerdesc, deschandle);
+
+    return { currslot++, samplerdesc };
+}
 
 srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resource* res)
 {
@@ -256,18 +266,11 @@ cbv resourceheap::addcbv(D3D12_CONSTANT_BUFFER_VIEW_DESC viewdesc, ID3D12Resourc
     return { currslot++, viewdesc };
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE resourceheap::gpudeschandle(uint slot) const
+srv texturebase::createsrv() const
 {
-    return CD3DX12_GPU_DESCRIPTOR_HANDLE(d3dheap->GetGPUDescriptorHandleForHeapStart(), 0, UINT(slot * gfx::srvcbvuav_descincrementsize()));
-}
+    // use resource format for now
+    stdx::cassert(this->d3dresource != nullptr && format != DXGI_FORMAT::DXGI_FORMAT_UNKNOWN);
 
-texture::texture(DXGI_FORMAT dxgiformat, stdx::vecui2 dimensions, D3D12_RESOURCE_STATES state) : format(dxgiformat), dims(dimensions)
-{
-    d3dresource = createtexture_default(dims[0], dims[1], format, state);
-}
-
-srv texture::createsrv() const
-{
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
     srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvdesc.Format = format;
@@ -277,11 +280,56 @@ srv texture::createsrv() const
     return globalresources::get().resourceheap().addsrv(srvdesc, d3dresource.Get());
 }
 
-uav texture::createuav() const
+uav texturebase::createuav() const
 {
+    stdx::cassert(this->d3dresource != nullptr);
+
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
     uavdesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
     return globalresources::get().resourceheap().adduav(uavdesc, d3dresource.Get());
+}
+
+void gfx::texture<accesstype::gpu>::create(DXGI_FORMAT dxgiformat, stdx::vecui2 size, D3D12_RESOURCE_STATES state)
+{
+    stdx::cassert(this->d3dresource == nullptr);
+
+    format = dxgiformat;
+    dims = size;
+    d3dresource = createtexture_default(dims[0], dims[1], format, state);
+}
+
+void texture<accesstype::gpu>::createfromfile(std::string const& path)
+{
+    auto device = globalresources::get().device();
+    auto cmdlist = globalresources::get().cmdlist();
+
+    stdx::cassert(this->d3dresource == nullptr);
+
+    D3D12_SUBRESOURCE_DATA subresdata;
+    ID3D12Resource* texture = nullptr;
+    std::unique_ptr<uint8_t[]> wicdata;
+
+    DirectX::LoadWICTextureFromFile(device.Get(), utils::strtowstr(path).c_str(), &texture, wicdata, subresdata);
+    stdx::cassert(texture != nullptr);
+
+    format = texture->GetDesc().Format;
+    dims = { texture->GetDesc().Width, texture->GetDesc().Height };
+
+    d3dresource = texture;
+
+    const UINT64 ubsize = GetRequiredIntermediateSize(texture, 0, 1) + D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+    auto ub_desc = CD3DX12_RESOURCE_DESC::Buffer(ubsize);
+
+    ComPtr<ID3D12Resource> t_upload;
+    auto ut_desc = CD3DX12_RESOURCE_DESC::Tex2D(format, UINT64(dims[0]), UINT(dims[1]));
+    auto uploadheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    ThrowIfFailed(device->CreateCommittedResource(&uploadheap_desc, D3D12_HEAP_FLAG_NONE, &ub_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(uploadtex.GetAddressOf())));
+
+    // copy texture data to resource
+    UpdateSubresources<1>(cmdlist.Get(), texture, uploadtex.Get(), 0, 0, 1, &subresdata);
+
+    auto resource_transition = CD3DX12_RESOURCE_BARRIER::Transition(texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    cmdlist->ResourceBarrier(1, &resource_transition);
 }
 
 void texture_dynamic::createresource(stdx::vecui2 dims, std::vector<uint8_t> const& texturedata)

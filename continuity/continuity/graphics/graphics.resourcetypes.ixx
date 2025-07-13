@@ -27,7 +27,7 @@ ComPtr<ID3D12Resource> create_uploadbuffer(std::byte** mapped_buffer, uint const
 ComPtr<ID3D12Resource> create_perframeuploadbuffers(std::byte** mapped_buffer, uint const buffersize);
 ComPtr<ID3D12Resource> create_uploadbufferwithdata(void const* data_start, uint const buffersize);
 ComPtr<ID3D12Resource> create_perframeuploadbufferunmapped(uint const buffersize);
-ComPtr<ID3D12DescriptorHeap> createresourcedescriptorheap();
+ComPtr<ID3D12DescriptorHeap> createdescriptorheap(uint maxnumdesc, D3D12_DESCRIPTOR_HEAP_TYPE type);
 srv createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource);
 uav createuav(D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc, ID3D12Resource* resource);
 void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource, ID3D12DescriptorHeap* resourceheap, uint heapslot = 0);
@@ -45,9 +45,20 @@ uint align(uint unalignedsize, uint alignment) { return stdx::nextpowoftwomultip
 struct resource
 {
 	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return d3dresource->GetGPUVirtualAddress(); }
+	[[nodiscard]] bool valid() const { return d3dresource != nullptr; }
 
 	uint ressize = 0;
 	ComPtr<ID3D12Resource> d3dresource;
+};
+
+class samplerheap
+{
+public:
+	samplerv addsampler(D3D12_SAMPLER_DESC samplerdesc);
+
+	ComPtr<ID3D12DescriptorHeap> d3dheap;
+private:
+	uint32 currslot = 0;
 };
 
 class resourceheap
@@ -57,14 +68,12 @@ public:
 	uav adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC view, ID3D12Resource* res);
 	cbv addcbv(D3D12_CONSTANT_BUFFER_VIEW_DESC view, ID3D12Resource* res);
 
-	D3D12_GPU_DESCRIPTOR_HANDLE gpudeschandle(uint slot) const;
-
 	ComPtr<ID3D12DescriptorHeap> d3dheap;
 private:
 	uint32 currslot = 0;
 };
 
-enum class accesstype
+export enum class accesstype
 {
 	both,		// cpu w, gpu rw
 	gpu,		// gpu rw
@@ -157,32 +166,27 @@ struct structuredbuffer<t, accesstype::gpu> : public structuredbufferbase<t>
 	}
 };
 
-template<typename t>
-struct staticbuffer
+struct texturebase : public resource
 {
-	ComPtr<ID3D12Resource> createresources(std::vector<t> const& data)
-	{
-		_count = data.size();
-		auto const bufferresources = create_defaultbuffer(data.data(), size());
-		_buffer = bufferresources.first;
-		return bufferresources.second;
-	}
+	srv createsrv() const;
+	uav createuav() const;
 
-	uint count() const { return _count; }
-	uint size() const { return _count * sizeof(t); }
-	D3D12_GPU_VIRTUAL_ADDRESS gpuaddress() const { return _buffer->GetGPUVirtualAddress(); }
-
-	uint _count = 0;
-	ComPtr<ID3D12Resource> _buffer;
+	stdx::vecui2 dims;
+	DXGI_FORMAT format;
 };
 
-struct rostructuredbuffer : public resource
+template<accesstype access>
+struct texture : public texturebase {};
+
+// gpu rw, cpu can only write initially
+template<>
+struct texture<accesstype::gpu> : public texturebase
 {
-	void createresources(uint buffersize)
-	{
-		ressize = buffersize;
-		d3dresource = create_default_uavbuffer(buffersize);
-	}
+	void create(DXGI_FORMAT dxgiformat, stdx::vecui2 size, D3D12_RESOURCE_STATES state);
+	void createfromfile(std::string const& path);
+
+	// unlike buffers texture are created on default heap?
+	ComPtr<ID3D12Resource> uploadtex;
 };
 
 template<typename t>
@@ -211,19 +215,6 @@ struct dynamicbuffer
 	uint _count = 0;
 	std::byte* _mappeddata = nullptr;
 	ComPtr<ID3D12Resource> _buffer;
-};
-
-// read write by gpu only
-struct texture : public resource
-{
-	texture() = default;
-	texture(DXGI_FORMAT dxgiformat, stdx::vecui2 dimensions, D3D12_RESOURCE_STATES state);
-
-	srv createsrv() const;
-	uav createuav() const;
-
-	DXGI_FORMAT format;
-	stdx::vecui2 dims;
 };
 
 // todo : this is a texture updated per frame,

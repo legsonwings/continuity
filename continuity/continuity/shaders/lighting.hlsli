@@ -116,22 +116,18 @@ float3 specularbrdf(float3 l, float3 v, float3 n, float r, float3 f0)
 // irradiance is amount of light energy a surface recieves per unit area, at normal incidence
 // assume all surfaces recieve same amount of light energy at normal incidence for now,
 // this assumption holds well for directional lights which are assumed to be infinitely far away, but for point and spot lights we would need to attenuate the irradiance
-float3 calculatelighting(float3 irradiance, material m, float3 l, float3 v, float3 n)
+float3 calculatelighting(float3 irradiance, float3 l, float3 v, float3 n, float3 c, float r, float fr, uint m)
 {
-    float3 basecolour = m.colour.xyz;
-    float reflectance = m.reflectance;
-    bool ismetallic = m.metallic > 0.001f;
-    float r = m.roughness;
-
+    bool ismetallic = m > 0.001f;
     // metals do not have diffuse reflectance and non-metals have low specular reflectance
-    float3 diffusealbedo = ismetallic ? (float3) 0.0f : basecolour;
-    float3 sepcularalbedo = ismetallic ? basecolour : (float3) 0.04f; // constant low specular reflectance for dielectrics
+    float3 diffusealbedo = ismetallic ? (float3) 0.0f : c;
+    float3 sepcularalbedo = ismetallic ? c : (float3) 0.04f; // constant low specular reflectance for dielectrics
 
     // dielectric specular reflectance is f0 = 0.16f * reflectance2
     // metallic specular reflectance is base colour
     // see Lagarde's "Moving Frostbite to PBR"
-    float3 f0dielectric = (0.16f * reflectance * reflectance).xxx;
-    float3 f0metallic = basecolour;
+    float3 f0dielectric = (0.16f * fr * fr).xxx;
+    float3 f0metallic = c;
 
     float3 f0 = ismetallic ? f0metallic : f0dielectric;
 

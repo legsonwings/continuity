@@ -50,6 +50,8 @@ struct meshshadervertex
     float4 positionh : SV_Position;
     float3 position : POSITION0;
     float3 normal : NORMAL0;
+    float2 texcoords : texcoord0;
+    uint material : materialidx;
 };
 
 struct texturessvertex
@@ -72,6 +74,10 @@ struct material
     float roughness;
     float reflectance;
     uint metallic;
+
+    uint diffusetex;
+    uint roughnesstex;
+    uint metallictex;
 };
 
 struct viewconstants
@@ -92,6 +98,7 @@ struct instance_data
     float4x4 normalmatx;
     float4x4 mvpmatx;
     uint mat;
+    uint primmaterialsidx;
 };
 
 struct rootconstants

@@ -37,7 +37,8 @@ void globalresources::init()
     addmat(material().colour(color::red));
     addmat(material().colour(color::water));
 
-    _resourceheap.d3dheap = createresourcedescriptorheap();
+    _resourceheap.d3dheap = createdescriptorheap(max_heapdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    _samplerheap.d3dheap = createdescriptorheap(max_heapdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
     srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -64,6 +65,22 @@ void globalresources::create_resources()
 {
     materialsbuffer.create(_materials);
     _materialsbuffer_idx = materialsbuffer.createsrv().heapidx;
+
+    // create a sampler at 
+    D3D12_SAMPLER_DESC samplerdesc = {};
+    samplerdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplerdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplerdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplerdesc.MinLOD = 0;
+    samplerdesc.MaxLOD = D3D12_FLOAT32_MAX;
+    samplerdesc.MipLODBias = 0.0f;
+    samplerdesc.MaxAnisotropy = 1;
+    samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+
+    // create a linear sampler at 0 for now
+    auto samplerview = _samplerheap.addsampler(samplerdesc);
+    stdx::cassert(samplerview.heapidx == 0);
 }
 
 viewinfo& globalresources::view() { return _view; }
@@ -74,6 +91,7 @@ materialcref globalresources::defaultmat() const { return _defaultmat; }
 void globalresources::rendertarget(ComPtr<ID3D12Resource>& rendertarget) { _rendertarget = rendertarget; }
 ComPtr<ID3D12Resource>& globalresources::rendertarget() { return _rendertarget; }
 resourceheap& globalresources::resourceheap() { return _resourceheap; }
+samplerheap& globalresources::samplerheap() { return _samplerheap; }
 ComPtr<ID3D12Device5>& globalresources::device() { return _device; }
 ComPtr<ID3D12GraphicsCommandList6>& globalresources::cmdlist() { return _commandlist; }
 void globalresources::frameindex(uint idx) { _frameindex = idx; }
@@ -90,7 +108,7 @@ uint32 globalresources::addmat(material const& mat)
 
 uint globalresources::dxgisize(DXGI_FORMAT format)
 {
-    return _dxgisizes.contains(format) ? _dxgisizes[format] : stdx::invalid<uint>();
+    return _dxgisizes.contains(format) ? _dxgisizes[format] : stdx::invalid<uint>;
 }
 
 material& globalresources::mat(uint32 id)

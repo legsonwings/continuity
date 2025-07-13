@@ -109,6 +109,11 @@ struct cbv : public resourceview
     D3D12_CONSTANT_BUFFER_VIEW_DESC desc;
 };
 
+struct samplerv : public resourceview
+{
+    D3D12_SAMPLER_DESC desc;
+};
+
 struct pipeline_objects
 {
     ComPtr<ID3D12PipelineState> pso;
@@ -143,8 +148,12 @@ struct material
 {
     stdx::vec4 basecolour = stdx::vec4{ 1, 0, 0, 0 };
     float roughness = 0.25f;
-    float reflectance = 0.1f;
+    float reflectance = 0.5f;
     uint32 metallic = 0;
+
+    uint32 diffusetex = stdx::invalid<uint32>;
+    uint32 roughnesstex = stdx::invalid<uint32>;
+    uint32 metallictex = stdx::invalid<uint32>;
 
     material& colour(stdx::vec4 const& colour) { basecolour = colour; return *this; }
 };
@@ -155,7 +164,14 @@ struct instance_data
     matrix matx;
     matrix normalmatx;
     matrix mvpmatx;
+    
+    // single material
     uint32 mat;
+
+    // per primitive materials
+    // this isn't a per instance thing, but its here for convenience
+    uint32 primmaterialsidx;
+
     instance_data() = default;
     instance_data(matrix const& m, viewinfo const& v)
         : matx(m.Transpose()), normalmatx(m.Invert()), mvpmatx((m * v.view * v.proj).Transpose()) {}

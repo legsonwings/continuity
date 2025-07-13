@@ -189,7 +189,7 @@ void raytrace::dispatchrays(shadertable const& raygen, shadertable const& miss, 
     globalresources::get().cmdlist()->DispatchRays(&dispatchdesc);
 }
 
-void raytrace::copyoutputtorendertarget(texture const& rtoutput)
+void raytrace::copyoutputtorendertarget(rtouttexture const& rtoutput)
 {
     auto& globalres = globalresources::get();
 

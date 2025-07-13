@@ -73,7 +73,7 @@ template <arithmetic_c t = float>
 t constexpr tolerance = t{ 1e-5f };
 
 template <arithmetic_c t>
-struct invalid { constexpr operator t() const { return { std::numeric_limits<t>::max() }; } };
+t constexpr invalid = std::numeric_limits<t>::max();
 
 struct uminus { constexpr auto operator() (arithmeticpure_c auto v) const { return -v; }; };
 

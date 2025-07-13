@@ -1,19 +1,21 @@
 #include "common.hlsli"
 #include "shared/common.h"
 
-meshshadervertex getvertattribute(vertexin vertex)
+meshshadervertex getvertattribute(vertexin vertex, uint vertidx)
 {
     meshshadervertex outvert;
     
     StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
     StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+    StructuredBuffer<uint> primmaterials = ResourceDescriptorHeap[objconstants[0].primmaterialsidx];
 
     float4 const pos = float4(vertex.position, 1.f);
     outvert.instanceid = 0;
     outvert.position = mul(pos, objconstants[0].matx).xyz;
     outvert.positionh = mul(pos, objconstants[0].mvpmatx);
-
+    outvert.texcoords = vertex.texcoord;
     outvert.normal = normalize(mul(float4(vertex.normal, 0), objconstants[0].normalmatx).xyz);
+    outvert.material = primmaterials[vertidx / 3];
 
     return outvert;
 }
@@ -54,8 +56,8 @@ void main(
         vertexin v1 = triangle_vertices[triangle_indices[dtid * 3u + 1]];
         vertexin v2 = triangle_vertices[triangle_indices[dtid * 3u + 2]];
 
-        verts[v0idx] = getvertattribute(v0);
-        verts[v0idx + 1] = getvertattribute(v1);
-        verts[v0idx + 2] = getvertattribute(v2);
+        verts[v0idx] = getvertattribute(v0, dtid * 3u);
+        verts[v0idx + 1] = getvertattribute(v1, dtid * 3u + 1);
+        verts[v0idx + 2] = getvertattribute(v2, dtid * 3u + 2);
     }
 }

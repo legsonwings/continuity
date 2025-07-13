@@ -158,7 +158,7 @@ private:
 
 	std::pair<uint, uint> container(uint idx) const
 	{
-		static constexpr auto invalidcont = std::make_pair(invalid<uint>(), invalid<uint>());
+		static constexpr auto invalidcont = std::make_pair(invalid<uint>, invalid<uint>);
 		uint sum = 0;
 		std::pair<uint, uint> ret = invalidcont;
 		for (uint i = 0; i < sizes.size(); ++i)

@@ -122,7 +122,7 @@ void tri_closesthit(inout raypayload payload, in BuiltInTriangleIntersectionAttr
     float3 v = normalize(frameconstants.campos - hitpoint);
 
     payload.color.a = 1.0f;
-    payload.color.xyz = calculatelighting(float3(50, 50, 50), geomaterial, l, v, n) + float3(0.3, 0.3, 0.3); // ambient term;
+    payload.color.xyz = calculatelighting(float3(50, 50, 50), l, v, n, geomaterial.colour.xyz, geomaterial.roughness, geomaterial.reflectance, geomaterial.metallic) + float3(0.3, 0.3, 0.3); // ambient term;
 }
 
 struct fluidhitattributes 
