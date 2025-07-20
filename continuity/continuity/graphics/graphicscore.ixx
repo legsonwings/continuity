@@ -104,11 +104,6 @@ struct uav : public resourceview
     D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
 };
 
-struct cbv : public resourceview
-{
-    D3D12_CONSTANT_BUFFER_VIEW_DESC desc;
-};
-
 struct samplerv : public resourceview
 {
     D3D12_SAMPLER_DESC desc;
@@ -149,11 +144,11 @@ struct material
     stdx::vec4 basecolour = stdx::vec4{ 1, 0, 0, 0 };
     float roughness = 0.25f;
     float reflectance = 0.5f;
-    uint32 metallic = 0;
+    float metallic = 0.0f;
 
     uint32 diffusetex = stdx::invalid<uint32>;
     uint32 roughnesstex = stdx::invalid<uint32>;
-    uint32 metallictex = stdx::invalid<uint32>;
+    uint32 normaltex = stdx::invalid<uint32>;
 
     material& colour(stdx::vec4 const& colour) { basecolour = colour; return *this; }
 };

@@ -51,7 +51,8 @@ public:
 	void deinit();
 	void create_resources();
 
-	static constexpr uint32 max_heapdescriptors = 1000;
+	static constexpr uint32 max_resdescriptors = 10000;
+	static constexpr uint32 max_samplerdescriptors = 2048;
 	static constexpr uint32 max_materials = 1000;
 
 	viewinfo& view();

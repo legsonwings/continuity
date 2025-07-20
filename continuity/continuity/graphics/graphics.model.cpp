@@ -12,7 +12,7 @@ import engine;
 namespace gfx
 {
 
-model::model(std::string const& objpath, bool translatetoorigin)
+model::model(std::string const& objpath, modelloadparams loadparams)
 {
     rapidobj::Result result = rapidobj::ParseFile(std::filesystem::path(objpath), rapidobj::MaterialLibrary::Default(rapidobj::Load::Optional));
     stdx::cassert(!result.error);
@@ -49,8 +49,10 @@ model::model(std::string const& objpath, bool translatetoorigin)
     for (auto const& m : result.materials)
     {
         material mat;
-        if (auto diffuse = createtexture(m.diffuse_texname); diffuse.valid())
+        if (!m.diffuse_texname.empty())
         {
+            auto diffuse = createtexture(m.diffuse_texname);
+            stdx::cassert(diffuse.valid());
             mat.diffusetex = diffuse.createsrv().heapidx;
             _textures.push_back(diffuse);
         }
@@ -60,26 +62,50 @@ model::model(std::string const& objpath, bool translatetoorigin)
             mat.basecolour = stdx::vec4{ m.diffuse[0], m.diffuse[1], m.diffuse[2], (1.0f - m.transmittance[0]) };
         }
 
-        if (auto roughness = createtexture(m.roughness_texname); roughness.valid())
+        std::string roughnesstex = m.roughness_texname;
+
+        // if roughness tex is not specified then specular slot may be used for the roughness texture
+        // todo : this is temp, should actually fix the materials in source files
+        if (roughnesstex.empty() && loadparams.specularasmetallicroughness)
         {
+            // there is an .mtl extension for pbr textures however some models do not use it and resuse legacy texture slots
+            // this is acutally a metallic roughness texture using b and g channels respectively
+            roughnesstex = m.specular_texname;
+        }
+
+        if (!roughnesstex.empty())
+        {
+            auto roughness = createtexture(roughnesstex);
+            stdx::cassert(roughness.valid());
             mat.roughnesstex = roughness.createsrv().heapidx;
             _textures.push_back(roughness);
         }
         else
         {
             mat.roughness = 1.0f - sqrt(m.shininess / 1000.0f);
+            stdx::vec3 spec{ m.specular[0], m.specular[1], m.specular[2] };
+            mat.metallic = spec.length() > 0.08f ? 1.0f : 0.0f;
         }
 
-        if (auto metallic = createtexture(m.metallic_texname); metallic.valid())
+        std::string normaltexname = m.normal_texname;
+
+        // if normal tex is not specified then ambient slot may be used for the roughness texture
+        // todo : this is temp, should actually fix the materials in source files
+        if (normaltexname.empty() && loadparams.ambientasnormal)
         {
-            mat.metallictex = metallic.createsrv().heapidx;
-            _textures.push_back(metallic);
+            // there is an .mtl extension for pbr textures however some models do not use it and resuse legacy texture slots
+            normaltexname = m.ambient_texname;
         }
-        else
+
+        if (!normaltexname.empty())
         {
-            stdx::vec3 spec{ m.specular[0], m.specular[1], m.specular[2] };
-            mat.metallic = spec.length() > 0.08f;
+            auto normal = createtexture(normaltexname);
+            stdx::cassert(normal.valid());
+            mat.normaltex = normal.createsrv().heapidx;
+            _textures.push_back(normal);
         }
+
+        stdx::cassert(m.metallic_texname.empty(), "Expected roughness and metallic to be be in same texture.");
 
         materialidxtodescidx.push_back(globalresources::get().addmat(mat));
     }
@@ -135,7 +161,7 @@ model::model(std::string const& objpath, bool translatetoorigin)
     _primitivematerials.create(primitivematerials);
     _primmaterialsdescidx = _primitivematerials.createsrv().heapidx;
 
-    //if (translatetoorigin)
+    //if (loadparams.translatetoorigin)
     //{
     //    geometry::aabb bounds;
     //    for (auto const& v : _vertices) bounds += v.position;

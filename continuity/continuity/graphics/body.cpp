@@ -9,12 +9,12 @@ namespace gfx
 
 void dispatch(resource_bindings const& bindings, bool wireframe, uint dispatchx)
 {
-    auto& globares = gfx::globalresources::get();
-    auto cmd_list = globares.cmdlist();
+    auto& globalres = gfx::globalresources::get();
+    auto cmd_list = globalres.cmdlist();
 
     cmd_list->SetGraphicsRootSignature(bindings.pipelineobjs.root_signature.Get());
 
-    ID3D12DescriptorHeap* heaps[] = { globares.resourceheap().d3dheap.Get(), globares.samplerheap().d3dheap.Get() };
+    ID3D12DescriptorHeap* heaps[] = { globalres.resourceheap().d3dheap.Get(), globalres.samplerheap().d3dheap.Get() };
     cmd_list->SetDescriptorHeaps(_countof(heaps), heaps);
 
     //cmd_list->SetGraphicsRootConstantBufferView(bindings.constant.slot, bindings.constant.address);

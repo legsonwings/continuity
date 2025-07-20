@@ -231,6 +231,7 @@ void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, st
 
 samplerv samplerheap::addsampler(D3D12_SAMPLER_DESC samplerdesc)
 {
+    stdx::cassert(currslot < globalresources::max_samplerdescriptors);
     auto device = globalresources::get().device();
     auto samplerdesc_incrementsize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * samplerdesc_incrementsize));
@@ -241,6 +242,7 @@ samplerv samplerheap::addsampler(D3D12_SAMPLER_DESC samplerdesc)
 
 srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resource* res)
 {
+    stdx::cassert(currslot < globalresources::max_resdescriptors);
     auto device = globalresources::get().device();
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * srvcbvuav_descincrementsize()));
@@ -250,6 +252,7 @@ srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resourc
 
 uav resourceheap::adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC viewdesc, ID3D12Resource* res)
 {
+    stdx::cassert(currslot < globalresources::max_resdescriptors);
     auto device = globalresources::get().device();
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * srvcbvuav_descincrementsize()));
@@ -257,16 +260,12 @@ uav resourceheap::adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC viewdesc, ID3D12Resour
     return { currslot++, viewdesc };
 }
 
-cbv resourceheap::addcbv(D3D12_CONSTANT_BUFFER_VIEW_DESC viewdesc, ID3D12Resource* res)
+uint32 resourceheap::popdesc()
 {
-    auto device = globalresources::get().device();
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * srvcbvuav_descincrementsize()));
-    device->CreateConstantBufferView(&viewdesc, deschandle);
-    return { currslot++, viewdesc };
+    return currslot > 0 ? currslot-- : 0;
 }
 
-srv texturebase::createsrv() const
+srv texturebase::createsrv(uint32 miplevels, uint32 topmip) const
 {
     // use resource format for now
     stdx::cassert(this->d3dresource != nullptr && format != DXGI_FORMAT::DXGI_FORMAT_UNKNOWN);
@@ -275,17 +274,21 @@ srv texturebase::createsrv() const
     srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvdesc.Format = format;
     srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvdesc.Texture2D.MipLevels = 1;
+    srvdesc.Texture2D.MipLevels = miplevels == 0 ? d3dresource->GetDesc().MipLevels : miplevels;
+    srvdesc.Texture2D.MostDetailedMip = topmip;
 
     return globalresources::get().resourceheap().addsrv(srvdesc, d3dresource.Get());
 }
 
-uav texturebase::createuav() const
+uav texturebase::createuav(uint32 mipslice) const
 {
     stdx::cassert(this->d3dresource != nullptr);
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
+    uavdesc.Format = format;
     uavdesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    uavdesc.Texture2D.MipSlice = mipslice;
+
     return globalresources::get().resourceheap().adduav(uavdesc, d3dresource.Get());
 }
 
@@ -300,8 +303,9 @@ void gfx::texture<accesstype::gpu>::create(DXGI_FORMAT dxgiformat, stdx::vecui2 
 
 void texture<accesstype::gpu>::createfromfile(std::string const& path)
 {
-    auto device = globalresources::get().device();
-    auto cmdlist = globalresources::get().cmdlist();
+    auto& globalres = gfx::globalresources::get();
+    auto device = globalres.device();
+    auto cmdlist = globalres.cmdlist();
 
     stdx::cassert(this->d3dresource == nullptr);
 
@@ -309,15 +313,16 @@ void texture<accesstype::gpu>::createfromfile(std::string const& path)
     ID3D12Resource* texture = nullptr;
     std::unique_ptr<uint8_t[]> wicdata;
 
-    DirectX::LoadWICTextureFromFile(device.Get(), utils::strtowstr(path).c_str(), &texture, wicdata, subresdata);
+    // WIC_LOADER_MIP_AUTOGEN will reserve mips but won't generate them
+    DirectX::LoadWICTextureFromFileEx(device.Get(), utils::strtowstr(path).c_str(), 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, WIC_LOADER_MIP_AUTOGEN, &texture, wicdata, subresdata);
     stdx::cassert(texture != nullptr);
 
+    auto const& texdesc = texture->GetDesc();
     format = texture->GetDesc().Format;
     dims = { texture->GetDesc().Width, texture->GetDesc().Height };
-
     d3dresource = texture;
 
-    const UINT64 ubsize = GetRequiredIntermediateSize(texture, 0, 1) + D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+    const UINT64 ubsize = GetRequiredIntermediateSize(texture, 0, 1);
     auto ub_desc = CD3DX12_RESOURCE_DESC::Buffer(ubsize);
 
     ComPtr<ID3D12Resource> t_upload;
@@ -330,6 +335,47 @@ void texture<accesstype::gpu>::createfromfile(std::string const& path)
 
     auto resource_transition = CD3DX12_RESOURCE_BARRIER::Transition(texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     cmdlist->ResourceBarrier(1, &resource_transition);
+
+    auto const& pipelineobjects = globalres.psomap().find("genmipmaps")->second;
+
+    std::vector<uint32> paramindices(texdesc.MipLevels - 1);
+        
+    genmipsparams params;
+    params.linearsampler = 1;
+    for (auto i : stdx::range(texdesc.MipLevels - 1))
+    {
+        uint32 destdims[2] = { uint32(texdesc.Width >> (i + 1)), uint32(texdesc.Height >> (i + 1)) };
+
+        params.srctexture = createsrv(1, uint32(i)).heapidx;
+        params.desttexture = createuav(uint32(i + 1)).heapidx;
+        params.texelsize = { 1.0f / float(destdims[0]), 1.0f / float(destdims[1]) };
+
+        mipgenparambuffers.emplace_back().create({ params });
+
+        paramindices[i] = mipgenparambuffers.back().createsrv().heapidx;
+    }
+
+    cmdlist->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+    ID3D12DescriptorHeap* heaps[] = { globalres.resourceheap().d3dheap.Get(), globalres.samplerheap().d3dheap.Get() };
+
+    cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
+    cmdlist->SetPipelineState(pipelineobjects.pso.Get());
+
+    // todo : move this to engine so we can clean all these temporary descriptors
+    for (auto i : stdx::range(texdesc.MipLevels - 1))
+    {
+        uint32 destdims[2] = { uint32(texdesc.Width >> (i + 1)), uint32(texdesc.Height >> (i + 1)) };
+
+        // only first root constant is read so its fine
+        cmdlist->SetComputeRoot32BitConstants(0, 3, &paramindices[i], 0);
+
+        auto dispatchx = UINT(divideup<8>(destdims[0]));
+        auto dispatchy = UINT(divideup<8>(destdims[1]));
+        cmdlist->Dispatch(dispatchx, dispatchy, 1);
+
+        auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(texture);
+        cmdlist->ResourceBarrier(1, &uavBarrier);
+    }
 }
 
 void texture_dynamic::createresource(stdx::vecui2 dims, std::vector<uint8_t> const& texturedata)

@@ -14,10 +14,17 @@ import graphicscore;
 export namespace gfx
 {
 
-export struct model
+struct modelloadparams
+{
+	bool specularasmetallicroughness = true;
+	bool ambientasnormal = true;
+	bool translatetoorigin = false;
+};
+
+struct model
 {
 	model() = default;
-	model(std::string const& objpath, bool translatetoorigin = false);
+	model(std::string const& objpath, modelloadparams loadparams = {});
 
 	std::vector<vertex> const& vertices() const { return _vertices; }
 	std::vector<uint32> const& indices() const { return _indices; }

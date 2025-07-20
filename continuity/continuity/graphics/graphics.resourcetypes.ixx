@@ -66,7 +66,8 @@ class resourceheap
 public:
 	srv addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC view, ID3D12Resource* res);
 	uav adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC view, ID3D12Resource* res);
-	cbv addcbv(D3D12_CONSTANT_BUFFER_VIEW_DESC view, ID3D12Resource* res);
+
+	uint32 popdesc();
 
 	ComPtr<ID3D12DescriptorHeap> d3dheap;
 private:
@@ -168,11 +169,22 @@ struct structuredbuffer<t, accesstype::gpu> : public structuredbufferbase<t>
 
 struct texturebase : public resource
 {
-	srv createsrv() const;
-	uav createuav() const;
+	srv createsrv(uint32 miplevels = 0, uint32 topmip = 0) const;
+	uav createuav(uint32 mipslice = 0) const;
 
 	stdx::vecui2 dims;
 	DXGI_FORMAT format;
+
+	struct genmipsparams
+	{
+		uint32 srctexture;
+		uint32 desttexture;
+		uint32 linearsampler;
+		stdx::vec2 texelsize;
+	};
+
+	// todo : shouldn't be needed if done in engine
+	std::vector<structuredbuffer<genmipsparams, accesstype::both>> mipgenparambuffers;
 };
 
 template<accesstype access>

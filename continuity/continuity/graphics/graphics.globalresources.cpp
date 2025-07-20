@@ -13,6 +13,15 @@ using Microsoft::WRL::ComPtr;
 namespace gfx
 {
 
+void serialize_create_rootsignature(ComPtr<ID3D12Device5>& device, D3D12_ROOT_SIGNATURE_DESC const& desc, ComPtr<ID3D12RootSignature>* rootSig)
+{
+    ComPtr<ID3DBlob> blob;
+    ComPtr<ID3DBlob> error;
+
+    ThrowIfFailed(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error));
+    ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
+}
+
 void globalresources::init()
 {
     CHAR assetsPath[512];
@@ -31,14 +40,15 @@ void globalresources::init()
     //addpso("instancedtransparent", "default_as.cso", "instances_ms.cso", "instances_ps.cso", psoflags::transparent);
 
     addcomputepso("blend", "blend_cs.cso");
+    addcomputepso("genmipmaps", "genmipmaps_cs.cso");
 
     addmat(material().colour(color::black));
     addmat(material().colour(color::white));
     addmat(material().colour(color::red));
     addmat(material().colour(color::water));
 
-    _resourceheap.d3dheap = createdescriptorheap(max_heapdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    _samplerheap.d3dheap = createdescriptorheap(max_heapdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+    _resourceheap.d3dheap = createdescriptorheap(max_resdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    _samplerheap.d3dheap = createdescriptorheap(max_samplerdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
     srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -68,19 +78,38 @@ void globalresources::create_resources()
 
     // create a sampler at 
     D3D12_SAMPLER_DESC samplerdesc = {};
-    samplerdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerdesc.Filter = D3D12_FILTER_ANISOTROPIC;
     samplerdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     samplerdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     samplerdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     samplerdesc.MinLOD = 0;
     samplerdesc.MaxLOD = D3D12_FLOAT32_MAX;
     samplerdesc.MipLODBias = 0.0f;
-    samplerdesc.MaxAnisotropy = 1;
+    samplerdesc.MaxAnisotropy = 16;
     samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 
-    // create a linear sampler at 0 for now
+    // create a aniso sampler at 0 for now
     auto samplerview = _samplerheap.addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 0);
+
+    samplerdesc = {};
+    samplerdesc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+    samplerdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerdesc.MipLODBias = 0.0f;
+    samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    samplerdesc.MinLOD = 0.0f;
+    samplerdesc.MaxLOD = D3D12_FLOAT32_MAX;
+    samplerdesc.MaxAnisotropy = 0;
+    samplerdesc.BorderColor[0] = 0.0f;
+    samplerdesc.BorderColor[1] = 0.0f;
+    samplerdesc.BorderColor[2] = 0.0f;
+    samplerdesc.BorderColor[3] = 1.0f;
+
+    // create a linear sampler at 1 for now
+    samplerview = _samplerheap.addsampler(samplerdesc);
+    stdx::cassert(samplerview.heapidx == 1);
 }
 
 viewinfo& globalresources::view() { return _view; }
@@ -127,10 +156,14 @@ void globalresources::addcomputepso(std::string const& name, std::string const& 
     if (!cs.empty())
         ReadDataFromFile(assetfullpath(cs).c_str(), &computeshader.data, &computeshader.size);
 
-    // pull root signature from the precompiled compute shader
-    // todo : share root signatures?
+    CD3DX12_ROOT_PARAMETER rootparam;
+    rootparam.InitAsConstants(3, 0);
+    CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(1, &rootparam);
+    rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
+
+    // todo : shouldn't need to create same root signature for every pso(can even be shared among graphics and compute)
     ComPtr<ID3D12RootSignature> rootsig;
-    ThrowIfFailed(_device->CreateRootSignature(0, computeshader.data, computeshader.size, IID_PPV_ARGS(rootsig.GetAddressOf())));
+    serialize_create_rootsignature(_device, rootsig_desc, &rootsig);
     _psos[name].root_signature = rootsig;
 
     D3D12_COMPUTE_PIPELINE_STATE_DESC psodesc = {};
@@ -144,15 +177,6 @@ void globalresources::addcomputepso(std::string const& name, std::string const& 
     stream_desc.SizeInBytes = sizeof(psostream);
 
     ThrowIfFailed(_device->CreatePipelineState(&stream_desc, IID_PPV_ARGS(_psos[name].pso.GetAddressOf())));
-}
-
-void SerializeAndCreateRootSignature(ComPtr<ID3D12Device5>& device, D3D12_ROOT_SIGNATURE_DESC const& desc, ComPtr<ID3D12RootSignature>* rootSig)
-{
-    ComPtr<ID3DBlob> blob;
-    ComPtr<ID3DBlob> error;
-
-    ThrowIfFailed(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error));
-    ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
 }
 
 void globalresources::addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags)
@@ -177,7 +201,7 @@ void globalresources::addpso(std::string const& name, std::string const& as, std
 
     // todo : shouldn't need to create same root signature for every pso
     ComPtr<ID3D12RootSignature> rootsig;
-    SerializeAndCreateRootSignature(_device, rootsig_desc, &rootsig);
+    serialize_create_rootsignature(_device, rootsig_desc, &rootsig);
 
     _psos[name].root_signature = rootsig;
 
@@ -250,7 +274,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
         rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
         // empty root signature
-        SerializeAndCreateRootSignature(_device, rootsig_desc, &rootsig);
+        serialize_create_rootsignature(_device, rootsig_desc, &rootsig);
 
         _psos[name].root_signature = rootsig;
     }
@@ -260,7 +284,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
         ComPtr<ID3D12RootSignature> rootSig;
 
         CD3DX12_ROOT_SIGNATURE_DESC localRootSignatureDesc(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
-        SerializeAndCreateRootSignature(_device, localRootSignatureDesc, &rootSig);
+        serialize_create_rootsignature(_device, localRootSignatureDesc, &rootSig);
 
         _psos[name].rootsignature_local = rootSig;
     }

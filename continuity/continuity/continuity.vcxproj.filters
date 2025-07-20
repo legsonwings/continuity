@@ -285,5 +285,8 @@
     <FxCompile Include="shaders\default_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
+    <FxCompile Include="shaders\genmipmaps_cs.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

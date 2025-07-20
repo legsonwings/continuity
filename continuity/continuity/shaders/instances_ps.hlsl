@@ -9,12 +9,6 @@ float4 main(meshshadervertex input) : SV_TARGET
     StructuredBuffer<viewconstants> viewgloabls = ResourceDescriptorHeap[descriptorsidx.viewglobals];
     StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
 
-    StructuredBuffer<material> materials = ResourceDescriptorHeap[sceneglobals[0].matbuffer];
-    SamplerState linearsampler = SamplerDescriptorHeap[0];
-
-    material m = materials[input.material];
-    Texture2D<float4> difftex = ResourceDescriptorHeap[m.diffusetex];
-
     // todo : sundir should come from outside
     float3 l = -float3(1, -1, 1);
     float3 shadingpos = input.position;
@@ -28,11 +22,21 @@ float4 main(meshshadervertex input) : SV_TARGET
     }
     else
     {
-        float4 sampledcolour = difftex.Sample(linearsampler, input.texcoords);
-        float3 const ambientcolor = 0.1f * sampledcolour.xyz;
+        StructuredBuffer<material> materials = ResourceDescriptorHeap[sceneglobals[0].matbuffer];
+        SamplerState sampler = SamplerDescriptorHeap[0];
 
-        float3 colour = calculatelighting(float3(20, 20, 20), l, v, n, sampledcolour.xyz, m.roughness, m.reflectance, m.metallic);
-        float4 finalcolor = float4(colour + ambientcolor, sampledcolour.a);
+        material m = materials[input.material];
+
+        Texture2D<float4> difftex = ResourceDescriptorHeap[m.diffusetex];
+        Texture2D<float4> roughnesstex = ResourceDescriptorHeap[m.roughnesstex];
+        Texture2D<float4> normal = ResourceDescriptorHeap[m.normaltex];
+
+        float4 sampledcolour = difftex.Sample(sampler, input.texcoords);
+        float3 const ambientcolor = 0.1f * sampledcolour.xyz;
+        float2 mr = roughnesstex.Sample(sampler, input.texcoords).bg;
+
+        float3 colour = calculatelighting(float3(2, 2, 2), l, v, n, sampledcolour.xyz, mr.y, m.reflectance, mr.x);
+        float4 finalcolor = float4(colour, sampledcolour.a);
 
         return finalcolor;
     }

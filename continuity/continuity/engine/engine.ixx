@@ -23,8 +23,8 @@ using namespace DirectX;
 
 export struct view_data
 {
-    unsigned width = 1920;
-    unsigned height = 1080;
+    unsigned width = 3840;
+    unsigned height = 2160;
     float nearplane = std::numeric_limits<float>::max();
     float farplane = 0.0001f;
 

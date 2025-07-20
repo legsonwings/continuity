@@ -461,7 +461,7 @@ std::vector<stdx::vec3> fillwithspheres(geometry::aabb const& box, uint count, f
     stdx::cassert(cubelen * cubelen * cubelen > gridvol);
 
     auto const gridorigin = box.center() - stdx::vec3::filled(cubelen / 2.f) + stdx::vec3{ 0.0f, -0.5f, 0.0f };
-    for (auto i : stdx::range(0u, count))
+    for (auto i : stdx::range(count))
     {
         static std::uniform_int_distribution<uint> distvoxel(0u, numcells - 1);
 

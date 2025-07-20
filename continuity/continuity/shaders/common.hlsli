@@ -73,11 +73,11 @@ struct material
     float4 colour;
     float roughness;
     float reflectance;
-    uint metallic;
+    float metallic;
 
     uint diffusetex;
     uint roughnesstex;
-    uint metallictex;
+    uint normaltex;
 };
 
 struct viewconstants

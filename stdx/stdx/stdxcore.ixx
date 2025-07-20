@@ -32,9 +32,6 @@ struct nulltype { };
 
 template<typename t> constexpr bool is_nulltype = std::is_same_v<t, nulltype>;
 
-std::ranges::iota_view<uint, uint> range(uint e) { return std::ranges::iota_view<uint, uint>(0u, e); }
-std::ranges::iota_view<uint, uint> range(uint s, uint e) { return std::ranges::iota_view<uint, uint>(s, e); }
-
 template <typename t> concept uint_c = std::convertible_to<t, uint>;
 
 template <typename t>
@@ -74,6 +71,12 @@ t constexpr tolerance = t{ 1e-5f };
 
 template <arithmetic_c t>
 t constexpr invalid = std::numeric_limits<t>::max();
+
+template<arithmeticpure_c t>
+std::ranges::iota_view<t, t> range(t e) { return std::ranges::iota_view(t(0), e); }
+
+template<arithmeticpure_c t>
+std::ranges::iota_view<t, t> range(t s, t e) { return std::ranges::iota_view(s, e); }
 
 struct uminus { constexpr auto operator() (arithmeticpure_c auto v) const { return -v; }; };
 
