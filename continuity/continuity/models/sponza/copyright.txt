@@ -1,3 +1,8 @@
+This version of sponza has an additional large cloth hanging down from the top. Two materials were missing so I have used added a curtain material for the cloth and another one for the other.
+
+Original copyright from DirectX Samples Mini Engine:
+https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/MiniEngine/ModelViewer/Sponza/pbr
+
 PBR textures for the Sponza model.
 For more informations: www.alexandre-pestana.com
 
