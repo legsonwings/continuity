@@ -18,6 +18,7 @@ import graphics;
 namespace geometry
 {
 
+using vector2 = DirectX::SimpleMath::Vector2;
 using vector3 = DirectX::SimpleMath::Vector3;
 using vector4 = DirectX::SimpleMath::Vector4;
 
@@ -57,7 +58,7 @@ std::array<gfx::vertex, 4> transform_unitquad(const vector3(&verts)[4], const ve
         vector3::Transform(pos, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), pos);
         vector3::Transform(unitquad_normal, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), normal);
 
-        transformed_points[i] = { (pos + tx[1]), normal };
+        transformed_points[i] = { (pos + tx[1]), vector2{}, normal };
     }
 
     return transformed_points;
@@ -262,7 +263,7 @@ std::vector<gfx::vertex> cube::vertices_flipped() const
 
         // todo : this only works if centre is at origin
         // just flip the position to turn geometry inside out
-        for (auto const& v : verts) { result.emplace_back(-v.position, v.normal); }
+        for (auto const& v : verts) { result.emplace_back(-v.position, vector2{}, v.normal); }
 
         return result;
     };
@@ -305,7 +306,7 @@ void sphere::generate_triangles(std::vector<vector3> const& unitsphere_triangles
     triangulated_sphere.clear();
     triangulated_sphere.reserve(unitsphere_triangles.size());
     for (auto const& v : unitsphere_triangles)
-        triangulated_sphere.emplace_back(v * radius + center, v);
+        triangulated_sphere.emplace_back(v * radius + center, vector2{}, v);
 }
 
 void sphere::cacheunitsphere(uint numsegments_longitude, uint numsegments_latitude)

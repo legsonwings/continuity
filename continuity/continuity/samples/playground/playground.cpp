@@ -51,7 +51,7 @@ gfx::resourcelist playground::create_resources()
     rootdescs.sceneglobalsdesc = sceneglobalsbuffer.createsrv().heapidx;
 
     // since these use static vertex buffers, just send 0 as maxverts
-    auto &model = models.emplace_back(gfx::model("models/sponza/sponza2.obj"), bodyparams{ 0, 1, "instanced", matid } );
+    auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj"), bodyparams{ 0, 1, "instanced", matid } );
     model.rootdescriptors() = rootdescs;
 
     gfx::resourcelist res;

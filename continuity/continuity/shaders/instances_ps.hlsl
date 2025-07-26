@@ -11,6 +11,7 @@ float4 main(meshshadervertex input) : SV_TARGET
 
     // todo : sundir should come from outside
     float3 l = -float3(1, -1, 1);
+    float3 l1 = -l;
     float3 shadingpos = input.position;
 
     float3 n = normalize(input.normal);
@@ -18,6 +19,7 @@ float4 main(meshshadervertex input) : SV_TARGET
 
     if (sceneglobals[0].viewdirshading == 1)
     {
+        // only use vertex normals
         return float4(max(dot(v, n), 0).xxx, 1);
     }
     else
@@ -29,14 +31,24 @@ float4 main(meshshadervertex input) : SV_TARGET
 
         Texture2D<float4> difftex = ResourceDescriptorHeap[m.diffusetex];
         Texture2D<float4> roughnesstex = ResourceDescriptorHeap[m.roughnesstex];
-        Texture2D<float4> normal = ResourceDescriptorHeap[m.normaltex];
+        Texture2D<float4> normaltex = ResourceDescriptorHeap[m.normaltex];
+
+        // todo : should really be orthonormalizing
+        float3 t, b;
+        t = normalize(input.tangent);
+        b = normalize(input.bitangent);
+
+        float3 normal = normaltex.Sample(sampler, input.texcoords).xyz * 2.0 - 1.0;
+
+        n = t * normal.x + b * normal.y + n * normal.z;
 
         float4 sampledcolour = difftex.Sample(sampler, input.texcoords);
-        float3 const ambientcolor = 0.1f * sampledcolour.xyz;
+        float3 const ambientcolor = 0.003f * sampledcolour.xyz;
         float2 mr = roughnesstex.Sample(sampler, input.texcoords).bg;
 
         float3 colour = calculatelighting(float3(2, 2, 2), l, v, n, sampledcolour.xyz, mr.y, m.reflectance, mr.x);
-        float4 finalcolor = float4(colour, sampledcolour.a);
+        colour += calculatelighting(float3(1, 1, 1), l1, v, n, sampledcolour.xyz, mr.y, m.reflectance, mr.x);
+        float4 finalcolor = float4(colour + ambientcolor, sampledcolour.a);
 
         return finalcolor;
     }

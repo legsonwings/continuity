@@ -44,10 +44,16 @@ void main(
         int in_vertstart = (payload.data[gid].start + gtid) * 3;
      
         StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
-        StructuredBuffer<vertexin> triangle_verts = ResourceDescriptorHeap[descriptors[0].vertexbuffer];
+        
+        //StructuredBuffer<vertexin> triangle_verts = ResourceDescriptorHeap[descriptors[0].vertexbuffer];
 
-        verts[v0idx] = getvertattribute(triangle_verts[in_vertstart]);
-        verts[v1idx] = getvertattribute(triangle_verts[in_vertstart + 1]);
-        verts[v2idx] = getvertattribute(triangle_verts[in_vertstart + 2]);
+        //verts[v0idx] = getvertattribute(triangle_verts[in_vertstart]);
+        //verts[v1idx] = getvertattribute(triangle_verts[in_vertstart + 1]);
+        //verts[v2idx] = getvertattribute(triangle_verts[in_vertstart + 2]);
+
+        meshshadervertex dummy = (meshshadervertex)0;
+        verts[v0idx] = dummy;
+        verts[v1idx] = dummy;
+        verts[v2idx] = dummy;
     }
 }

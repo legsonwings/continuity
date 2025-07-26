@@ -44,11 +44,34 @@ enum psoflags
     twosided = 0x4
 };
 
+struct index
+{
+    uint32 pos;
+    uint32 texcoord;
+    uint32 tbn;
+};
+
+struct tbn
+{
+    vector3 normal = {};
+    vector3 tangent = {};
+    vector3 bitangent = {};
+};
+
 struct vertex
 {
 	vector3 position = {};
+    vector2 texcoord = {};
 	vector3 normal = {};
-	vector2 texcoord = {};
+    vector3 tangent = {};
+    vector3 bitangent = {};
+};
+
+struct vertexattribs
+{
+    std::vector<vector3> positions;
+    std::vector<vector2> texcoords;
+    std::vector<tbn> tbns;
 };
 
 struct color

@@ -37,11 +37,27 @@ struct dispatch_parameters
     uint numprims_perinstance;
 };
 
+struct index
+{
+    uint pos;
+    uint texcoord;
+    uint tbn;
+};
+
+struct tbn
+{
+    float3 normal;
+    float3 tangent;
+    float3 bitangent;
+};
+
 struct vertexin
 {
     float3 position;
     float3 normal;
     float2 texcoord;
+    float3 tangent;
+    float3 bitangent;
 };
 
 struct meshshadervertex
@@ -50,6 +66,8 @@ struct meshshadervertex
     float4 positionh : SV_Position;
     float3 position : POSITION0;
     float3 normal : NORMAL0;
+    float3 tangent : tangent;
+    float3 bitangent : bitangent;
     float2 texcoords : texcoord0;
     uint material : materialidx;
 };

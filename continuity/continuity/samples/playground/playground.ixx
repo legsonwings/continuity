@@ -55,7 +55,6 @@ private:
 	};
 
 	std::vector<gfx::body_static<gfx::model>> models;
-	std::vector<gfx::body_static<geometry::cube>> boxes;
 
 	gfx::structuredbuffer<viewglobals, gfx::accesstype::both> viewglobalsbuffer;
 	gfx::structuredbuffer<sceneglobals, gfx::accesstype::both> sceneglobalsbuffer;

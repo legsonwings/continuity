@@ -75,9 +75,9 @@ public:
 
 private:
 
-	std::vector<gfx::body_static<geometry::cube>> boxes;
+	//std::vector<gfx::body_static<geometry::cube>> boxes;
 	std::vector<gfx::body_dynamic<sphfluid>> fluid;
-	std::vector<gfx::body_static<sphfluid const&>> fluidparticles;
+	//std::vector<gfx::body_static<sphfluid const&>> fluidparticles;
 };
 
 

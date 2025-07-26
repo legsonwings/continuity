@@ -50,9 +50,15 @@ struct instances_data
 };
 
 template<typename t>
-concept hasvertices = requires(t v)
+concept hasverticesold = requires(t v)
 {
     { v.vertices() } -> std::convertible_to<std::vector<vertex>>;
+};
+
+template<typename t>
+concept hasvertices = requires(t v)
+{
+    { v.vertices() } -> std::convertible_to<vertexattribs>;
 };
 
 template<typename t>
@@ -77,7 +83,7 @@ template <typename t>
 concept sbodyraw_c = hasvertices<t> && hasinstancedata<t>;
 
 template <typename t>
-concept dbodyraw_c = hasvertices<t> && hasupdate<t> && hastexturedata<t>;
+concept dbodyraw_c = hasverticesold<t> && hasupdate<t> && hastexturedata<t>;
 
 template <typename t>
 concept sbody_c = (sbodyraw_c<t> || ((stdx::lvaluereference_c<t> || stdx::rvaluereference_c<t>) && sbodyraw_c<std::decay<t>>));
@@ -132,18 +138,19 @@ class body_static : public bodyinterface
     using rawbody_t = std::decay_t<body_t>;
     using vertextype = typename topologyconstants<prim_t>::vertextype;
 
-    uint32 _vbindex;
     uint32 _descriptorsindex;
     body_t body;
     structuredbuffer<instance_data, accesstype::both> _objconstants;
     structuredbuffer<objdescriptors, accesstype::both> _descriptors;
     structuredbuffer<dispatchparams, accesstype::both> _dispatchparams;
-    structuredbuffer<vertextype, accesstype::both> _vertexbuffer;
-    structuredbuffer<uint32, accesstype::both> _indexbuffer;
+    structuredbuffer<vector3, accesstype::both> _posbuffer;
+    structuredbuffer<vector2, accesstype::both> _texcoordbuffer;
+    structuredbuffer<tbn, accesstype::both> _tbnbuffer;
+    structuredbuffer<index, accesstype::both> _indexbuffer;
     rootdescriptors _rootdescs;
 
-    using vertexfetch_r = std::vector<vertextype>;
-    using indexfetch_r = std::vector<uint32>;
+    using vertexfetch_r = vertexattribs;
+    using indexfetch_r = std::vector<index>;
     using vertexfetch = std::function<vertexfetch_r(rawbody_t const&)>;
     using indexfetch = std::function<indexfetch_r(rawbody_t const&)>;
     using instancedatafetch_r = std::vector<instance_data>;
@@ -186,7 +193,6 @@ class body_dynamic : public bodyinterface
     using vertextype = typename topologyconstants<prim_t>::vertextype;
 
     body_t body;
-    //constantbuffer<objectconstants> _cbuffer;
     dynamicbuffer<vertextype> _vertexbuffer;
     texture_dynamic _texture{ DXGI_FORMAT_R8G8B8A8_UNORM };
 
@@ -244,12 +250,18 @@ std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resource
 {
     std::vector<ComPtr<ID3D12Resource>> res;
 
+    auto const& vertices = get_vertices(body);
+
     // better to create static vertex buffers in default heap
-    _vertexbuffer.create(get_vertices(body));
+    _posbuffer.create(vertices.positions);
+    _texcoordbuffer.create(vertices.texcoords);
+    _tbnbuffer.create(vertices.tbns);
+
     _indexbuffer.create(get_indices(body));
     //_instancebuffer.createresource(getparams().maxinstances);
 
-    stdx::cassert(_vertexbuffer.numelements < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
+    // is this still correct
+    //stdx::cassert(_vertexbuffer.numelements < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
 
     dispatchparams dispatch_params;
     dispatch_params.numverts_perprim = topologyconstants<prim_t>::numverts_perprim;
@@ -265,7 +277,9 @@ std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resource
     _objconstants.create(bodydata);
 
     objdescriptors descriptors;
-    descriptors.vertexbuffer = _vertexbuffer.createsrv().heapidx;
+    descriptors.posbuffer = _posbuffer.createsrv().heapidx;
+    descriptors.texcoordbuffer = _texcoordbuffer.createsrv().heapidx;
+    descriptors.tbnbuffer = _tbnbuffer.createsrv().heapidx;
     descriptors.indexbuffer = _indexbuffer.createsrv().heapidx;
     descriptors.dispatchparams = _dispatchparams.createsrv().heapidx;
     descriptors.objconstants = _objconstants.createsrv().heapidx;

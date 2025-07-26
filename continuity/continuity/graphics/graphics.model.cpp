@@ -24,9 +24,20 @@ model::model(std::string const& objpath, modelloadparams loadparams)
     auto const& normals = result.attributes.normals;
     auto const& texcoords = result.attributes.texcoords;
 
+    // make sure copying is safe
+    static_assert(sizeof(std::decay_t<decltype(positions)>::value_type) * 3 == sizeof(vector3));
+    static_assert(sizeof(std::decay_t<decltype(texcoords)>::value_type) * 2 == sizeof(vector2));
+
+    vector3 const* const posstart = reinterpret_cast<vector3 const*>(positions.data());
+    _vertices.positions = std::vector<vector3>(posstart, posstart + (positions.size() / 3));
+    
+    vector2 const* const texcoordsstart = reinterpret_cast<vector2 const*>(texcoords.data());
+    _vertices.texcoords = std::vector<vector2>(texcoordsstart, texcoordsstart + (texcoords.size() / 2));
+
+    for (auto i = 0u; i < normals.size(); i += 3)
+        _vertices.tbns.emplace_back().normal = vector3{ normals[i], normals[i + 1], normals[i + 2] };
+
     auto const numverts = positions.size() / 3;
-     
-    _vertices.resize(numverts);
 
     std::filesystem::path path = objpath;
     auto const modeldir = path.parent_path().string();
@@ -110,52 +121,78 @@ model::model(std::string const& objpath, modelloadparams loadparams)
         materialidxtodescidx.push_back(globalresources::get().addmat(mat));
     }
 
-    uint32 const numprims = uint32(numverts / 3);
+    uint32 const nummaxprims = uint32(numverts / 3);
     std::vector<uint32> primitivematerials;
-    primitivematerials.reserve(numprims);
+    primitivematerials.reserve(nummaxprims);
+
     for (auto const& shape : result.shapes)
     {
+        _indices.reserve(_indices.size() + (shape.mesh.num_face_vertices.size() * 3));
         auto const& objindices = shape.mesh.indices;
         for (uint i(0); i < shape.mesh.num_face_vertices.size(); ++i)
         {
-            auto facematerial = shape.mesh.material_ids[i];
-            primitivematerials.push_back(materialidxtodescidx[facematerial]);
             stdx::cassert(shape.mesh.num_face_vertices[i] == 3);
 
+            rapidobj::Index face[3] = { objindices[i * 3], objindices[i * 3 + 1], objindices[i * 3 + 2] };
+
+            vector3 ps[3];
+            vector2 uvs[3];
             for (auto j : stdx::range(3u))
             {
-                auto vindex = objindices[i * 3 + j].position_index;
-                _indices.push_back(vindex);
+                // all vectors in tbn are similarly indexed, so use normal index
+                _indices.emplace_back(face[j].position_index, face[j].texcoord_index, face[j].normal_index);
 
-                // index into flat array of floats
-                auto posarridx = vindex * 3;
-                auto texcoordarridx = objindices[i * 3 + j].texcoord_index * 2;
-
-                _vertices[vindex].position = vector3(positions[posarridx], positions[posarridx + 1], positions[posarridx + 2]);
-                _vertices[vindex].texcoord = vector2(texcoords[texcoordarridx], texcoords[texcoordarridx + 1]);
-
-                if (normals.size() > 0)
-                {
-                    // normals may be shared by multiple vertices, so add them inline in each gfx::vertex
-                    auto normarridx = objindices[i * 3 + j].normal_index * 3;
-                    stdx::cassert(normarridx < normals.size());
-                    _vertices[vindex].normal = vector3(normals[normarridx], normals[normarridx + 1], normals[normarridx + 2]);
-                }
+                ps[j] = _vertices.positions[face[j].position_index];
+                uvs[j] = _vertices.texcoords[face[j].texcoord_index];
             }
 
-            // compute face normals, if normals aren't provided
-            if (normals.size() == 0)
+            auto x0 = uvs[1][0] - uvs[0][0];
+            auto x1 = uvs[2][0] - uvs[0][0];
+            auto y0 = uvs[1][1] - uvs[0][1];
+            auto y1 = uvs[2][1] - uvs[0][1];
+
+            auto det = x0 * y1 - x1 * y0;
+
+            auto e0 = ps[1] - ps[0];
+            auto e1 = ps[2] - ps[0];
+
+            // there are lot of cases where triangles are degenerates in uv space but not in R3
+            // caused by same texture coord used for two vertices, but position is different(where is this coming from?)
+            // avoid such cases by setting tangent and bitangent to zero to prevent nan propagation
+            vector3 t, b;
+            if (std::abs(det) > 1e-37f)
             {
-                auto v0 = _vertices[_indices[i * 3]].position;
-                auto v1 = _vertices[_indices[i * 3 + 1]].position;
-                auto v2 = _vertices[_indices[i * 3 + 2]].position;
-
-                // counter-clockwise
-                auto n = (v1 - v0).Cross(v2 - v0).Normalized();
-                for (auto j : stdx::range(3u))
-                    _vertices[_indices[i * 3 + j]].normal = n;
+                // create tbn based on uvs for consistency
+                auto r = 1.0f / det;
+                t = (e0 * y1 - e1 * y0) * r;
+                b = (e1 * x0 - e0 * x1) * r;
             }
+
+            // counter-clockwise
+            auto n = e0.Cross(e1).Normalized();
+            for (auto j : stdx::range(3u))
+            {
+                // compute vertex normals, if normals aren't provided
+                if (normals.size() == 0) _vertices.tbns[face[j].normal_index].normal += n;
+
+                _vertices.tbns[face[j].normal_index].tangent += t;
+                _vertices.tbns[face[j].normal_index].bitangent += b;
+            }
+
+            auto facematerial = shape.mesh.material_ids[i];
+            primitivematerials.push_back(materialidxtodescidx[facematerial]);
         }
+    }
+
+    for (auto i : stdx::range(_vertices.tbns.size()))
+    {
+        auto& n = _vertices.tbns[i].normal;
+        auto& t = _vertices.tbns[i].tangent;
+        auto& b = _vertices.tbns[i].bitangent;
+
+        n.Normalize();
+        t = (t - t.Dot(n) * n).Normalized();
+        b = (b - b.Dot(n) * n - b.Dot(t) * t).Normalized();
     }
 
     _primitivematerials.create(primitivematerials);

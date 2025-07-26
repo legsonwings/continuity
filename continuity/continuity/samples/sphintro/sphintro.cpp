@@ -774,7 +774,7 @@ void sphfluid::update(float dt)
         }
     }
 
-    fluidsurface.clear();
+    //fluidsurface.clear();
     fluidsurfaceindices.clear();
 
     static constexpr float marchingcube_size = 0.1f;
@@ -844,9 +844,9 @@ void sphfluid::update(float dt)
         {
             for (uint j(0); j < numtris; ++j)
             {
-                fluidsurface.push_back(gfx::vertex{ triangles[j].p[0], triangles[j].n[0] });
-                fluidsurface.push_back(gfx::vertex{ triangles[j].p[1], triangles[j].n[1] });
-                fluidsurface.push_back(gfx::vertex{ triangles[j].p[2], triangles[j].n[2] });
+                //fluidsurface.push_back(gfx::vertex{ triangles[j].p[0], triangles[j].n[0] });
+                //fluidsurface.push_back(gfx::vertex{ triangles[j].p[1], triangles[j].n[1] });
+                //fluidsurface.push_back(gfx::vertex{ triangles[j].p[2], triangles[j].n[2] });
 
                 // todo : populate fluidsurfaceindices
             }
@@ -891,19 +891,19 @@ gfx::resourcelist sphfluidintro::create_resources()
     //globalres.cbuffer().updateresource();
 
     // since these use static vertex buffers, just send 0 as maxverts
-    boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{roomextents} }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });
-    fluid.emplace_back(sphfluid(boxes[0]->bbox()), bodyparams{ 20000, 1, "default_twosided", 0});
-    fluidparticles.emplace_back(fluid.back().get(), &sphfluid::particlevertices, &sphfluid::instancedata, bodyparams{0, numparticles, "instanced"});
+    //boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{roomextents} }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });
+    //fluid.emplace_back(sphfluid(boxes[0]->bbox()), bodyparams{ 20000, 1, "default_twosided", 0});
+    //fluidparticles.emplace_back(fluid.back().get(), &sphfluid::particlevertices, &sphfluid::instancedata, bodyparams{0, numparticles, "instanced"});
 
     gfx::resourcelist res;
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid, fluidparticles)) { stdx::append(b->create_resources(), res); };
+    //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid, fluidparticles)) { stdx::append(b->create_resources(), res); };
     return res;
 }
 
 void sphfluidintro::update(float dt)
 {
     sample_base::update(dt);
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->update(dt);
+    //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->update(dt);
 }
 
 void sphfluidintro::render(float dt)
@@ -911,10 +911,10 @@ void sphfluidintro::render(float dt)
     static constexpr bool vizparticles = true;
     if (vizparticles)
     {
-        for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluidparticles, fluid)) b->render(dt, { true });
+        //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluidparticles, fluid)) b->render(dt, { true });
     }
     else
     {
-        for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->render(dt, { false });
+        //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->render(dt, { false });
     }
 }

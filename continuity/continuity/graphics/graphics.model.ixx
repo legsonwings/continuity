@@ -26,14 +26,14 @@ struct model
 	model() = default;
 	model(std::string const& objpath, modelloadparams loadparams = {});
 
-	std::vector<vertex> const& vertices() const { return _vertices; }
-	std::vector<uint32> const& indices() const { return _indices; }
+	vertexattribs const& vertices() const { return _vertices; }
+	std::vector<index> const& indices() const { return _indices; }
 
 	// center at origin for now
 	std::vector<instance_data> instancedata() const;
 
-	std::vector<uint32> _indices;
-	std::vector<vertex> _vertices;
+	std::vector<index> _indices;
+	vertexattribs _vertices;
 	std::vector<texture<accesstype::gpu>> _textures;
 
 	uint32 _primmaterialsdescidx;
