@@ -10,8 +10,7 @@ float4 main(meshshadervertex input) : SV_TARGET
     StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
 
     // todo : sundir should come from outside
-    float3 l = -float3(1, -1, 1);
-    float3 l1 = -l;
+    float3 l = normalize(-float3(1, -1, 1));
     float3 shadingpos = input.position;
 
     float3 n = normalize(input.normal);
@@ -43,11 +42,10 @@ float4 main(meshshadervertex input) : SV_TARGET
         n = t * normal.x + b * normal.y + n * normal.z;
 
         float4 sampledcolour = difftex.Sample(sampler, input.texcoords);
-        float3 const ambientcolor = 0.003f * sampledcolour.xyz;
+        float3 const ambientcolor = 0.1f * sampledcolour.xyz;
         float2 mr = roughnesstex.Sample(sampler, input.texcoords).bg;
 
-        float3 colour = calculatelighting(float3(2, 2, 2), l, v, n, sampledcolour.xyz, mr.y, m.reflectance, mr.x);
-        colour += calculatelighting(float3(1, 1, 1), l1, v, n, sampledcolour.xyz, mr.y, m.reflectance, mr.x);
+        float3 colour = calculatelighting(float3(4, 4, 4), l, v, n, sampledcolour.xyz, mr.y, m.reflectance, mr.x);
         float4 finalcolor = float4(colour + ambientcolor, sampledcolour.a);
 
         return finalcolor;

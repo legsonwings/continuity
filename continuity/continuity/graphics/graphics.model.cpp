@@ -31,8 +31,9 @@ model::model(std::string const& objpath, modelloadparams loadparams)
     vector3 const* const posstart = reinterpret_cast<vector3 const*>(positions.data());
     _vertices.positions = std::vector<vector3>(posstart, posstart + (positions.size() / 3));
     
-    vector2 const* const texcoordsstart = reinterpret_cast<vector2 const*>(texcoords.data());
-    _vertices.texcoords = std::vector<vector2>(texcoordsstart, texcoordsstart + (texcoords.size() / 2));
+    // flip uvs as directx uses top left as origin of uv space
+    for (auto i = 0u; i < texcoords.size(); i += 2)
+        _vertices.texcoords.emplace_back(texcoords[i], 1.0f - texcoords[i + 1]);
 
     for (auto i = 0u; i < normals.size(); i += 3)
         _vertices.tbns.emplace_back().normal = vector3{ normals[i], normals[i + 1], normals[i + 2] };
@@ -160,7 +161,7 @@ model::model(std::string const& objpath, modelloadparams loadparams)
             // caused by same texture coord used for two vertices, but position is different(where is this coming from?)
             // avoid such cases by setting tangent and bitangent to zero to prevent nan propagation
             vector3 t, b;
-            if (std::abs(det) > 1e-37f)
+            if (std::abs(det) > 1e-30f)
             {
                 // create tbn based on uvs for consistency
                 auto r = 1.0f / det;

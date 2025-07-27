@@ -76,11 +76,11 @@ float ggx_specularndf(float noh, float r2)
 // visibility function that takes microfacet heights into account
 float ggx_specularvisibility(float nol, float nov, float r2)
 {
-    // see https://google.github.io/filament/Filament.md.html#materialsystem/specularbrdf/normaldistributionfunction(speculard)
+    // see https://google.github.io/filament/Filament.md.html#materialsystem/specularbrdf/normaldistributionfunction(specularg)
     float ggt1 = nol * sqrt(nov * nov * (1.0f - r2) + r2);
     float ggt2 = nov * sqrt(nol * nol * (1.0f - r2) + r2);
 
-    return 0.5f / (ggt1 + ggt2);
+    return 0.5f / max(ggt1 + ggt2, 1e-10f);
 }
 
 float3 fresnel_schlick(float loh, float3 f0, float f90)

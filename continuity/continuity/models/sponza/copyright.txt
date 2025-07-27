@@ -1,4 +1,4 @@
-This version of sponza has an additional large cloth hanging down from the top. Two materials were missing so I have used added a curtain material for the cloth and another one for the other.
+This version of sponza had a additional large cloth banner down from the top. Two materials were missing for the and another object so i ahve deleted these two objects.
 
 Original copyright from DirectX Samples Mini Engine:
 https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/MiniEngine/ModelViewer/Sponza/pbr
