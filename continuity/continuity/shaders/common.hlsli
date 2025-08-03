@@ -64,6 +64,7 @@ struct meshshadervertex
 {
     uint instanceid : instance_id;
     float4 positionh : SV_Position;
+    float4 positionl : lightclipspacepos;
     float3 position : POSITION0;
     float3 normal : NORMAL0;
     float3 tangent : tangent;
@@ -100,14 +101,17 @@ struct material
 
 struct viewconstants
 {
-    float3 campos;
+    float3 viewpos;
     float4x4 viewproj;
 };
 
 struct sceneglobals
 {
     uint matbuffer;
+    uint shadowmap;
     uint viewdirshading;
+    float3 lightdir;
+    float lightluminance;
 };
 
 struct instance_data

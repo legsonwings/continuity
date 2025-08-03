@@ -44,14 +44,17 @@ private:
 
 	struct viewglobals
 	{
-		stdx::vec3 campos;
+		stdx::vec3 viewpos;
 		stdx::matrix4x4 viewproj;
 	};
 
 	struct sceneglobals
 	{
 		uint32 matbuffer;
+		uint32 shadowmap;
 		uint32 viewdirshading;
+		stdx::vec3 lightdir;
+		float lightluminance;
 	};
 
 	std::vector<gfx::body_static<gfx::model>> models;

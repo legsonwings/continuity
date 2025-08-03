@@ -34,6 +34,7 @@ void globalresources::init()
     //addpso("texturess", "", "texturess_ms.cso", "texturess_ps.cso");
     //addpso("instancedlines", "default_as.cso", "linesinstances_ms.cso", "basic_ps.cso");
     addpso("instanced", "", "instances_ms.cso", "instances_ps.cso");
+    addpso("instanced_depthonly", "", "instancesdepthonly_ms.cso", "");
     //addpso("transparent", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent);
     //addpso("transparent_twosided", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::transparent | psoflags::twosided);
     //addpso("wireframe", "default_as.cso", "default_ms.cso", "default_ps.cso", psoflags::wireframe | psoflags::transparent);
@@ -87,29 +88,40 @@ void globalresources::create_resources()
     samplerdesc.MipLODBias = 0.0f;
     samplerdesc.MaxAnisotropy = 16;
     samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-
-    // create a aniso sampler at 0 for now
-    auto samplerview = _samplerheap.addsampler(samplerdesc);
-    stdx::cassert(samplerview.heapidx == 0);
-
-    samplerdesc = {};
-    samplerdesc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-    samplerdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    samplerdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    samplerdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    samplerdesc.MipLODBias = 0.0f;
-    samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-    samplerdesc.MinLOD = 0.0f;
-    samplerdesc.MaxLOD = D3D12_FLOAT32_MAX;
-    samplerdesc.MaxAnisotropy = 0;
     samplerdesc.BorderColor[0] = 0.0f;
     samplerdesc.BorderColor[1] = 0.0f;
     samplerdesc.BorderColor[2] = 0.0f;
     samplerdesc.BorderColor[3] = 1.0f;
 
+    // create a aniso sampler at 0 for now
+    auto samplerview = _samplerheap.addsampler(samplerdesc);
+    stdx::cassert(samplerview.heapidx == 0);
+
+    samplerdesc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+    samplerdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    samplerdesc.MaxAnisotropy = 0;
+
     // create a linear sampler at 1 for now
     samplerview = _samplerheap.addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 1);
+
+    samplerdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+
+    // create a shadow map sampler at 2
+    samplerview = _samplerheap.addsampler(samplerdesc);
+    stdx::cassert(samplerview.heapidx == 2);
+
+    samplerdesc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+    samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS;
+
+    // create a shadow map sampler at 2
+    samplerview = _samplerheap.addsampler(samplerdesc);
+    stdx::cassert(samplerview.heapidx == 3);
+
+
 }
 
 viewinfo& globalresources::view() { return _view; }
@@ -192,7 +204,8 @@ void globalresources::addpso(std::string const& name, std::string const& as, std
         ReadDataFromFile(assetfullpath(as).c_str(), &ampshader.data, &ampshader.size);
 
     ReadDataFromFile(assetfullpath(ms).c_str(), &meshshader.data, &meshshader.size);
-    ReadDataFromFile(assetfullpath(ps).c_str(), &pixelshader.data, &pixelshader.size);
+    if (!ps.empty())
+        ReadDataFromFile(assetfullpath(ps).c_str(), &pixelshader.data, &pixelshader.size);
 
     CD3DX12_ROOT_PARAMETER rootparam;
     rootparam.InitAsConstants(3, 0);
@@ -212,7 +225,9 @@ void globalresources::addpso(std::string const& name, std::string const& as, std
         pso_desc.AS = { ampshader.data, ampshader.size };
 
     pso_desc.MS = { meshshader.data, meshshader.size };
-    pso_desc.PS = { pixelshader.data, pixelshader.size };
+
+    if (!ps.empty())
+        pso_desc.PS = { pixelshader.data, pixelshader.size };
 
     if (flags & psoflags::transparent)
     {

@@ -7,7 +7,7 @@ module body;
 namespace gfx
 {
 
-void dispatch(resource_bindings const& bindings, bool wireframe, uint dispatchx)
+void dispatch(resource_bindings const& bindings, bool wireframe, bool shadowpass, uint dispatchx)
 {
     auto& globalres = gfx::globalresources::get();
     auto cmd_list = globalres.cmdlist();
@@ -36,6 +36,14 @@ void dispatch(resource_bindings const& bindings, bool wireframe, uint dispatchx)
         cmd_list->SetPipelineState(bindings.pipelineobjs.pso_twosided.Get());
     else
         cmd_list->SetPipelineState(bindings.pipelineobjs.pso.Get());
+
+    if (shadowpass)
+    {
+        cmd_list->OMSetRenderTargets(0, nullptr, FALSE, &globalres.shadowmaphandle);
+        cmd_list->ClearDepthStencilView(globalres.shadowmaphandle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
+    }
+    else
+        cmd_list->OMSetRenderTargets(1, &globalres.rthandle, FALSE, &globalres.depthhandle);
 
     cmd_list->DispatchMesh(static_cast<UINT>(dispatchx), 1, 1);
 }

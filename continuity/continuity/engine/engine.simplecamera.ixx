@@ -18,7 +18,7 @@ public:
     void Update(float elapsedSeconds);
     stdx::vec3 GetCurrentPosition() const;
     DirectX::XMMATRIX GetViewMatrix();
-    DirectX::XMMATRIX GetProjectionMatrix(float fov);
+    DirectX::XMMATRIX GetProjectionMatrix();
     DirectX::XMMATRIX GetOrthoProjectionMatrix();
 
     void lock(bool lock);

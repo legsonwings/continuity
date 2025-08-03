@@ -25,7 +25,7 @@ export struct view_data
 {
     unsigned width = 3840;
     unsigned height = 2160;
-    float nearplane = std::numeric_limits<float>::max();
+    float nearplane = 8000;
     float farplane = 0.0001f;
 
     float get_aspect_ratio() const { return static_cast<float>(width) / static_cast<float>(height); }
@@ -94,6 +94,7 @@ private:
     ComPtr<ID3D12Resource> m_backBuffers[frame_count];
     ComPtr<ID3D12Resource> m_renderTarget;
     ComPtr<ID3D12Resource> m_depthStencil;
+    ComPtr<ID3D12Resource> m_shadowmap;
     ComPtr<ID3D12CommandAllocator> m_commandAllocators[1];
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;

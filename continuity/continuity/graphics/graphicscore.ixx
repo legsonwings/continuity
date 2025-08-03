@@ -2,7 +2,7 @@ module;
 
 #include <wrl.h>
 #include <d3d12.h>
-#include "thirdparty/d3dx12.h"
+#include <thirdparty/d3dx12.h>
 
 // create a module gfx core
 // todo : find a place for shared constants
@@ -90,6 +90,8 @@ struct shader
 
 struct renderparams
 {
+    std::string psoname;
+    bool shadowpass = false;
     bool wireframe = false;
 };
 
@@ -213,6 +215,15 @@ template<uint32 t_divisor>
 constexpr inline uint32 divideup(uint32 value) requires (t_divisor > 0)
 {
     return (value + t_divisor - 1) / t_divisor;
+}
+
+CD3DX12_RESOURCE_BARRIER reversetransition(CD3DX12_RESOURCE_BARRIER const& barrier)
+{
+    D3D12_RESOURCE_BARRIER d3d12barrier = barrier;
+    auto statebefore = d3d12barrier.Transition.StateAfter;
+    auto stateafter = d3d12barrier.Transition.StateBefore;
+
+    return CD3DX12_RESOURCE_BARRIER::Transition(d3d12barrier.Transition.pResource, statebefore, stateafter);
 }
 
 // ray trace stuff below

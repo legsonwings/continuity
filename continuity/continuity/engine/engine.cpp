@@ -44,7 +44,7 @@ void sample_base::updateview(float dt)
     camera.Update(dt);
 
     gfx::globalresources::get().view().view = camera.GetViewMatrix();
-    gfx::globalresources::get().view().proj = camera.GetProjectionMatrix(XM_PI / 3.0f);
+    gfx::globalresources::get().view().proj = camera.GetProjectionMatrix();
 }
 
 continuity::continuity(view_data const& data)
@@ -210,31 +210,28 @@ void continuity::load_pipeline()
 
         // describe and create a render target view (RTV) descriptor heap.
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-        dsvHeapDesc.NumDescriptors = 1;
+        dsvHeapDesc.NumDescriptors = 2;
         dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsvHeap)));
     }
 
-    // create render target
-    {
-        auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, static_cast<UINT64>(m_width), static_cast<UINT>(m_height), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+    auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, static_cast<UINT64>(m_width), static_cast<UINT>(m_height), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
 
-        D3D12_CLEAR_VALUE clearcolour = {};
-        clearcolour.Format = texdesc.Format;
-        clearcolour.Color[0] = clearcol[0];
-        clearcolour.Color[1] = clearcol[1];
-        clearcolour.Color[2] = clearcol[2];
-        clearcolour.Color[3] = clearcol[3];
+    D3D12_CLEAR_VALUE clearcolour = {};
+    clearcolour.Format = texdesc.Format;
+    clearcolour.Color[0] = clearcol[0];
+    clearcolour.Color[1] = clearcol[1];
+    clearcolour.Color[2] = clearcol[2];
+    clearcolour.Color[3] = clearcol[3];
 
-        auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearcolour, IID_PPV_ARGS(m_renderTarget.ReleaseAndGetAddressOf())));
+    auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearcolour, IID_PPV_ARGS(m_renderTarget.ReleaseAndGetAddressOf())));
         
-        NAME_D3D12_OBJECT(m_renderTarget);
+    NAME_D3D12_OBJECT(m_renderTarget);
 
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
-        device->CreateRenderTargetView(m_renderTarget.Get(), nullptr, rtvHandle);
-    }
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
+    device->CreateRenderTargetView(m_renderTarget.Get(), nullptr, rtvHandle);
 
     // create command allocator for only one frame since theres no frame buffering
     ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[0])));
@@ -246,32 +243,39 @@ void continuity::load_pipeline()
     }
 
     // create the depth stencil view.
-    {
-        D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
-        depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
-        depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-        depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
+    D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
+    depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+    depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
-        D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-        depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
-        depthOptimizedClearValue.DepthStencil.Depth = 0.0f;
-        depthOptimizedClearValue.DepthStencil.Stencil = 0;
+    D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
+    depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+    depthOptimizedClearValue.DepthStencil.Depth = 0.0f;
+    depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
-        auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-        auto texture_resource_desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-        ThrowIfFailed(device->CreateCommittedResource(
-            &heap_props,
-            D3D12_HEAP_FLAG_NONE,
-            &texture_resource_desc,
-            D3D12_RESOURCE_STATE_DEPTH_WRITE,
-            &depthOptimizedClearValue,
-            IID_PPV_ARGS(&m_depthStencil)
-        ));
+    auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    auto texture_resource_desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+    ThrowIfFailed(device->CreateCommittedResource(
+        &heap_props,
+        D3D12_HEAP_FLAG_NONE,
+        &texture_resource_desc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        &depthOptimizedClearValue,
+        IID_PPV_ARGS(&m_depthStencil)
+    ));
 
-        NAME_D3D12_OBJECT(m_depthStencil);
+    NAME_D3D12_OBJECT(m_depthStencil);
 
-        device->CreateDepthStencilView(m_depthStencil.Get(), &depthStencilDesc, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
-    }
+    auto shadowmapdesc = texture_resource_desc;
+    ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &shadowmapdesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_shadowmap)));
+
+    NAME_D3D12_OBJECT(m_shadowmap);
+
+    auto dsvstart = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+    auto shadowmap_cpuhandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( dsvstart, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV));
+    device->CreateDepthStencilView(m_depthStencil.Get(), &depthStencilDesc, dsvstart);
+    device->CreateDepthStencilView(m_shadowmap.Get(), &depthStencilDesc, shadowmap_cpuhandle);
+
 
     D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pso_desc = {};
     pso_desc.NumRenderTargets = 1;
@@ -284,10 +288,24 @@ void continuity::load_pipeline()
     pso_desc.SampleMask = UINT_MAX;
     pso_desc.SampleDesc = DefaultSampleDesc();
 
-    gfx::globalresources::get().rendertarget(m_renderTarget);
-    gfx::globalresources::get().frameindex(m_swapChain->GetCurrentBackBufferIndex());
-    gfx::globalresources::get().psodesc(pso_desc);
-    gfx::globalresources::get().init();
+    auto& globalres = gfx::globalresources::get();
+
+    globalres.rthandle = rtvHandle;
+    globalres.depthhandle = dsvstart;
+    globalres.shadowmaphandle = shadowmap_cpuhandle;
+    globalres.rendertarget(m_renderTarget);
+    globalres.frameindex(m_swapChain->GetCurrentBackBufferIndex());
+    globalres.psodesc(pso_desc);
+    globalres.init();
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvdesc.Format = DXGI_FORMAT_R32_FLOAT;
+    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvdesc.Texture2D.MipLevels = 1;
+
+    globalres.shadowmapidx = globalres.resourceheap().addsrv(srvdesc, m_shadowmap.Get()).heapidx;
+    globalres.shadowmap = m_shadowmap;
 }
 
 // load the sample assets.

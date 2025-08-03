@@ -152,9 +152,9 @@ XMMATRIX simplecamera::GetViewMatrix()
     return m_cameramatx;
 }
 
-XMMATRIX simplecamera::GetProjectionMatrix(float fov)
+XMMATRIX simplecamera::GetProjectionMatrix()
 {
-    return XMMatrixPerspectiveFovLH(fov, static_cast<float>(_width) / static_cast<float>(_height), _nearp, _farp);
+    return XMMatrixPerspectiveFovLH(XM_PI / 3.0f, static_cast<float>(_width) / static_cast<float>(_height), _nearp, _farp);
 }
 
 DirectX::XMMATRIX simplecamera::GetOrthoProjectionMatrix()

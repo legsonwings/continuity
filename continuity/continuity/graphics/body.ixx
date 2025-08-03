@@ -97,7 +97,6 @@ struct bodyparams
 {
     uint maxverts;
     uint maxinstances;
-    std::string psoname;
     uint32 mat;
 
     stdx::vecui2 dims;
@@ -223,7 +222,7 @@ public:
 };
 
 // bodyimpl
-void dispatch(resource_bindings const& bindings, bool wireframe = false, uint dispatchx = 1);
+void dispatch(resource_bindings const& bindings, bool wireframe = false, bool shadowpass = false, uint dispatchx = 1);
 
 template<sbody_c body_t, topology prim_t>
 template<typename body_c_t>
@@ -301,7 +300,7 @@ void body_static<body_t, prim_t>::update(float dt)
 template<sbody_c body_t, topology prim_t>
 inline void body_static<body_t, prim_t>::render(float dt, renderparams const& params)
 {
-    auto const foundpso = globalresources::get().psomap().find(getparams().psoname);
+    auto const foundpso = globalresources::get().psomap().find(params.psoname);
     if (foundpso == globalresources::get().psomap().cend())
     {
         stdx::cassert(false, "pso not found");
@@ -326,7 +325,7 @@ inline void body_static<body_t, prim_t>::render(float dt, renderparams const& pa
     // each thread outputs one primitive and 3 vertices
     // each threadgroup can output 85 primitives because output vertices cannot be referenced across thread groups
     uint32 const dispatchx = gfx::divideup<85>(numprims);
-    dispatch(bindings, params.wireframe, dispatchx);
+    dispatch(bindings, params.wireframe, params.shadowpass, dispatchx);
 }
 
 template<dbody_c body_t, topology prim_t>
@@ -367,7 +366,7 @@ inline void body_dynamic<body_t, prim_t>::update(float dt)
 template<dbody_c body_t, topology prim_t>
 inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& params)
 {
-    auto const foundpso = globalresources::get().psomap().find(getparams().psoname);
+    auto const foundpso = globalresources::get().psomap().find(params.psoname);
     if (foundpso == globalresources::get().psomap().cend())
     {
         stdx::cassert(false, "pso not found");
@@ -399,7 +398,7 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
     uint const numasthreads = static_cast<uint>(std::ceil(static_cast<float>(dispatch_params.numprims) / static_cast<float>(ASGROUP_SIZE * dispatch_params.maxprims_permsgroup)));
     stdx::cassert(numasthreads < 128);
     //memcpy(bindings.rootconstants.values.data(), &dispatch_params, sizeof(dispatch_params));
-    dispatch(bindings, params.wireframe, numasthreads);
+    dispatch(bindings, params.wireframe, false, numasthreads);
 }
 // bodyimpl
 

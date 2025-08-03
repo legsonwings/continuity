@@ -1,6 +1,7 @@
 module;
 
 #include "simplemath/simplemath.h"
+#include <thirdparty/d3dx12.h>
 
 module playground;
 
@@ -34,8 +35,8 @@ gfx::resourcelist playground::create_resources()
 
     auto& globalres = gfx::globalresources::get();
 
-    viewglobalsbuffer.create();
-    sceneglobalsbuffer.create();
+    viewglobalsbuffer.create(2);
+    sceneglobalsbuffer.create(2);
 
     gfx::material mat;
     mat.basecolour = stdx::vec4{ 0.0f, 1.0, 0.0, 1.0f };
@@ -51,7 +52,7 @@ gfx::resourcelist playground::create_resources()
     rootdescs.sceneglobalsdesc = sceneglobalsbuffer.createsrv().heapidx;
 
     // since these use static vertex buffers, just send 0 as maxverts
-    auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj"), bodyparams{ 0, 1, "instanced", matid } );
+    auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj"), bodyparams{ 0, 1, matid } );
     model.rootdescriptors() = rootdescs;
 
     gfx::resourcelist res;
@@ -63,24 +64,53 @@ void playground::update(float dt)
 {
     sample_base::update(dt);
     for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->update(dt);
-
-    viewglobals viewdata;
-    sceneglobals scenedata;
-
-    auto& globalres = gfx::globalresources::get();
-
-    viewdata.campos = camera.GetCurrentPosition();
-    viewdata.viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj));
-    scenedata.matbuffer = globalres.materialsbuffer_idx();
-    scenedata.viewdirshading = viewdirshading;
-
-    viewglobalsbuffer.update({ viewdata });
-    sceneglobalsbuffer.update({ scenedata });
 }
 
 void playground::render(float dt)
 {
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { false });
+    auto lightpos = vector3(800, 800, 0);
+    auto lightfocus = vector3(-800, 450, 0);
+    auto lightdir = (lightfocus - lightpos).Normalized();
+
+    auto& globalres = gfx::globalresources::get();
+
+    viewglobals camviewinfo, lightviewinfo;
+    sceneglobals scenedata;
+    scenedata.shadowmap = globalres.shadowmapidx;
+    scenedata.matbuffer = globalres.materialsbuffer_idx();
+    scenedata.viewdirshading = viewdirshading;
+    scenedata.lightdir = stdx::vec3{ lightdir[0], lightdir[1], lightdir[2] };
+    scenedata.lightluminance = 6;
+
+    matrix lightviewmatrix = XMMatrixLookAtLH(lightpos, lightfocus, vector3::UnitY);
+
+    float aspectr = float(viewdata.width) / viewdata.height;
+    float w = 4000;
+    float h = w / aspectr;
+
+    matrix lightorthoproj = XMMatrixOrthographicLH(w, h, 5000, 0.05f);
+    
+    camviewinfo.viewpos = camera.GetCurrentPosition();
+    camviewinfo.viewproj = utils::to_matrix4x4(matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix()).Transpose());
+
+    lightviewinfo.viewpos = { lightpos[0], lightpos[1], lightpos[2] };
+    lightviewinfo.viewproj = utils::to_matrix4x4((lightviewmatrix * lightorthoproj).Transpose());
+
+    viewglobalsbuffer.update({ camviewinfo, lightviewinfo });
+    sceneglobalsbuffer.update({ scenedata });
+
+    // render shadows
+    for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { "instanced_depthonly", true });
+
+    auto barrier_shadowmap = CD3DX12_RESOURCE_BARRIER::Transition(globalres.shadowmap.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    globalres.cmdlist()->ResourceBarrier(1, &barrier_shadowmap);
+
+    for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { "instanced" });
+
+    auto revbarrier_shadowmap = gfx::reversetransition(barrier_shadowmap);
+    
+    globalres.cmdlist()->ResourceBarrier(1, &revbarrier_shadowmap);
 }
 
 void playground::on_key_up(unsigned key)

@@ -2,19 +2,20 @@
 #include "common.hlsli"
 #include "shared/common.h"
 
+static const float2 poissondisk[4] = { float2(-0.94201624, -0.39906216), float2(0.94558609, -0.76890725), float2(-0.094184101, -0.92938870), float2(0.34495938, 0.29387760) };
+
 float4 main(meshshadervertex input) : SV_TARGET
 {
     StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
     StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
-    StructuredBuffer<viewconstants> viewgloabls = ResourceDescriptorHeap[descriptorsidx.viewglobals];
+    StructuredBuffer<viewconstants> viewglobals = ResourceDescriptorHeap[descriptorsidx.viewglobals];
     StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
 
-    // todo : sundir should come from outside
-    float3 l = normalize(-float3(1, -1, 1));
+    float3 l = -sceneglobals[0].lightdir;
     float3 shadingpos = input.position;
 
     float3 n = normalize(input.normal);
-    float3 v = normalize(viewgloabls[0].campos - shadingpos);
+    float3 v = normalize(viewglobals[0].viewpos - shadingpos);
 
     if (sceneglobals[0].viewdirshading == 1)
     {
@@ -23,8 +24,35 @@ float4 main(meshshadervertex input) : SV_TARGET
     }
     else
     {
-        StructuredBuffer<material> materials = ResourceDescriptorHeap[sceneglobals[0].matbuffer];
         SamplerState sampler = SamplerDescriptorHeap[0];
+        SamplerState pointsampler = SamplerDescriptorHeap[2];
+        SamplerComparisonState shadowsampler = SamplerDescriptorHeap[3];
+
+        Texture2D<float> shadowmap = ResourceDescriptorHeap[sceneglobals[0].shadowmap];
+        float3 ndccoords = input.positionl.xyz / input.positionl.w;
+        
+        // xy is in range [-1,1] and z in [0, 1]
+        float2 shadowmapcoords = float2(ndccoords.x * 0.5f + 0.5f, (1.0f - ndccoords.y) * 0.5f);
+        float currdepth = ndccoords.z;
+
+        static float const depthbiasbase = 0.05f;
+
+        float shadowscale = 0.0f;
+        
+        // this means the fragment lies before light frustum's far plane
+        if (currdepth >= 0.0f)
+        {
+            float depthbias = dot(n, l) * depthbiasbase;
+
+            // each fetch does bilinear pcf
+            [unroll] for(int i = -1; i <= 1; ++i)
+                [unroll] for (int j = -1; j <= 1; ++j)
+                    shadowscale += shadowmap.SampleCmpLevelZero(shadowsampler, shadowmapcoords, currdepth + depthbias, int2(i, j));
+
+            shadowscale /= 9.0f;
+        }
+
+        StructuredBuffer<material> materials = ResourceDescriptorHeap[sceneglobals[0].matbuffer];
 
         material m = materials[input.material];
 
@@ -45,8 +73,8 @@ float4 main(meshshadervertex input) : SV_TARGET
         float3 const ambientcolor = 0.1f * sampledcolour.xyz;
         float2 mr = roughnesstex.Sample(sampler, input.texcoords).bg;
 
-        float3 colour = calculatelighting(float3(4, 4, 4), l, v, n, sampledcolour.xyz, mr.y, m.reflectance, mr.x);
-        float4 finalcolor = float4(colour + ambientcolor, sampledcolour.a);
+        float3 colour = calculatelighting(sceneglobals[0].lightluminance.xxx, l, v, n, sampledcolour.xyz, mr.y, m.reflectance, mr.x);
+        float4 finalcolor = float4(colour * (1.0f - shadowscale) + ambientcolor, sampledcolour.a);
 
         return finalcolor;
     }
