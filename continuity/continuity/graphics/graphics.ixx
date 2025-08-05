@@ -13,6 +13,7 @@ export import :model;
 export import :texture;
 export import :resourcetypes;
 export import :globalresources;
+export import :renderer;
 
 import stdxcore;
 import stdx;

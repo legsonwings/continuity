@@ -1,30 +1,12 @@
 module;
 
-#include <wrl.h>
-#include <dxgi1_3.h>
-#include <dxgi1_6.h>
-#include <d3d12.h>
-#include "thirdparty/d3dx12.h"
-#include "thirdparty/dxhelpers.h"
-#include "DirectXMath.h"
-
-#include <shlobj.h>
+#include <windows.h>
 #include <strsafe.h>
-
-#include "shared/sharedconstants.h"
 
 module engine;
 
 import activesample;
-import graphics;
-
 import std;
-
-#define CONSOLE_LOGS 0
-
-using namespace DirectX;
-
-static constexpr float clearcol[4] = { 0.254901975f, 0.254901975f, 0.254901975f, 1.f };
 
 sample_base::sample_base(view_data const& data) : viewdata(data)
 {
@@ -50,300 +32,20 @@ void sample_base::updateview(float dt)
 continuity::continuity(view_data const& data)
     : m_width(data.width)
     , m_height(data.height)
-    , m_viewport(0.0f, 0.0f, static_cast<float>(data.width), static_cast<float>(data.height))
-    , m_scissorRect(0, 0, static_cast<LONG>(data.width), static_cast<LONG>(data.height))
     , m_frameCounter(0)
-    , m_fenceEvent{}
-    , m_fenceValues{}
 {
     sample = sample_creator::create_instance<activesample>(data);
 }
 
-static std::wstring getlatest_winpixgpucapturer_path()
-{
-    LPWSTR programfilespath = nullptr;
-    SHGetKnownFolderPath(FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, NULL, &programfilespath);
-
-    std::filesystem::path pixinstallationpath = programfilespath;
-    pixinstallationpath /= "Microsoft PIX";
-
-    std::wstring newestversionfound;
-
-    for (auto const& directory_entry : std::filesystem::directory_iterator(pixinstallationpath))
-        if (directory_entry.is_directory())
-            if (newestversionfound.empty() || newestversionfound < directory_entry.path().filename().c_str())
-                newestversionfound = directory_entry.path().filename().c_str();
-
-    stdx::cassert(!newestversionfound.empty());
-    return pixinstallationpath / newestversionfound / L"WinPixGpuCapturer.dll";
-}
-
 void continuity::OnInit()
 {
-#if CONSOLE_LOGS
-    AllocConsole();
-    FILE* DummyPtr;
-    freopen_s(&DummyPtr, "CONOUT$", "w", stdout);
-#endif
-
-    load_pipeline();
-    create_resources();
-}
-
-// load the rendering pipeline dependencies.
-void continuity::load_pipeline()
-{
-    UINT dxgiFactoryFlags = 0;
- 
-#if defined(_DEBUG)
-    // enable the debug layer (requires the Graphics Tools "optional feature").
-    // note: enabling the debug layer after device creation will invalidate the active device.
-    {
-        ComPtr<ID3D12Debug5> debugController;
-        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-        {
-            // enable additional debug layers.
-            dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-
-            debugController->EnableDebugLayer();
-            debugController->SetEnableAutoName(true);
-            debugController->SetEnableGPUBasedValidation(true);
-        }
-    }
-#else
-
-    static constexpr auto allowpixattach = false;
-
-    // todo : this should be turned based on a based on a commmand line flag
-    // WinPixGpuCapturer is not compatible with debug builds(debug layer conflicts?)
-    
-    if (allowpixattach && GetModuleHandleA("WinPixGpuCapturer.dll") == 0)
-    {
-        LoadLibrary(getlatest_winpixgpucapturer_path().c_str());
-    }
-#endif
-
-    ComPtr<IDXGIFactory4> factory;
-    ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
-
-    auto& device = gfx::globalresources::get().device();
-    ComPtr<IDXGIAdapter1> hardwareAdapter;
-    GetHardwareAdapter(factory.Get(), &hardwareAdapter);
-
-    ThrowIfFailed(D3D12CreateDevice(
-        hardwareAdapter.Get(),
-        D3D_FEATURE_LEVEL_12_1,
-        IID_PPV_ARGS(device.ReleaseAndGetAddressOf())
-    ));
-
-    D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = { D3D_SHADER_MODEL_6_6 };
-    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel)))
-        || (shaderModel.HighestShaderModel < D3D_SHADER_MODEL_6_6))
-    {
-        OutputDebugStringA("ERROR: Shader Model 6.6 is not supported\n");
-        throw std::exception("Shader Model 6.6 is not supported.");
-    }
-
-    D3D12_FEATURE_DATA_D3D12_OPTIONS features = {};
-    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &features, sizeof(features)))
-        || (features.ResourceBindingTier != D3D12_RESOURCE_BINDING_TIER_3))
-    {
-        OutputDebugStringA("ERROR: Dynamic resources(Bindless resources) are not supported!\n");
-        throw std::exception("Bindless resources aren't supported!");
-    }
-    
-    D3D12_FEATURE_DATA_D3D12_OPTIONS5 features5 = {};
-    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &features5, sizeof(features5))) || features5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
-    {
-        OutputDebugStringA("ERROR: Raytracing is not supported!\n");
-        throw std::exception("Raytracing is not supported!");
-    }
-
-    D3D12_FEATURE_DATA_D3D12_OPTIONS7 features7 = {};
-    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &features7, sizeof(features7)))
-        || (features7.MeshShaderTier == D3D12_MESH_SHADER_TIER_NOT_SUPPORTED))
-    {
-        OutputDebugStringA("ERROR: Mesh Shaders aren't supported!\n");
-        throw std::exception("Mesh Shaders aren't supported!");
-    }
-
-    // describe and create the command queue.
-    D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-    queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-    queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-
-    ThrowIfFailed(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
-
-    // describe and create the swap chain.
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-    swapChainDesc.BufferCount = frame_count;
-    swapChainDesc.Width = m_width;
-    swapChainDesc.Height = m_height;
-    swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // todo : use srgb format
-    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    swapChainDesc.SampleDesc.Count = 1;
-
-    ComPtr<IDXGISwapChain1> swapChain;
-    ThrowIfFailed(factory->CreateSwapChainForHwnd(
-        m_commandQueue.Get(),        // Swap chain needs the queue so that it can force a flush on it.
-        continuity::GetHwnd(),
-        &swapChainDesc,
-        nullptr,
-        nullptr,
-        &swapChain
-    ));
-
-    // This sample does not support fullscreen transitions.
-    ThrowIfFailed(factory->MakeWindowAssociation(continuity::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
-
-    ThrowIfFailed(swapChain.As(&m_swapChain));
-   
-    // create descriptor heaps.
-    {
-        // describe and create a render target view (RTV) descriptor heap.
-        D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-        rtvHeapDesc.NumDescriptors = frame_count;
-        rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        ThrowIfFailed(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
-
-        // describe and create a render target view (RTV) descriptor heap.
-        D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-        dsvHeapDesc.NumDescriptors = 2;
-        dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-        dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        ThrowIfFailed(device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsvHeap)));
-    }
-
-    auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, static_cast<UINT64>(m_width), static_cast<UINT>(m_height), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
-
-    D3D12_CLEAR_VALUE clearcolour = {};
-    clearcolour.Format = texdesc.Format;
-    clearcolour.Color[0] = clearcol[0];
-    clearcolour.Color[1] = clearcol[1];
-    clearcolour.Color[2] = clearcol[2];
-    clearcolour.Color[3] = clearcol[3];
-
-    auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearcolour, IID_PPV_ARGS(m_renderTarget.ReleaseAndGetAddressOf())));
-        
-    NAME_D3D12_OBJECT(m_renderTarget);
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
-    device->CreateRenderTargetView(m_renderTarget.Get(), nullptr, rtvHandle);
-
-    // create command allocator for only one frame since theres no frame buffering
-    ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[0])));
-
-    // get back buffers
-    for (UINT n = 0; n < frame_count; n++)
-    {
-        ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_backBuffers[n])));
-    }
-
-    // create the depth stencil view.
-    D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
-    depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
-    depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-    depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
-
-    D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-    depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
-    depthOptimizedClearValue.DepthStencil.Depth = 0.0f;
-    depthOptimizedClearValue.DepthStencil.Stencil = 0;
-
-    auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    auto texture_resource_desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, m_width, m_height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-    ThrowIfFailed(device->CreateCommittedResource(
-        &heap_props,
-        D3D12_HEAP_FLAG_NONE,
-        &texture_resource_desc,
-        D3D12_RESOURCE_STATE_DEPTH_WRITE,
-        &depthOptimizedClearValue,
-        IID_PPV_ARGS(&m_depthStencil)
-    ));
-
-    NAME_D3D12_OBJECT(m_depthStencil);
-
-    auto shadowmapdesc = texture_resource_desc;
-    ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &shadowmapdesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&m_shadowmap)));
-
-    NAME_D3D12_OBJECT(m_shadowmap);
-
-    auto dsvstart = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
-    auto shadowmap_cpuhandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( dsvstart, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV));
-    device->CreateDepthStencilView(m_depthStencil.Get(), &depthStencilDesc, dsvstart);
-    device->CreateDepthStencilView(m_shadowmap.Get(), &depthStencilDesc, shadowmap_cpuhandle);
-
-
-    D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pso_desc = {};
-    pso_desc.NumRenderTargets = 1;
-    pso_desc.RTVFormats[0] = m_renderTarget->GetDesc().Format;
-    pso_desc.DSVFormat = m_depthStencil->GetDesc().Format;
-    pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);    // CW front; cull back
-    pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);         // opaque
-    pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // depth test w/ writes; no stencil
-    pso_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-    pso_desc.SampleMask = UINT_MAX;
-    pso_desc.SampleDesc = DefaultSampleDesc();
-
-    auto& globalres = gfx::globalresources::get();
-
-    globalres.rthandle = rtvHandle;
-    globalres.depthhandle = dsvstart;
-    globalres.shadowmaphandle = shadowmap_cpuhandle;
-    globalres.rendertarget(m_renderTarget);
-    globalres.frameindex(m_swapChain->GetCurrentBackBufferIndex());
-    globalres.psodesc(pso_desc);
-    globalres.init();
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
-    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvdesc.Format = DXGI_FORMAT_R32_FLOAT;
-    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvdesc.Texture2D.MipLevels = 1;
-
-    globalres.shadowmapidx = globalres.resourceheap().addsrv(srvdesc, m_shadowmap.Get()).heapidx;
-    globalres.shadowmap = m_shadowmap;
-}
-
-// load the sample assets.
-void continuity::create_resources()
-{
-    auto device = gfx::globalresources::get().device();
-    auto& cmdlist = gfx::globalresources::get().cmdlist();
-
-    // create the command list. They are created in recording state
-    ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[0].Get(), nullptr, IID_PPV_ARGS(&cmdlist)));
+    renderer.init(GetHwnd(), m_width, m_height);
 
     // need to keep these alive till data is uploaded to gpu
     std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources();
-    
-    gfx::globalresources::get().create_resources();
 
-    ThrowIfFailed(cmdlist->Close());
-
-    ID3D12CommandList* ppCommandLists[] = { cmdlist.Get() };
-    m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
-
-    // create synchronization objects and wait until assets have been uploaded to the GPU.
-    {
-        ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
-        m_fenceValues[0]++;
-
-        // Create an event handle to use for frame synchronization.
-        m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-        if (m_fenceEvent == nullptr)
-        {
-            ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
-        }
-
-        // wait for the command list to execute; we are reusing the same command 
-        // list in our main loop but for now, we just want to wait for setup to 
-        // complete before continuing.
-        waitforgpu();
-    }
+    // this will block until resources are uploaded to the gpu
+    renderer.createresources();
 }
 
 void continuity::OnUpdate()
@@ -371,69 +73,12 @@ void continuity::OnUpdate()
 // ender the scene.
 void continuity::OnRender()
 {
-    auto const frameidx = gfx::globalresources::get().frameindex();
-    auto cmdlist = gfx::globalresources::get().cmdlist();
-
-    // command list allocators can only be reset when the associated 
-    // command lists have finished execution on the GPU; apps should use 
-    // fences to determine GPU execution progress.
-    ThrowIfFailed(m_commandAllocators[0]->Reset());
-
-    // however, when ExecuteCommandList() is called on a particular command 
-    // list, that command list can then be reset at any time and must be before 
-    // re-recording.
-    ThrowIfFailed(cmdlist->Reset(m_commandAllocators[0].Get(), nullptr));
-
-    // set necessary state.
-    cmdlist->RSSetViewports(1, &m_viewport);
-    cmdlist->RSSetScissorRects(1, &m_scissorRect);
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
-    cmdlist->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-
-    // record commands.
-    cmdlist->ClearRenderTargetView(rtvHandle, clearcol, 0, nullptr);
-    cmdlist->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
-
-    sample->render(static_cast<float>(m_timer.GetElapsedSeconds()));
-
-    auto rttocopysource = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTarget.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    auto barrier_backbuffer = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
-
-    cmdlist->ResourceBarrier(1, &rttocopysource);
-    cmdlist->ResourceBarrier(1, &barrier_backbuffer);
-
-    // copy from render target to back buffer
-    cmdlist->CopyResource(m_backBuffers[frameidx].Get(), m_renderTarget.Get());
-
-    auto barrier_backbuffer_restore = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[frameidx].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
-    auto copysrctort = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTarget.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-    cmdlist->ResourceBarrier(1, &barrier_backbuffer_restore);
-    cmdlist->ResourceBarrier(1, &copysrctort);
-
-    ThrowIfFailed(cmdlist->Close());
-
-    // execute the command list.
-    ID3D12CommandList* ppCommandLists[] = { cmdlist.Get() };
-    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
-    // present the frame.
-    ThrowIfFailed(m_swapChain->Present(1, 0));
-
-    waitforgpu();
-
-    gfx::globalresources::get().frameindex(m_swapChain->GetCurrentBackBufferIndex());
+    renderer.render(*sample, static_cast<float>(m_timer.GetElapsedSeconds()));
 }
 
 void continuity::OnDestroy()
 {
-    // ensure that the GPU is no longer referencing resources that are about to be
-    // cleaned up by the destructor.
-    waitforgpu();
-
-    CloseHandle(m_fenceEvent);
+    renderer.deinit();
 }
 
 void continuity::OnKeyDown(UINT8 key)
@@ -444,87 +89,6 @@ void continuity::OnKeyDown(UINT8 key)
 void continuity::OnKeyUp(UINT8 key)
 {
     sample->on_key_up(key);
-}
-
-// wait for pending GPU work to complete.
-void continuity::waitforgpu()
-{
-    // schedule a Signal command in the queue.
-    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[0]));
-
-    // Wait until the fence has been processed.
-    ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[0], m_fenceEvent));
-    WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
-
-    // increment the fence value for the current frame.
-    m_fenceValues[0]++;
-}
-
-// helper function for acquiring the first available hardware adapter that supports Direct3D 12.
-// if no such adapter can be found, *ppAdapter will be set to nullptr.
-_Use_decl_annotations_
-void continuity::GetHardwareAdapter(
-    IDXGIFactory1* pFactory,
-    IDXGIAdapter1** ppAdapter,
-    bool requestHighPerformanceAdapter)
-{
-    *ppAdapter = nullptr;
-
-    ComPtr<IDXGIAdapter1> adapter;
-
-    ComPtr<IDXGIFactory6> factory6;
-    if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory6))))
-    {
-        for (UINT adapterIndex = 0;; ++adapterIndex)
-        {
-            auto ret_code = factory6->EnumAdapterByGpuPreference(adapterIndex, requestHighPerformanceAdapter == true ? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE : DXGI_GPU_PREFERENCE_UNSPECIFIED, IID_PPV_ARGS(&adapter));
-            if (ret_code == DXGI_ERROR_NOT_FOUND)
-            {
-                break;
-            }
-
-            DXGI_ADAPTER_DESC1 desc;
-            adapter->GetDesc1(&desc);
-
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-            {
-                // don't select the Basic Render Driver adapter.
-                // if you want a software adapter, pass in "/warp" on the command line.
-                continue;
-            }
-
-            // check to see whether the adapter supports Direct3D 12, but don't create the
-            // actual device yet.
-            if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
-            {
-                break;
-            }
-        }
-    }
-    else
-    {
-        for (UINT adapterIndex = 0; DXGI_ERROR_NOT_FOUND != pFactory->EnumAdapters1(adapterIndex, &adapter); ++adapterIndex)
-        {
-            DXGI_ADAPTER_DESC1 desc;
-            adapter->GetDesc1(&desc);
-
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-            {
-                // Don't select the Basic Render Driver adapter.
-                // If you want a software adapter, pass in "/warp" on the command line.
-                continue;
-            }
-
-            // check to see whether the adapter supports Direct3D 12, but don't create the
-            // actual device yet.
-            if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
-            {
-                break;
-            }
-        }
-    }
-
-    *ppAdapter = adapter.Detach();
 }
 
 // helper function for setting the window's title text.

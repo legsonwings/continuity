@@ -1,13 +1,6 @@
 module;
 
-// todo : anyway to avoid this?
-#define __SPECSTRINGS_STRICT_LEVEL 0
-#define NOMINMAX
-#include <d3d12.h>
-#include <dxgi1_6.h>
-#include "thirdparty/d3dx12.h"
-
-#include "simplemath/simplemath.h"
+#include <windows.h>
 
 export module engine;
 export import :utils;
@@ -15,11 +8,9 @@ export import :steptimer;
 export import :simplecamera;
 
 import stdxcore;
+import graphics;
 import graphicscore;
 
-export constexpr uint frame_count = 2;
-
-using namespace DirectX;
 
 export struct view_data
 {
@@ -55,9 +46,6 @@ protected:
     void updateview(float dt);
 };
 
-// the "engine" class 
-// handles win32 window and inputs and dx12 object setup(device, swapchains, rendertargets)
-// todo : graphics module should handle device, swapchains, rendertargets, etc
 export class continuity
 {
 public:
@@ -74,35 +62,17 @@ public:
     static HWND GetHwnd() { return m_hwnd; }
 
 private:
-
+    
     UINT GetWidth() const { return m_width; }
     UINT GetHeight() const { return m_height; }
+
     const WCHAR* GetTitle() const { return m_title.c_str(); }
 
-    void GetHardwareAdapter(_In_ IDXGIFactory1* pFactory, _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter, bool requestHighPerformanceAdapter = false);
     void SetCustomWindowText(std::wstring const& text);
-
-    // synchronization objects
-    HANDLE m_fenceEvent;
-    ComPtr<ID3D12Fence> m_fence;
-    UINT64 m_fenceValues[1];
-
-    // pipeline objects
-    CD3DX12_VIEWPORT m_viewport;
-    CD3DX12_RECT m_scissorRect;
-    ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12Resource> m_backBuffers[frame_count];
-    ComPtr<ID3D12Resource> m_renderTarget;
-    ComPtr<ID3D12Resource> m_depthStencil;
-    ComPtr<ID3D12Resource> m_shadowmap;
-    ComPtr<ID3D12CommandAllocator> m_commandAllocators[1];
-    ComPtr<ID3D12CommandQueue> m_commandQueue;
-    ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
-    ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 
     steptimer m_timer;
     std::unique_ptr<sample_base> sample;
-
+    gfx::renderer renderer;
     unsigned m_frameCounter;
     
     // viewport dimensions
@@ -111,10 +81,6 @@ private:
     std::wstring m_title;
 
     static inline HWND m_hwnd = nullptr;
-
-    void load_pipeline();
-    void create_resources();
-    void waitforgpu();   
 
     static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 };

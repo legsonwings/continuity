@@ -120,8 +120,6 @@ void globalresources::create_resources()
     // create a shadow map sampler at 2
     samplerview = _samplerheap.addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 3);
-
-
 }
 
 viewinfo& globalresources::view() { return _view; }

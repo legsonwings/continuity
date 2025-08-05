@@ -12,6 +12,8 @@ import :globalresources;
 namespace gfx
 {
 
+static constexpr uint32 frame_count = 2;
+
 void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, uint const perframe_buffersize)
 {
     for (uint i = 0; i < frame_count; ++i)

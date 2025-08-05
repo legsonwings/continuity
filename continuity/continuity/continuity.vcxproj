@@ -42,6 +42,8 @@
     <ClCompile Include="geometry\geometry.ixx" />
     <ClCompile Include="graphics\graphics.model.cpp" />
     <ClCompile Include="graphics\graphics.model.ixx" />
+    <ClCompile Include="graphics\graphics.renderer.cpp" />
+    <ClCompile Include="graphics\graphics.renderer.ixx" />
     <ClCompile Include="graphics\graphics.resourcetypes.cpp" />
     <ClCompile Include="graphics\graphics.resourcetypes.ixx" />
     <ClCompile Include="graphics\graphics.texture.cpp" />
