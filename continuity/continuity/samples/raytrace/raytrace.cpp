@@ -136,7 +136,7 @@ gfx::resourcelist raytrace::create_resources()
     return res;
 }
 
-void raytrace::render(float dt)
+void raytrace::render(float dt, gfx::renderer&)
 {
     auto& globalres = gfx::globalresources::get();
     //auto& framecbuffer = constantbuffer.data(0);

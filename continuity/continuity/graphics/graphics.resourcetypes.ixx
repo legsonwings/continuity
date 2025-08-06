@@ -2,6 +2,7 @@ module;
 
 #include <d3d12.h>
 #include <wrl.h>
+#include "thirdparty/d3dx12.h"
 
 export module graphics:resourcetypes;
 
@@ -20,6 +21,7 @@ export namespace gfx
 using default_and_upload_buffers = std::pair<ComPtr<ID3D12Resource>, ComPtr<ID3D12Resource>>;
 
 uint dxgiformatsize(DXGI_FORMAT format);
+uint heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE heaptype);
 uint srvcbvuav_descincrementsize();
 
 // todo : create buffer structs/classes
@@ -34,6 +36,7 @@ void createsrv(D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc, ID3D12Resource* resource
 ComPtr<ID3D12Resource> create_default_uavbuffer(std::size_t const b_size);
 ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size);
 default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size_t const b_size);
+ComPtr<ID3D12Resource> createtexture_default(CD3DX12_RESOURCE_DESC const& texdesc, stdx::vec4 clear, D3D12_RESOURCE_STATES state);
 ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format, D3D12_RESOURCE_STATES state);
 void update_buffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size);
 uint updatesubres(ID3D12Resource* dest, ID3D12Resource* upload, D3D12_SUBRESOURCE_DATA const* srcdata);
@@ -51,27 +54,44 @@ struct resource
 	ComPtr<ID3D12Resource> d3dresource;
 };
 
-class samplerheap
+template<D3D12_DESCRIPTOR_HEAP_TYPE heaptype>
+class heap
+{
+public:
+	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuhandle(uint32 slot) const
+	{
+		return { d3dheap->GetCPUDescriptorHandleForHeapStart(), INT(slot * heapdesc_incrementsize(heaptype)) };
+	}
+
+	uint32 currslot = 0;
+	ComPtr<ID3D12DescriptorHeap> d3dheap;
+};
+
+class samplerheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER>
 {
 public:
 	samplerv addsampler(D3D12_SAMPLER_DESC samplerdesc);
-
-	ComPtr<ID3D12DescriptorHeap> d3dheap;
-private:
-	uint32 currslot = 0;
 };
 
-class resourceheap
+class resourceheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV>
 {
 public:
 	srv addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC view, ID3D12Resource* res);
 	uav adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC view, ID3D12Resource* res);
 
 	uint32 popdesc();
+};
 
-	ComPtr<ID3D12DescriptorHeap> d3dheap;
-private:
-	uint32 currslot = 0;
+class rtheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_RTV>
+{
+public:
+	rtv addrtv(ID3D12Resource* res);
+};
+
+class dtheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_DSV>
+{
+public:
+	dtv adddtv(ID3D12Resource* res);
 };
 
 export enum class accesstype
@@ -169,8 +189,11 @@ struct structuredbuffer<t, accesstype::gpu> : public structuredbufferbase<t>
 
 struct texturebase : public resource
 {
+	srv createsrv(DXGI_FORMAT format) const;
 	srv createsrv(uint32 miplevels = 0, uint32 topmip = 0) const;
 	uav createuav(uint32 mipslice = 0) const;
+	rtv creatertv(rtheap& heap) const;
+	dtv createdtv(dtheap& heap) const;
 
 	stdx::vecui2 dims;
 	DXGI_FORMAT format;
@@ -195,6 +218,7 @@ template<>
 struct texture<accesstype::gpu> : public texturebase
 {
 	void create(DXGI_FORMAT dxgiformat, stdx::vecui2 size, D3D12_RESOURCE_STATES state);
+	void create(CD3DX12_RESOURCE_DESC const& texdesc, stdx::vec4 clear, D3D12_RESOURCE_STATES state);
 	void createfromfile(std::string const& path);
 
 	// unlike buffers texture are created on default heap?

@@ -17,7 +17,8 @@ import :globalresources;
 
 using Microsoft::WRL::ComPtr;
 
-static constexpr float clearcol[4] = { 0.254901975f, 0.254901975f, 0.254901975f, 1.f };
+static constexpr stdx::vec4 clearcol = { 0.254901975f, 0.254901975f, 0.254901975f, 1.f };
+static constexpr stdx::vec4 cleardepth = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 namespace gfx
 {
@@ -153,15 +154,13 @@ void renderer::init(HWND window, UINT w, UINT h)
     ComPtr<IDXGIFactory4> factory;
     ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
 
-    auto& device = globalresources::get().device();
     ComPtr<IDXGIAdapter1> hardwareAdapter;
     gethardwareadapter(factory.Get(), &hardwareAdapter);
 
-    ThrowIfFailed(D3D12CreateDevice(
-        hardwareAdapter.Get(),
-        D3D_FEATURE_LEVEL_12_1,
-        IID_PPV_ARGS(device.ReleaseAndGetAddressOf())
-    ));
+    ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(device.ReleaseAndGetAddressOf())));
+
+    // todo : temp
+    globalresources::get().device() = device;
 
     D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = { D3D_SHADER_MODEL_6_6 };
     if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel)))
@@ -221,39 +220,19 @@ void renderer::init(HWND window, UINT w, UINT h)
 
     ThrowIfFailed(sc.As(&swapchain));
 
-    // create descriptor heaps
-    {
-        // describe and create a render target view (RTV) descriptor heap
-        D3D12_DESCRIPTOR_HEAP_DESC rtvheapdesc = {};
-        rtvheapdesc.NumDescriptors = backbuffercount;
-        rtvheapdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        rtvheapdesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        ThrowIfFailed(device->CreateDescriptorHeap(&rtvheapdesc, IID_PPV_ARGS(&rtvheap)));
+    rtheap.d3dheap = createdescriptorheap(2, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    dtheap.d3dheap = createdescriptorheap(2, D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
-        // describe and create a render target view (RTV) descriptor heap.
-        D3D12_DESCRIPTOR_HEAP_DESC dsvheapdesc = {};
-        dsvheapdesc.NumDescriptors = 2;
-        dsvheapdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-        dsvheapdesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-        ThrowIfFailed(device->CreateDescriptorHeap(&dsvheapdesc, IID_PPV_ARGS(&dsvheap)));
-    }
+    auto rtdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, UINT64(viewwidth), UINT(viewheight), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+    rendertarget.create(rtdesc, clearcol, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    
+    auto dtdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, viewwidth, viewheight, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+    depthtarget.create(dtdesc, cleardepth, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    shadowmap.create(dtdesc, cleardepth, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-    auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, static_cast<UINT64>(viewwidth), static_cast<UINT>(viewheight), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
-
-    D3D12_CLEAR_VALUE clearcolour = {};
-    clearcolour.Format = texdesc.Format;
-    clearcolour.Color[0] = clearcol[0];
-    clearcolour.Color[1] = clearcol[1];
-    clearcolour.Color[2] = clearcol[2];
-    clearcolour.Color[3] = clearcol[3];
-
-    auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearcolour, IID_PPV_ARGS(rendertarget.ReleaseAndGetAddressOf())));
-
-    NAME_D3D12_OBJECT(rendertarget);
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvheap->GetCPUDescriptorHandleForHeapStart());
-    device->CreateRenderTargetView(rendertarget.Get(), nullptr, rtvHandle);
+    rtview = rendertarget.creatertv(rtheap);
+    dtview = depthtarget.createdtv(dtheap);
+    shadowmapview = shadowmap.createdtv(dtheap);
 
     // create command allocator for only one frame since theres no frame buffering
     ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandallocators[0])));
@@ -266,33 +245,11 @@ void renderer::init(HWND window, UINT w, UINT h)
     D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
     depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
     depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-    depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
-
-    D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-    depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
-    depthOptimizedClearValue.DepthStencil.Depth = 0.0f;
-    depthOptimizedClearValue.DepthStencil.Stencil = 0;
-
-    auto heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    auto texture_resource_desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, viewwidth, viewheight, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-    ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &texture_resource_desc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&depthstencil)));
-
-    NAME_D3D12_OBJECT(depthstencil);
-
-    auto shadowmapdesc = texture_resource_desc;
-    ThrowIfFailed(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &shadowmapdesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, IID_PPV_ARGS(&shadowmap)));
-
-    NAME_D3D12_OBJECT(shadowmap);
-
-    auto dsvstart = dsvheap->GetCPUDescriptorHandleForHeapStart();
-    auto shadowmap_cpuhandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvstart, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV));
-    device->CreateDepthStencilView(depthstencil.Get(), &depthStencilDesc, dsvstart);
-    device->CreateDepthStencilView(shadowmap.Get(), &depthStencilDesc, shadowmap_cpuhandle);
 
     D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pso_desc = {};
     pso_desc.NumRenderTargets = 1;
-    pso_desc.RTVFormats[0] = rendertarget->GetDesc().Format;
-    pso_desc.DSVFormat = depthstencil->GetDesc().Format;
+    pso_desc.RTVFormats[0] = rendertarget.d3dresource->GetDesc().Format;
+    pso_desc.DSVFormat = depthtarget.d3dresource->GetDesc().Format;
     pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);      // CW front; cull back
     pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);                // opaque
     pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // depth test w/ writes; no stencil
@@ -302,27 +259,22 @@ void renderer::init(HWND window, UINT w, UINT h)
 
     auto& globalres = globalresources::get();
 
-    globalres.rthandle = rtvHandle;
-    globalres.depthhandle = dsvstart;
-    globalres.shadowmaphandle = shadowmap_cpuhandle;
-    globalres.rendertarget(rendertarget);
-    globalres.frameindex(swapchain->GetCurrentBackBufferIndex());
+    // todo : these shouldn't be passed using global resources but use renderer functions to access
+    globalres.rthandle = rtheap.cpuhandle(rtview.heapidx);
+    globalres.depthhandle = dtheap.cpuhandle(dtview.heapidx);
+    globalres.shadowmaphandle = dtheap.cpuhandle(shadowmapview.heapidx);
+    globalres.rendertarget(rendertarget.d3dresource);
     globalres.psodesc(pso_desc);
     globalres.init();
 
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
-    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvdesc.Format = DXGI_FORMAT_R32_FLOAT;
-    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvdesc.Texture2D.MipLevels = 1;
-
-    globalres.shadowmapidx = globalres.resourceheap().addsrv(srvdesc, shadowmap.Get()).heapidx;
-    globalres.shadowmap = shadowmap;
-
-    auto& cmdlist = globalresources::get().cmdlist();
+    globalres.shadowmapidx = shadowmap.createsrv(DXGI_FORMAT_R32_FLOAT).heapidx;
+    globalres.shadowmap = shadowmap.d3dresource;
 
     // create the command list in recording state
     ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandallocators[0].Get(), nullptr, IID_PPV_ARGS(&cmdlist)));
+
+    // todo : temp
+    globalresources::get().cmdlist() = cmdlist;
 }
 
 void renderer::deinit()
@@ -379,15 +331,17 @@ void renderer::prerender()
     // list, that command list can then be reset at any time and must be before re-recording
     ThrowIfFailed(cmdlist->Reset(commandallocators[0].Get(), nullptr));
 
+    // todo : move these out of here
     // set necessary state
     cmdlist->RSSetViewports(1, &viewport);
     cmdlist->RSSetScissorRects(1, &scissorrect);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvheap->GetCPUDescriptorHandleForHeapStart());
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(dsvheap->GetCPUDescriptorHandleForHeapStart());
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtheap.d3dheap->GetCPUDescriptorHandleForHeapStart());
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(dtheap.d3dheap->GetCPUDescriptorHandleForHeapStart());
     cmdlist->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
-    cmdlist->ClearRenderTargetView(rtvHandle, clearcol, 0, nullptr);
+    FLOAT clearcolA[4] = { clearcol[0], clearcol[1], clearcol[2], clearcol[3] };
+    cmdlist->ClearRenderTargetView(rtvHandle, clearcolA, 0, nullptr);
     cmdlist->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
 }
 
@@ -395,17 +349,17 @@ void renderer::postrender()
 {
     auto cmdlist = globalresources::get().cmdlist();
 
-    auto rttocopysource = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    auto rttocopysource = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
     auto barrier_backbuffer = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
 
     cmdlist->ResourceBarrier(1, &rttocopysource);
     cmdlist->ResourceBarrier(1, &barrier_backbuffer);
 
     // copy from render target to back buffer
-    cmdlist->CopyResource(backbuffers[frameidx].Get(), rendertarget.Get());
+    cmdlist->CopyResource(backbuffers[frameidx].Get(), rendertarget.d3dresource.Get());
 
     auto barrier_backbuffer_restore = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
-    auto copysrctort = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    auto copysrctort = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     cmdlist->ResourceBarrier(1, &barrier_backbuffer_restore);
     cmdlist->ResourceBarrier(1, &copysrctort);

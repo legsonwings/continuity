@@ -906,7 +906,7 @@ void sphfluidintro::update(float dt)
     //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->update(dt);
 }
 
-void sphfluidintro::render(float dt)
+void sphfluidintro::render(float dt, gfx::renderer&)
 {
     static constexpr bool vizparticles = true;
     if (vizparticles)

@@ -17,6 +17,8 @@ export enum class samples : int
 export inline std::wstring sample_titles[int(samples::num)] = { L"Basic ", L"Playground", L"Intro SPH fluid ", L"Sph Gpu fluid", L"raytrace"};
 export auto constexpr activesample = samples::playground;
 
+namespace gfx { class renderer; }
+
 export class basic_sample : public sample_base
 {
 public:
@@ -24,7 +26,7 @@ public:
 
 	gfx::resourcelist create_resources() override { return {}; };
 	void update(float dt) override {};
-	void render(float dt) override {};
+	void render(float dt, gfx::renderer&) override {};
 };
 
 export namespace sample_creator

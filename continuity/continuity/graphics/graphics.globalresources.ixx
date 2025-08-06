@@ -57,6 +57,8 @@ public:
 	void deinit();
 	void create_resources();
 
+	static constexpr uint32 max_rtdescriptors = 100;
+	static constexpr uint32 max_dtdescriptors = 100;
 	static constexpr uint32 max_resdescriptors = 10000;
 	static constexpr uint32 max_samplerdescriptors = 2048;
 	static constexpr uint32 max_materials = 1000;

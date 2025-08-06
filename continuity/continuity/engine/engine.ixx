@@ -33,7 +33,7 @@ public:
     virtual gfx::resourcelist create_resources() = 0;
 
     virtual void update(float dt) { updateview(dt); };
-    virtual void render(float dt) = 0;
+    virtual void render(float dt, gfx::renderer& renderer) = 0;
 
     void onwindowcreated();
     virtual void on_key_down(unsigned key) { camera.OnKeyDown(key); };

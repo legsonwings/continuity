@@ -73,7 +73,9 @@ void continuity::OnUpdate()
 // ender the scene.
 void continuity::OnRender()
 {
-    renderer.render(*sample, static_cast<float>(m_timer.GetElapsedSeconds()));
+    renderer.prerender();
+    sample->render(static_cast<float>(m_timer.GetElapsedSeconds()), renderer);
+    renderer.postrender();
 }
 
 void continuity::OnDestroy()

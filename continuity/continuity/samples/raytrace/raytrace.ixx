@@ -14,7 +14,7 @@ public:
 	raytrace(view_data const& viewdata);
 
 	gfx::resourcelist create_resources() override;
-	void render(float dt) override; 
+	void render(float dt, gfx::renderer&) override; 
 
 private:
 

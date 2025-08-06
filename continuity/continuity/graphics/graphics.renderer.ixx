@@ -7,6 +7,7 @@ module;
 export module graphics:renderer;
 
 import stdxcore;
+import :resourcetypes;
 
 using Microsoft::WRL::ComPtr;
 
@@ -27,17 +28,24 @@ class renderer
     CD3DX12_RECT scissorrect;
 
     ComPtr<ID3D12Fence> fence;
+    ComPtr<ID3D12Device5> device;
     ComPtr<IDXGISwapChain3> swapchain;
+    ComPtr<ID3D12GraphicsCommandList6> cmdlist;
     ComPtr<ID3D12Resource> backbuffers[backbuffercount];
-    ComPtr<ID3D12Resource> rendertarget;
-    ComPtr<ID3D12Resource> depthstencil;
-    ComPtr<ID3D12Resource> shadowmap;
     ComPtr<ID3D12CommandAllocator> commandallocators[1];
     ComPtr<ID3D12CommandQueue> commandqueue;
-    ComPtr<ID3D12DescriptorHeap> rtvheap;
-    ComPtr<ID3D12DescriptorHeap> dsvheap;
+
+    texture<accesstype::gpu> rendertarget;
+    texture<accesstype::gpu> depthtarget;
+    texture<accesstype::gpu> shadowmap;
+    rtheap rtheap;
+    dtheap dtheap;
+    rtv rtview;
+    dtv dtview;
+    dtv shadowmapview;
 
 public:
+
     void init(HWND window, UINT w, UINT h);
     void deinit();
     void createresources();
@@ -45,14 +53,6 @@ public:
 
     void prerender();
     void postrender();
-
-    template<typename t>
-    void render(t& sample, float dt)
-    {
-        prerender();
-        sample.render(dt);
-        postrender();
-    }
 
     void waitforgpu();
 };

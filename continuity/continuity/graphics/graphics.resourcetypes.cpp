@@ -20,10 +20,15 @@ void update_allframebuffers(std::byte* mapped_buffer, void const* data_start, ui
         memcpy(mapped_buffer + perframe_buffersize * i, data_start, perframe_buffersize);
 }
 
-uint srvcbvuav_descincrementsize()
+uint heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE heaptype)
 {
     auto device = globalresources::get().device();
-    return static_cast<uint>(device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+    return static_cast<uint>(device->GetDescriptorHandleIncrementSize(heaptype));
+}
+
+uint srvcbvuav_descincrementsize()
+{
+    return heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 uint dxgiformatsize(DXGI_FORMAT format)
@@ -99,7 +104,7 @@ ComPtr<ID3D12DescriptorHeap> createdescriptorheap(uint maxnumdesc, D3D12_DESCRIP
     D3D12_DESCRIPTOR_HEAP_DESC heapdesc = {};
     heapdesc.NumDescriptors = UINT(maxnumdesc);
     heapdesc.Type = type;
-    heapdesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    heapdesc.Flags = (type == D3D12_DESCRIPTOR_HEAP_TYPE_RTV || type == D3D12_DESCRIPTOR_HEAP_TYPE_DSV) ? D3D12_DESCRIPTOR_HEAP_FLAG_NONE : D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
     ComPtr<ID3D12DescriptorHeap> heap;
     ThrowIfFailed(device->CreateDescriptorHeap(&heapdesc, IID_PPV_ARGS(heap.ReleaseAndGetAddressOf())));
@@ -195,17 +200,26 @@ default_and_upload_buffers create_defaultbuffer(void const* datastart, std::size
     return { b, b_upload };
 }
 
-ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format, D3D12_RESOURCE_STATES state)
+ComPtr<ID3D12Resource> createtexture_default(CD3DX12_RESOURCE_DESC const& texdesc, stdx::vec4 clear, D3D12_RESOURCE_STATES state)
 {
+    D3D12_CLEAR_VALUE clearcolour = {};
+    clearcolour.Format = texdesc.Format;
+    clearcolour.Color[0] = clear[0];
+    clearcolour.Color[1] = clear[1];
+    clearcolour.Color[2] = clear[2];
+    clearcolour.Color[3] = clear[3];
+
     auto device = globalresources::get().device();
-
-    // all unordered access on all textures(on some architecutres unordered access might lead to suboptimal texture layout, but its 2025)
-    auto texdesc = CD3DX12_RESOURCE_DESC::Tex2D(format, static_cast<UINT64>(width), static_cast<UINT>(height), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-
     ComPtr<ID3D12Resource> texdefault;
     auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, state, nullptr, IID_PPV_ARGS(texdefault.ReleaseAndGetAddressOf())));
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, state, &clearcolour, IID_PPV_ARGS(texdefault.ReleaseAndGetAddressOf())));
     return texdefault;
+}
+
+ComPtr<ID3D12Resource> createtexture_default(uint width, uint height, DXGI_FORMAT format, D3D12_RESOURCE_STATES state)
+{
+    // all unordered access on all textures(on some architecutres unordered access might lead to suboptimal texture layout, but its 2025)
+    return createtexture_default(CD3DX12_RESOURCE_DESC::Tex2D(format, static_cast<UINT64>(width), static_cast<UINT>(height), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS), {}, state);
 }
 
 void update_buffer(std::byte* mapped_buffer, void const* data_start, std::size_t const data_size)
@@ -235,8 +249,7 @@ samplerv samplerheap::addsampler(D3D12_SAMPLER_DESC samplerdesc)
 {
     stdx::cassert(currslot < globalresources::max_samplerdescriptors);
     auto device = globalresources::get().device();
-    auto samplerdesc_incrementsize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * samplerdesc_incrementsize));
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)));
     device->CreateSampler(&samplerdesc, deschandle);
 
     return { currslot++, samplerdesc };
@@ -267,9 +280,42 @@ uint32 resourceheap::popdesc()
     return currslot > 0 ? currslot-- : 0;
 }
 
+rtv rtheap::addrtv(ID3D12Resource* res)
+{
+    stdx::cassert(currslot < globalresources::max_rtdescriptors);
+    auto device = globalresources::get().device();
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), INT(currslot * heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)));
+    device->CreateRenderTargetView(res, nullptr, deschandle);
+    return { currslot++ };
+}
+
+dtv dtheap::adddtv(ID3D12Resource* res)
+{
+    stdx::cassert(currslot < globalresources::max_dtdescriptors);
+    auto device = globalresources::get().device();
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), INT(currslot * heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV)));
+    device->CreateDepthStencilView(res, nullptr, deschandle);
+    return { currslot++ };
+}
+
+
+srv texturebase::createsrv(DXGI_FORMAT format) const
+{
+    stdx::cassert(this->d3dresource != nullptr && format != DXGI_FORMAT::DXGI_FORMAT_UNKNOWN);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
+    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvdesc.Format = format;
+    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvdesc.Texture2D.MipLevels = d3dresource->GetDesc().MipLevels;
+
+    return globalresources::get().resourceheap().addsrv(srvdesc, d3dresource.Get());
+}
+
 srv texturebase::createsrv(uint32 miplevels, uint32 topmip) const
 {
-    // use resource format for now
     stdx::cassert(this->d3dresource != nullptr && format != DXGI_FORMAT::DXGI_FORMAT_UNKNOWN);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
@@ -294,6 +340,16 @@ uav texturebase::createuav(uint32 mipslice) const
     return globalresources::get().resourceheap().adduav(uavdesc, d3dresource.Get());
 }
 
+rtv texturebase::creatertv(rtheap& heap) const
+{
+    return heap.addrtv(d3dresource.Get());
+}
+
+dtv texturebase::createdtv(dtheap& heap) const
+{
+    return heap.adddtv(d3dresource.Get());
+}
+
 void gfx::texture<accesstype::gpu>::create(DXGI_FORMAT dxgiformat, stdx::vecui2 size, D3D12_RESOURCE_STATES state)
 {
     stdx::cassert(this->d3dresource == nullptr);
@@ -301,6 +357,14 @@ void gfx::texture<accesstype::gpu>::create(DXGI_FORMAT dxgiformat, stdx::vecui2 
     format = dxgiformat;
     dims = size;
     d3dresource = createtexture_default(dims[0], dims[1], format, state);
+}
+
+void texture<accesstype::gpu>::create(CD3DX12_RESOURCE_DESC const& texdesc, stdx::vec4 clear, D3D12_RESOURCE_STATES state)
+{
+    stdx::cassert(this->d3dresource == nullptr);
+    format = texdesc.Format;
+    dims = { uint32(texdesc.Width), uint32(texdesc.Height) };
+    d3dresource = createtexture_default(texdesc, clear, state);
 }
 
 void texture<accesstype::gpu>::createfromfile(std::string const& path)

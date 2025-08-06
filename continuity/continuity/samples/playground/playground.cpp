@@ -22,7 +22,6 @@ std::unique_ptr<sample_base> create_instance<samples::playground>(view_data cons
 
 using namespace DirectX;
 
-
 playground::playground(view_data const& viewdata) : sample_base(viewdata)
 {
 	camera.Init({ 0.f, 0.f, -30.f });
@@ -66,7 +65,7 @@ void playground::update(float dt)
     for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->update(dt);
 }
 
-void playground::render(float dt)
+void playground::render(float dt, gfx::renderer& renderer)
 {
     auto lightpos = vector3(800, 800, 0);
     auto lightfocus = vector3(-800, 450, 0);

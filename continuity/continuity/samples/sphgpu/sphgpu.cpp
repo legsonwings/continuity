@@ -295,7 +295,7 @@ void sphgpu::update(float dt)
     sample_base::update(dt);
 }
 
-void sphgpu::render(float dt)
+void sphgpu::render(float dt, gfx::renderer&)
 {
     struct
     {

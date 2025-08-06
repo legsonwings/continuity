@@ -124,6 +124,10 @@ struct srv : public resourceview
     D3D12_SHADER_RESOURCE_VIEW_DESC desc;
 };
 
+struct rtv : public resourceview {};
+
+struct dtv : public resourceview {};
+
 struct uav : public resourceview
 {
     D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
@@ -132,6 +136,15 @@ struct uav : public resourceview
 struct samplerv : public resourceview
 {
     D3D12_SAMPLER_DESC desc;
+};
+
+struct pipelinestate
+{
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rthandle;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dthandle;
+    ComPtr<ID3D12PipelineState> pso;
+    ComPtr<ID3D12RootSignature> root_signature;
+    std::vector<ID3D12DescriptorHeap*> descheaps;
 };
 
 struct pipeline_objects

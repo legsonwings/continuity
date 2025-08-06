@@ -71,7 +71,7 @@ public:
 
 	gfx::resourcelist create_resources() override;
 	void update(float dt) override;
-	void render(float dt) override;  
+	void render(float dt, gfx::renderer&) override;  
 
 private:
 

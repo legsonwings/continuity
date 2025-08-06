@@ -15,7 +15,7 @@ import std;
 
 namespace gfx
 {
-
+class renderer;
 struct instance_data;
 
 template<sbody_c body_t, gfx::topology primitive_t = gfx::topology::triangle>
@@ -37,7 +37,7 @@ public:
 
 	gfx::resourcelist create_resources() override;
 	void update(float dt) override;
-	void render(float dt) override;  
+	void render(float dt, gfx::renderer& renderer) override;
 	void on_key_up(unsigned key) override;
 
 private:
