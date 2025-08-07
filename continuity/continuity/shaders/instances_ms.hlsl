@@ -5,7 +5,7 @@ meshshadervertex getvertattribute(vertexin vertex, uint vertidx)
 {
     meshshadervertex outvert;
 
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
     StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
     StructuredBuffer<uint> primmaterials = ResourceDescriptorHeap[objconstants[0].primmaterialsidx];
     StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
@@ -44,14 +44,13 @@ void main
     out vertices meshshadervertex verts[MAX_VERTICES_PER_GROUP]
 )
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
-    StructuredBuffer<dispatch_parameters> dispatch_params = ResourceDescriptorHeap[descriptors[0].dispatchparams];
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
     StructuredBuffer<float3> triangle_positions = ResourceDescriptorHeap[descriptors[0].posbuffer];
     StructuredBuffer<float2> triangle_texcoords = ResourceDescriptorHeap[descriptors[0].texcoordbuffer];
     StructuredBuffer<tbn> triangle_tbns = ResourceDescriptorHeap[descriptors[0].tbnbuffer];
     StructuredBuffer<index> triangle_indices = ResourceDescriptorHeap[descriptors[0].indexbuffer];
 
-    uint const numprims = min(dispatch_params[0].numprims - gid * MAX_PRIMS_PER_GROUP, MAX_PRIMS_PER_GROUP);
+    uint const numprims = min(descriptors[0].numprims - gid * MAX_PRIMS_PER_GROUP, MAX_PRIMS_PER_GROUP);
     SetMeshOutputCounts(numprims * 3, numprims);
 
     if (gtid < numprims)

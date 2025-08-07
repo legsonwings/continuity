@@ -125,7 +125,7 @@ struct instance_data
 
 struct rootconstants
 {
-    uint objdescriptors;
+    uint dispatchparams;
     uint viewglobals;
     uint sceneglobals;
 };

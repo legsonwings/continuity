@@ -42,6 +42,13 @@ public:
 
 private:
 
+	struct rootdescriptors
+	{
+		uint32 dispatchparams;
+		uint32 viewglobalsdesc;
+		uint32 sceneglobalsdesc;
+	} rootdescs;
+
 	struct viewglobals
 	{
 		stdx::vec3 viewpos;

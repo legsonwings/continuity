@@ -45,17 +45,16 @@ gfx::resourcelist playground::create_resources()
 
     auto matid = globalres.addmat(mat);
 
-    // no need to write objdesc as it is written by body
-    gfx::rootdescriptors rootdescs;
-    rootdescs.viewglobalsdesc = viewglobalsbuffer.createsrv().heapidx;
-    rootdescs.sceneglobalsdesc = sceneglobalsbuffer.createsrv().heapidx;
-
     // since these use static vertex buffers, just send 0 as maxverts
     auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj"), bodyparams{ 0, 1, matid } );
-    model.rootdescriptors() = rootdescs;
 
     gfx::resourcelist res;
     for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) { stdx::append(b->create_resources(), res); };
+
+	rootdescs.dispatchparams = models[0].descriptorsindex();
+    rootdescs.viewglobalsdesc = viewglobalsbuffer.createsrv().heapidx;
+    rootdescs.sceneglobalsdesc = sceneglobalsbuffer.createsrv().heapidx;
+
     return res;
 }
 
@@ -98,18 +97,52 @@ void playground::render(float dt, gfx::renderer& renderer)
     viewglobalsbuffer.update({ camviewinfo, lightviewinfo });
     sceneglobalsbuffer.update({ scenedata });
 
-    // render shadows
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { "instanced_depthonly", true });
+    auto const shadowpipelineobjs = globalres.psomap().find("instanced_depthonly")->second;
+    auto const mainpipelineobjs = globalres.psomap().find("instanced")->second;
+
+    auto cmd_list = globalres.cmdlist();
+
+    cmd_list->SetGraphicsRootSignature(shadowpipelineobjs.root_signature.Get());
+
+    ID3D12DescriptorHeap* heaps[] = { globalres.resourceheap().d3dheap.Get(), globalres.samplerheap().d3dheap.Get() };
+    cmd_list->SetDescriptorHeaps(_countof(heaps), heaps);
+
+    cmd_list->SetGraphicsRoot32BitConstants(0, UINT(sizeof(rootdescriptors) / 4), &rootdescs, 0);
+
+    uint32 const dispatchx = gfx::divideup<85>(models[0].numprims());
+
+    {
+        cmd_list->SetPipelineState(shadowpipelineobjs.pso.Get());
+
+        cmd_list->OMSetRenderTargets(0, nullptr, FALSE, &globalres.shadowmaphandle);
+        cmd_list->ClearDepthStencilView(globalres.shadowmaphandle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
+        cmd_list->DispatchMesh(static_cast<UINT>(dispatchx), 1, 1);
+    }
 
     auto barrier_shadowmap = CD3DX12_RESOURCE_BARRIER::Transition(globalres.shadowmap.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
     globalres.cmdlist()->ResourceBarrier(1, &barrier_shadowmap);
 
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { "instanced" });
+    {
+        cmd_list->SetPipelineState(mainpipelineobjs.pso.Get());
+        cmd_list->OMSetRenderTargets(1, &globalres.rthandle, FALSE, &globalres.depthhandle);
+        cmd_list->DispatchMesh(static_cast<UINT>(dispatchx), 1, 1);
+    }
 
     auto revbarrier_shadowmap = gfx::reversetransition(barrier_shadowmap);
-    
     globalres.cmdlist()->ResourceBarrier(1, &revbarrier_shadowmap);
+
+    // render shadows
+    //for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { "instanced_depthonly", true });
+
+    //auto barrier_shadowmap = CD3DX12_RESOURCE_BARRIER::Transition(globalres.shadowmap.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    //globalres.cmdlist()->ResourceBarrier(1, &barrier_shadowmap);
+
+    //for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { "instanced" });
+
+    //auto revbarrier_shadowmap = gfx::reversetransition(barrier_shadowmap);
+    //
+    //globalres.cmdlist()->ResourceBarrier(1, &revbarrier_shadowmap);
 }
 
 void playground::on_key_up(unsigned key)

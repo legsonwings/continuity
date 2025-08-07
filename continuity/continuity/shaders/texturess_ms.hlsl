@@ -5,7 +5,7 @@ StructuredBuffer<vertexin> triangle_verts : register(t0);
 
 texturessvertex getvertattribute(vertexin vertex)
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
     StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
 
     texturessvertex outvert;

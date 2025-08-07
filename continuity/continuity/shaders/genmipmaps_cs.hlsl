@@ -12,7 +12,7 @@ struct genmipsparams
 [numthreads(8, 8, 1)]
 void main(uint2 dtid : SV_DispatchThreadID)
 {
-	StructuredBuffer<genmipsparams> params = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
+	StructuredBuffer<genmipsparams> params = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
 
 	Texture2D<float4> src = ResourceDescriptorHeap[params[0].srctexture];
 	RWTexture2D<float4> dest = ResourceDescriptorHeap[params[0].desttexture];

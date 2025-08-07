@@ -5,7 +5,7 @@
 
 meshshadervertex getvertattribute(vertexin vertex)
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
+    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
     StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
 
     meshshadervertex outvert;
@@ -43,8 +43,7 @@ void main(
         tris[gtid] = uint3(v0idx, v1idx, v2idx);
         int in_vertstart = (payload.data[gid].start + gtid) * 3;
      
-        StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
-        
+        //StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.objdescriptors];
         //StructuredBuffer<vertexin> triangle_verts = ResourceDescriptorHeap[descriptors[0].vertexbuffer];
 
         //verts[v0idx] = getvertattribute(triangle_verts[in_vertstart]);
