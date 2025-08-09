@@ -272,7 +272,7 @@ std::vector<gfx::vertex> cube::vertices_flipped() const
     return invertedvertices;
 }
 
-std::vector<gfx::instance_data> cube::instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center), gfx::globalresources::get().view()) }; }
+std::vector<gfx::instance_data> cube::instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center)) }; }
 
 stdx::vec3 tovec3(vector3 const & v)
 {
@@ -299,7 +299,7 @@ void sphere::generate_triangles()
     generate_triangles(unitspheres_tessellated[numsegments_longitude]);
 }
 
-std::vector<gfx::instance_data> sphere::instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center), gfx::globalresources::get().view()) }; }
+std::vector<gfx::instance_data> sphere::instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center)) }; }
 
 void sphere::generate_triangles(std::vector<vector3> const& unitsphere_triangles)
 {

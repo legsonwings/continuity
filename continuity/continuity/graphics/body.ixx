@@ -125,11 +125,12 @@ class body_static : public bodyinterface
     uint32 _descriptorsindex;
     body_t body;
     structuredbuffer<instance_data, accesstype::both> _objconstants;
-    structuredbuffer<objdescriptors, accesstype::both> _dispatchparams;
+    structuredbuffer<dispatchparams, accesstype::both> _dispatchparams;
     structuredbuffer<vector3, accesstype::both> _posbuffer;
     structuredbuffer<vector2, accesstype::both> _texcoordbuffer;
     structuredbuffer<tbn, accesstype::both> _tbnbuffer;
     structuredbuffer<index, accesstype::both> _indexbuffer;
+    structuredbuffer<uint32, gfx::accesstype::both> _materialsbuffer;
 
     using vertexfetch_r = vertexattribs;
     using indexfetch_r = std::vector<index>;
@@ -152,7 +153,6 @@ public:
 
     gfx::resourcelist create_resources() override;
     void update(float dt) override;
-    void render(float dt, renderparams const&) override;
 
     uint32 descriptorsindex() const { return _descriptorsindex; }
 	uint32 numprims() const { return uint32(_indexbuffer.numelements / topologyconstants<prim_t>::numverts_perprim); }
@@ -202,7 +202,6 @@ public:
 };
 
 // bodyimpl
-void dispatch(resource_bindings const& bindings, bool wireframe = false, bool shadowpass = false, uint dispatchx = 1);
 
 template<sbody_c body_t, topology prim_t>
 template<typename body_c_t>
@@ -230,6 +229,7 @@ std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resource
     std::vector<ComPtr<ID3D12Resource>> res;
 
     auto const& vertices = get_vertices(body);
+    auto const& materials = body.materials();
 
     // better to create static vertex buffers in default heap
     _posbuffer.create(vertices.positions);
@@ -237,17 +237,15 @@ std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resource
     _tbnbuffer.create(vertices.tbns);
 
     _indexbuffer.create(get_indices(body));
+    _materialsbuffer.create(materials);
     //_instancebuffer.createresource(getparams().maxinstances);
 
-    // is this still correct
-    //stdx::cassert(_vertexbuffer.numelements < ASGROUP_SIZE * MAX_MSGROUPS_PER_ASGROUP * topologyconstants<prim_t>::maxprims_permsgroup * topologyconstants<prim_t>::numverts_perprim);
-
     auto bodydata = get_instancedata(body);
+
     // only one instance right now
-    bodydata[0].mat = getparams().mat;
     _objconstants.create(bodydata);
 
-    objdescriptors dispatch_params;
+    dispatchparams dispatch_params;
     dispatch_params.numverts_perprim = topologyconstants<prim_t>::numverts_perprim;
     dispatch_params.numprims_perinstance = static_cast<uint32>(_indexbuffer.numelements / topologyconstants<prim_t>::numverts_perprim);
     dispatch_params.numprims = static_cast<uint32>(dispatch_params.numprims_perinstance);
@@ -256,6 +254,7 @@ std::vector<ComPtr<ID3D12Resource>> body_static<body_t, prim_t>::create_resource
     dispatch_params.texcoordbuffer = _texcoordbuffer.createsrv().heapidx;
     dispatch_params.tbnbuffer = _tbnbuffer.createsrv().heapidx;
     dispatch_params.indexbuffer = _indexbuffer.createsrv().heapidx;
+    dispatch_params.materialsbuffer = _materialsbuffer.createsrv().heapidx;
     dispatch_params.objconstants = _objconstants.createsrv().heapidx;
 
     _dispatchparams.create({ dispatch_params });
@@ -271,37 +270,11 @@ void body_static<body_t, prim_t>::update(float dt)
 {
     // update only if we own this body
     if constexpr (std::is_same_v<body_t, rawbody_t> && hasupdate<rawbody_t>) body.update(dt);
-}
-
-template<sbody_c body_t, topology prim_t>
-inline void body_static<body_t, prim_t>::render(float dt, renderparams const& params)
-{
-    //auto const foundpso = globalresources::get().psomap().find(params.psoname);
-    //if (foundpso == globalresources::get().psomap().cend())
-    //{
-    //    stdx::cassert(false, "pso not found");
-    //    return;
-    //}
 
     auto bodydata = get_instancedata(body);
 
     // only one instance right now 
-    bodydata[0].mat = getparams().mat;
     _objconstants.update(bodydata);
-
-    //resource_bindings bindings;
-    //bindings.pipelineobjs = foundpso->second;
-    //bindings.rootconstants.slot = 0;
-    //bindings.rootconstants.values.push_back(uint32(_descriptorsindex));
-    //bindings.rootconstants.values.push_back(_rootdescs.viewglobalsdesc);
-    //bindings.rootconstants.values.push_back(_rootdescs.sceneglobalsdesc);
-
-    //auto const numprims = static_cast<uint32>(_indexbuffer.numelements / topologyconstants<prim_t>::numverts_perprim);
-
-    //// each thread outputs one primitive and 3 vertices
-    //// each threadgroup can output 85 primitives because output vertices cannot be referenced across thread groups
-    //uint32 const dispatchx = gfx::divideup<85>(numprims);
-    //dispatch(bindings, params.wireframe, params.shadowpass, dispatchx);
 }
 
 template<dbody_c body_t, topology prim_t>
@@ -342,12 +315,12 @@ inline void body_dynamic<body_t, prim_t>::update(float dt)
 template<dbody_c body_t, topology prim_t>
 inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& params)
 {
-    auto const foundpso = globalresources::get().psomap().find(params.psoname);
-    if (foundpso == globalresources::get().psomap().cend())
-    {
-        stdx::cassert(false, "pso not found");
-        return;
-    }
+    //auto const foundpso = globalresources::get().psomap().find(params.psoname);
+    //if (foundpso == globalresources::get().psomap().cend())
+    //{
+    //    stdx::cassert(false, "pso not found");
+    //    return;
+    //}
 
     _vertexbuffer.updateresource(get_vertices(body));
     _texture.updateresource(body.texturedata());
@@ -358,6 +331,17 @@ inline void body_dynamic<body_t, prim_t>::render(float dt, renderparams const& p
     //dispatch_params.numverts_perprim = topologyconstants<prim_t>::numverts_perprim;
     //dispatch_params.numprims = static_cast<uint32_t>(_vertexbuffer.count() / topologyconstants<prim_t>::numverts_perprim);
     //dispatch_params.maxprims_permsgroup = topologyconstants<prim_t>::maxprims_permsgroup;
+    //struct resource_bindings
+    //{
+    //    rootbuffer constant;
+    //    rootbuffer objectconstant;
+    //    rootbuffer vertex;
+    //    rootbuffer instance;
+    //    rootbuffer customdata;
+    //    buffer texture;
+    //    rootconstants rootconstants;
+    //    pipeline_objects pipelineobjs;
+    //};
 
     //resource_bindings bindings;
 

@@ -66,7 +66,7 @@ template<uint d>
 using veci = vec<d, int>;
 
 template<uint d>
-using vecui = vec<d, uint>;
+using vecui = vec<d, uint32>;
 
 using vec1 = vec<1>;
 using vec2 = vec<2>;

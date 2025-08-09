@@ -24,27 +24,31 @@ class renderer
     UINT viewheight;
     uint32 frameidx = 0;
 
-    CD3DX12_VIEWPORT viewport;
-    CD3DX12_RECT scissorrect;
-
     ComPtr<ID3D12Fence> fence;
-    ComPtr<ID3D12Device5> device;
+    ComPtr<ID3D12Device5> d3ddevice;
     ComPtr<IDXGISwapChain3> swapchain;
-    ComPtr<ID3D12GraphicsCommandList6> cmdlist;
+    ComPtr<ID3D12GraphicsCommandList6> commandlist;
     ComPtr<ID3D12Resource> backbuffers[backbuffercount];
     ComPtr<ID3D12CommandAllocator> commandallocators[1];
     ComPtr<ID3D12CommandQueue> commandqueue;
+
+public:
+
+    ComPtr<ID3D12Device5> const& device() { return d3ddevice; }
+    ComPtr<ID3D12GraphicsCommandList6> const& cmdlist() { return commandlist; }
 
     texture<accesstype::gpu> rendertarget;
     texture<accesstype::gpu> depthtarget;
     texture<accesstype::gpu> shadowmap;
     rtheap rtheap;
     dtheap dtheap;
+    resourceheap resheap;
+    samplerheap sampheap;
+
     rtv rtview;
     dtv dtview;
-    dtv shadowmapview;
-
-public:
+    dtv shadowmapdtv;
+    srv shadowmapsrv;
 
     void init(HWND window, UINT w, UINT h);
     void deinit();
@@ -53,6 +57,8 @@ public:
 
     void prerender();
     void postrender();
+
+    void dispatchmesh(stdx::vecui3 dispatch, pipelinestate ps, std::vector<uint32> const& rootconsts);
 
     void waitforgpu();
 };

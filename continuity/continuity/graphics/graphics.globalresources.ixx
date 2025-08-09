@@ -47,20 +47,10 @@ class globalresources
 
 public:
 
-	uint32 shadowmapidx;
-	ComPtr<ID3D12Resource> shadowmap;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rthandle;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE depthhandle;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE shadowmaphandle;
-
 	void init();
 	void deinit();
 	void create_resources();
 
-	static constexpr uint32 max_rtdescriptors = 100;
-	static constexpr uint32 max_dtdescriptors = 100;
-	static constexpr uint32 max_resdescriptors = 10000;
-	static constexpr uint32 max_samplerdescriptors = 2048;
 	static constexpr uint32 max_materials = 1000;
 
 	viewinfo& view();

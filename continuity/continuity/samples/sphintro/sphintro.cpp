@@ -587,7 +587,7 @@ std::vector<gfx::instance_data> sphfluid::instancedata() const
     std::vector<gfx::instance_data> particles_instancedata;
     for (auto const& particleparam : particleparams)
     {
-        particles_instancedata.emplace_back(matrix::CreateTranslation(particleparam.p), gfx::globalresources::get().view());
+        particles_instancedata.emplace_back(matrix::CreateTranslation(particleparam.p));
     }
 
     return particles_instancedata;

@@ -6,8 +6,8 @@ static const float2 poissondisk[4] = { float2(-0.94201624, -0.39906216), float2(
 
 float4 main(meshshadervertex input) : SV_TARGET
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
-    StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+    StructuredBuffer<gfx::dispatchparams> dispatchparams = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
+    StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[dispatchparams[0].objconstants];
     StructuredBuffer<viewconstants> viewglobals = ResourceDescriptorHeap[descriptorsidx.viewglobals];
     StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
 

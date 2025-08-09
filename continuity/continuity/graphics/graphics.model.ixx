@@ -28,16 +28,13 @@ struct model
 
 	vertexattribs const& vertices() const { return _vertices; }
 	std::vector<index> const& indices() const { return _indices; }
-
-	// center at origin for now
+	std::vector<uint32> const& materials() const { return _materials; }
 	std::vector<instance_data> instancedata() const;
 
 	std::vector<index> _indices;
 	vertexattribs _vertices;
+	std::vector<uint32> _materials;
 	std::vector<texture<accesstype::gpu>> _textures;
-
-	uint32 _primmaterialsdescidx;
-	structuredbuffer<uint32, gfx::accesstype::both> _primitivematerials;
 };
 
 }

@@ -5,9 +5,9 @@ meshshadervertex getvertattribute(vertexin vertex, uint vertidx)
 {
     meshshadervertex outvert;
 
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
-    StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
-    StructuredBuffer<uint> primmaterials = ResourceDescriptorHeap[objconstants[0].primmaterialsidx];
+    StructuredBuffer<gfx::dispatchparams> dispatchparams = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
+    StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[dispatchparams[0].objconstants];
+    StructuredBuffer<uint> primmaterials = ResourceDescriptorHeap[dispatchparams[0].materialsbuffer];
     StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
     StructuredBuffer<viewconstants> viewglobals = ResourceDescriptorHeap[descriptorsidx.viewglobals];
 
@@ -44,13 +44,13 @@ void main
     out vertices meshshadervertex verts[MAX_VERTICES_PER_GROUP]
 )
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
-    StructuredBuffer<float3> triangle_positions = ResourceDescriptorHeap[descriptors[0].posbuffer];
-    StructuredBuffer<float2> triangle_texcoords = ResourceDescriptorHeap[descriptors[0].texcoordbuffer];
-    StructuredBuffer<tbn> triangle_tbns = ResourceDescriptorHeap[descriptors[0].tbnbuffer];
-    StructuredBuffer<index> triangle_indices = ResourceDescriptorHeap[descriptors[0].indexbuffer];
+    StructuredBuffer<gfx::dispatchparams> dispatchparams = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
+    StructuredBuffer<float3> triangle_positions = ResourceDescriptorHeap[dispatchparams[0].posbuffer];
+    StructuredBuffer<float2> triangle_texcoords = ResourceDescriptorHeap[dispatchparams[0].texcoordbuffer];
+    StructuredBuffer<tbn> triangle_tbns = ResourceDescriptorHeap[dispatchparams[0].tbnbuffer];
+    StructuredBuffer<index> triangle_indices = ResourceDescriptorHeap[dispatchparams[0].indexbuffer];
 
-    uint const numprims = min(descriptors[0].numprims - gid * MAX_PRIMS_PER_GROUP, MAX_PRIMS_PER_GROUP);
+    uint const numprims = min(dispatchparams[0].numprims - gid * MAX_PRIMS_PER_GROUP, MAX_PRIMS_PER_GROUP);
     SetMeshOutputCounts(numprims * 3, numprims);
 
     if (gtid < numprims)

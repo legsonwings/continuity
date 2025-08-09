@@ -47,24 +47,6 @@ void globalresources::init()
     addmat(material().colour(color::white));
     addmat(material().colour(color::red));
     addmat(material().colour(color::water));
-
-    _resourceheap.d3dheap = createdescriptorheap(max_resdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    _samplerheap.d3dheap = createdescriptorheap(max_samplerdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
-    srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvdesc.Format = _rendertarget->GetDesc().Format;
-    srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvdesc.Texture2D.MipLevels = 1;
-
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
-    uavdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    uavdesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-
-    // render target srv is at slot 0
-    // render target uav is at slot 1
-    //_resourceheap.addsrv(srvdesc, _rendertarget.Get());
-    //_resourceheap.adduav(uavdesc, _rendertarget.Get());
 }
 
 void globalresources::deinit()

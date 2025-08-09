@@ -74,7 +74,7 @@ void playground::render(float dt, gfx::renderer& renderer)
 
     viewglobals camviewinfo, lightviewinfo;
     sceneglobals scenedata;
-    scenedata.shadowmap = globalres.shadowmapidx;
+    scenedata.shadowmap = renderer.shadowmapsrv.heapidx;
     scenedata.matbuffer = globalres.materialsbuffer_idx();
     scenedata.viewdirshading = viewdirshading;
     scenedata.lightdir = stdx::vec3{ lightdir[0], lightdir[1], lightdir[2] };
@@ -100,57 +100,36 @@ void playground::render(float dt, gfx::renderer& renderer)
     auto const shadowpipelineobjs = globalres.psomap().find("instanced_depthonly")->second;
     auto const mainpipelineobjs = globalres.psomap().find("instanced")->second;
 
-    auto cmd_list = globalres.cmdlist();
+    auto rthandle = renderer.rtheap.cpuhandle(renderer.rtview.heapidx);
+    auto dthandle = renderer.dtheap.cpuhandle(renderer.dtview.heapidx);
+    auto shadowdthandle = renderer.dtheap.cpuhandle(renderer.shadowmapdtv.heapidx);
+    auto viewportsize = stdx::vecui2{ viewdata.width, viewdata.height };
 
-    cmd_list->SetGraphicsRootSignature(shadowpipelineobjs.root_signature.Get());
+    std::vector<uint32> rootdescsv = gfx::aggregatetovector(rootdescs);
 
-    ID3D12DescriptorHeap* heaps[] = { globalres.resourceheap().d3dheap.Get(), globalres.samplerheap().d3dheap.Get() };
-    cmd_list->SetDescriptorHeaps(_countof(heaps), heaps);
+    // shadow map probably should lower resolution than main rt
+    gfx::pipelinestate shadowps{ "instanced_depthonly", viewportsize, {}, shadowdthandle };
+    gfx::pipelinestate mainps{ "instanced", viewportsize, rthandle, dthandle };
 
-    cmd_list->SetGraphicsRoot32BitConstants(0, UINT(sizeof(rootdescriptors) / 4), &rootdescs, 0);
+    stdx::vecui3 dispatch = { gfx::divideup<85>(models[0].numprims()), 1, 1 };
 
-    uint32 const dispatchx = gfx::divideup<85>(models[0].numprims());
+    renderer.dispatchmesh(dispatch, shadowps, rootdescsv);
 
-    {
-        cmd_list->SetPipelineState(shadowpipelineobjs.pso.Get());
+    auto barrier_shadowmap = CD3DX12_RESOURCE_BARRIER::Transition(renderer.shadowmap.d3dresource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+ 
+    auto& cmdlist = renderer.cmdlist();
+    cmdlist->ResourceBarrier(1, &barrier_shadowmap);
 
-        cmd_list->OMSetRenderTargets(0, nullptr, FALSE, &globalres.shadowmaphandle);
-        cmd_list->ClearDepthStencilView(globalres.shadowmaphandle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
-        cmd_list->DispatchMesh(static_cast<UINT>(dispatchx), 1, 1);
-    }
-
-    auto barrier_shadowmap = CD3DX12_RESOURCE_BARRIER::Transition(globalres.shadowmap.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    globalres.cmdlist()->ResourceBarrier(1, &barrier_shadowmap);
-
-    {
-        cmd_list->SetPipelineState(mainpipelineobjs.pso.Get());
-        cmd_list->OMSetRenderTargets(1, &globalres.rthandle, FALSE, &globalres.depthhandle);
-        cmd_list->DispatchMesh(static_cast<UINT>(dispatchx), 1, 1);
-    }
+    renderer.dispatchmesh(dispatch, mainps, rootdescsv);
 
     auto revbarrier_shadowmap = gfx::reversetransition(barrier_shadowmap);
-    globalres.cmdlist()->ResourceBarrier(1, &revbarrier_shadowmap);
-
-    // render shadows
-    //for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { "instanced_depthonly", true });
-
-    //auto barrier_shadowmap = CD3DX12_RESOURCE_BARRIER::Transition(globalres.shadowmap.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-    //globalres.cmdlist()->ResourceBarrier(1, &barrier_shadowmap);
-
-    //for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) b->render(dt, { "instanced" });
-
-    //auto revbarrier_shadowmap = gfx::reversetransition(barrier_shadowmap);
-    //
-    //globalres.cmdlist()->ResourceBarrier(1, &revbarrier_shadowmap);
+    cmdlist->ResourceBarrier(1, &revbarrier_shadowmap);
 }
 
 void playground::on_key_up(unsigned key)
 {
     if (key == '1')
-    {
         viewdirshading = 1 - viewdirshading;
-    }
 
     sample_base::on_key_up(key);
 }

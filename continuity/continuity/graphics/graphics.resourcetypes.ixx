@@ -54,10 +54,13 @@ struct resource
 	ComPtr<ID3D12Resource> d3dresource;
 };
 
-template<D3D12_DESCRIPTOR_HEAP_TYPE heaptype>
+template<D3D12_DESCRIPTOR_HEAP_TYPE heaptype, uint32 maxdescs>
 class heap
 {
 public:
+
+	static constexpr uint32 maxdescriptors = maxdescs;
+
 	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuhandle(uint32 slot) const
 	{
 		return { d3dheap->GetCPUDescriptorHandleForHeapStart(), INT(slot * heapdesc_incrementsize(heaptype)) };
@@ -67,13 +70,13 @@ public:
 	ComPtr<ID3D12DescriptorHeap> d3dheap;
 };
 
-class samplerheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER>
+class samplerheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048>
 {
 public:
 	samplerv addsampler(D3D12_SAMPLER_DESC samplerdesc);
 };
 
-class resourceheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV>
+class resourceheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 10000>
 {
 public:
 	srv addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC view, ID3D12Resource* res);
@@ -82,13 +85,13 @@ public:
 	uint32 popdesc();
 };
 
-class rtheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_RTV>
+class rtheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 100>
 {
 public:
 	rtv addrtv(ID3D12Resource* res);
 };
 
-class dtheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_DSV>
+class dtheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 100>
 {
 public:
 	dtv adddtv(ID3D12Resource* res);

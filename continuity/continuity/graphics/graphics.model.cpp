@@ -123,8 +123,7 @@ model::model(std::string const& objpath, modelloadparams loadparams)
     }
 
     uint32 const nummaxprims = uint32(numverts / 3);
-    std::vector<uint32> primitivematerials;
-    primitivematerials.reserve(nummaxprims);
+    _materials.reserve(nummaxprims);
 
     for (auto const& shape : result.shapes)
     {
@@ -181,7 +180,7 @@ model::model(std::string const& objpath, modelloadparams loadparams)
             }
 
             auto facematerial = shape.mesh.material_ids[i];
-            primitivematerials.push_back(materialidxtodescidx[facematerial]);
+            _materials.push_back(materialidxtodescidx[facematerial]);
         }
     }
 
@@ -196,9 +195,6 @@ model::model(std::string const& objpath, modelloadparams loadparams)
         b = (b - b.Dot(n) * n - b.Dot(t) * t).Normalized();
     }
 
-    _primitivematerials.create(primitivematerials);
-    _primmaterialsdescidx = _primitivematerials.createsrv().heapidx;
-
     //if (loadparams.translatetoorigin)
     //{
     //    geometry::aabb bounds;
@@ -210,11 +206,6 @@ model::model(std::string const& objpath, modelloadparams loadparams)
     //}
 }
 
-std::vector<instance_data> model::instancedata() const
-{
-    instance_data data(matrix::Identity, globalresources::get().view());
-    data.primmaterialsidx = _primmaterialsdescidx;
-    return { data };
-}
+std::vector<instance_data> model::instancedata() const { return { instance_data{ matrix::Identity } }; }
 
 }

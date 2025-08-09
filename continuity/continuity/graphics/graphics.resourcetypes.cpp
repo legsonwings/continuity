@@ -1,5 +1,6 @@
 module;
 
+#define NOMINMAX
 #include "thirdparty/d3dx12.h"
 #include "thirdparty/dxhelpers.h"
 #include "thirdparty/wictextureloader12.h"
@@ -247,7 +248,7 @@ void update_currframebuffer(std::byte* mapped_buffer, void const* data_start, st
 
 samplerv samplerheap::addsampler(D3D12_SAMPLER_DESC samplerdesc)
 {
-    stdx::cassert(currslot < globalresources::max_samplerdescriptors);
+    stdx::cassert(currslot < maxdescriptors);
     auto device = globalresources::get().device();
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)));
     device->CreateSampler(&samplerdesc, deschandle);
@@ -257,7 +258,7 @@ samplerv samplerheap::addsampler(D3D12_SAMPLER_DESC samplerdesc)
 
 srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resource* res)
 {
-    stdx::cassert(currslot < globalresources::max_resdescriptors);
+    stdx::cassert(currslot < maxdescriptors);
     auto device = globalresources::get().device();
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * srvcbvuav_descincrementsize()));
@@ -267,7 +268,7 @@ srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resourc
 
 uav resourceheap::adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC viewdesc, ID3D12Resource* res)
 {
-    stdx::cassert(currslot < globalresources::max_resdescriptors);
+    stdx::cassert(currslot < maxdescriptors);
     auto device = globalresources::get().device();
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(currslot * srvcbvuav_descincrementsize()));
@@ -282,7 +283,7 @@ uint32 resourceheap::popdesc()
 
 rtv rtheap::addrtv(ID3D12Resource* res)
 {
-    stdx::cassert(currslot < globalresources::max_rtdescriptors);
+    stdx::cassert(currslot < maxdescriptors);
     auto device = globalresources::get().device();
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), INT(currslot * heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)));
@@ -292,7 +293,7 @@ rtv rtheap::addrtv(ID3D12Resource* res)
 
 dtv dtheap::adddtv(ID3D12Resource* res)
 {
-    stdx::cassert(currslot < globalresources::max_dtdescriptors);
+    stdx::cassert(currslot < maxdescriptors);
     auto device = globalresources::get().device();
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), INT(currslot * heapdesc_incrementsize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV)));
@@ -385,7 +386,7 @@ void texture<accesstype::gpu>::createfromfile(std::string const& path)
 
     auto const& texdesc = texture->GetDesc();
     format = texture->GetDesc().Format;
-    dims = { texture->GetDesc().Width, texture->GetDesc().Height };
+    dims = { uint32(texture->GetDesc().Width), uint32(texture->GetDesc().Height) };
     d3dresource = texture;
 
     const UINT64 ubsize = GetRequiredIntermediateSize(texture, 0, 1);
@@ -449,7 +450,7 @@ void texture_dynamic::createresource(stdx::vecui2 dims, std::vector<uint8_t> con
     // textures cannot be 0 sized
     // todo : min/max should be specailized for stdx::vec0
     // perhaps we should create dummy objects
-    _dims = { std::max<uint>(dims[0], 1u), std::max<uint>(dims[1], 1u) };
+    _dims = { std::max(dims[0], 1u), std::max(dims[1], 1u) };
     _bufferupload = create_perframeuploadbufferunmapped(size());
     _texture = createtexture_default(_dims[0], _dims[1], _format, D3D12_RESOURCE_STATE_COPY_DEST);
 

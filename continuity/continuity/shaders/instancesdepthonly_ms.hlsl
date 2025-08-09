@@ -20,7 +20,7 @@ void main
     out vertices outvert verts[MAX_VERTICES_PER_GROUP]
 )
 {
-    StructuredBuffer<gfx::objdescriptors> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
+    StructuredBuffer<gfx::dispatchparams> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
     StructuredBuffer<float3> triangle_positions = ResourceDescriptorHeap[descriptors[0].posbuffer];
     StructuredBuffer<index> triangle_indices = ResourceDescriptorHeap[descriptors[0].indexbuffer];
     StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];

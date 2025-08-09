@@ -90,8 +90,6 @@ struct shader
 
 struct renderparams
 {
-    std::string psoname;
-    bool shadowpass = false;
     bool wireframe = false;
 };
 
@@ -140,11 +138,10 @@ struct samplerv : public resourceview
 
 struct pipelinestate
 {
+    std::string psoname;
+    stdx::vecui2 viewportsize;
     CD3DX12_CPU_DESCRIPTOR_HANDLE rthandle;
     CD3DX12_CPU_DESCRIPTOR_HANDLE dthandle;
-    ComPtr<ID3D12PipelineState> pso;
-    ComPtr<ID3D12RootSignature> root_signature;
-    std::vector<ID3D12DescriptorHeap*> descheaps;
 };
 
 struct pipeline_objects
@@ -157,18 +154,6 @@ struct pipeline_objects
 
 	// local root signature used in ray tracing, only one is supported right now
 	ComPtr<ID3D12RootSignature> rootsignature_local;
-};
-
-struct resource_bindings
-{
-    rootbuffer constant;
-    rootbuffer objectconstant;
-    rootbuffer vertex;
-    rootbuffer instance;
-	rootbuffer customdata;
-    buffer texture;
-    rootconstants rootconstants;
-    pipeline_objects pipelineobjs;
 };
 
 struct viewinfo
@@ -191,29 +176,13 @@ struct material
     material& colour(stdx::vec4 const& colour) { basecolour = colour; return *this; }
 };
 
-// this is used in constant buffer so alignment is important
 struct instance_data
 {
     matrix matx;
     matrix normalmatx;
-    matrix mvpmatx;
-    
-    // single material
-    uint32 mat;
-
-    // per primitive materials
-    // this isn't a per instance thing, but its here for convenience
-    uint32 primmaterialsidx;
 
     instance_data() = default;
-    instance_data(matrix const& m, viewinfo const& v)
-        : matx(m.Transpose()), normalmatx(m.Invert()), mvpmatx((m * v.view * v.proj).Transpose()) {}
-};
-
-struct alignas(256) objectconstants : public instance_data
-{
-    objectconstants() = default;
-    objectconstants(matrix const& m, viewinfo const& v) : instance_data(m, v) {}
+    instance_data(matrix const& m) : matx(m.Transpose()), normalmatx(m.Invert()) {}
 };
 
 struct light
@@ -223,6 +192,22 @@ struct light
     vector3 position;
     vector3 direction;
 };
+
+// todo : make this safe by checking if all members of struct are 32 bits
+// perhaps can be done by recursive templates
+// see https://stackoverflow.com/questions/35463646/arity-of-aggregate-in-logarithmic-time
+template<typename t>
+std::vector<uint32> aggregatetovector(t v)
+{
+    static constexpr auto numvals = sizeof(t) / 4u;
+    static_assert(numvals * 4u == sizeof(t));
+
+    uint32* vals = reinterpret_cast<uint32*>(&v);
+    std::vector<uint32> r;
+    for (uint i(0); i < numvals; ++i) r.push_back(vals[i]);
+
+    return r;
+}
 
 template<uint32 t_divisor>
 constexpr inline uint32 divideup(uint32 value) requires (t_divisor > 0)

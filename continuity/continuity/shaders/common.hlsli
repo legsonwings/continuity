@@ -117,10 +117,7 @@ struct sceneglobals
 struct instance_data
 {
     float4x4 matx;
-    float4x4 normalmatx;
-    float4x4 mvpmatx;
-    uint mat;
-    uint primmaterialsidx;
+    float4x4 normalmatx; 
 };
 
 struct rootconstants
