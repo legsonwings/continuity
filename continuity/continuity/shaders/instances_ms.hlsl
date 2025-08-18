@@ -1,50 +1,95 @@
 #include "common.hlsli"
+#include "shared/common.h"
 
-StructuredBuffer<vertexin> triangle_vertices : register(t0);
-StructuredBuffer<instance_data> instances : register(t1);
-
-meshshadervertex getvertattribute(vertexin vertex, uint instance_idx)
+meshshadervertex getvertattribute(vertexin vertex, uint vertidx)
 {
     meshshadervertex outvert;
-    
+
+    StructuredBuffer<gfx::dispatchparams> dispatchparams = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
+    StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[dispatchparams[0].objconstants];
+    StructuredBuffer<uint> primmaterials = ResourceDescriptorHeap[dispatchparams[0].materialsbuffer];
+    StructuredBuffer<sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptorsidx.sceneglobals];
+    StructuredBuffer<viewconstants> viewglobals = ResourceDescriptorHeap[descriptorsidx.viewglobals];
+
     float4 const pos = float4(vertex.position, 1.f);
-    outvert.instanceid = instance_idx;
-    outvert.position = mul(pos, instances[instance_idx].matx).xyz;
-    outvert.positionh = mul(pos, instances[instance_idx].mvpmatx);
-    outvert.normal = normalize(mul(float4(vertex.normal, 0), instances[instance_idx].normalmatx).xyz);
+    float4 const posw = mul(pos, objconstants[0].matx);
+    outvert.instanceid = 0;
+    outvert.position = posw.xyz;
+    outvert.positionh = mul(posw, viewglobals[0].viewproj);
+    outvert.texcoords = vertex.texcoord;
+    outvert.material = primmaterials[vertidx / 3];
+
+    // world space vectors
+    outvert.normal = normalize(mul(float4(vertex.normal, 0), objconstants[0].normalmatx).xyz);
+    outvert.tangent = normalize(mul(float4(vertex.tangent, 0), objconstants[0].matx).xyz);
+    outvert.bitangent = normalize(mul(float4(vertex.bitangent, 0), objconstants[0].matx).xyz);
+
+    // light's view projection matrix at index 1
+    outvert.positionl = mul(posw, viewglobals[1].viewproj);
 
     return outvert;
 }
 
-#define MAX_VERTICES_PER_GROUP (MAX_TRIANGLES_PER_GROUP * 3)
+#define MAX_PRIMS_PER_GROUP 85
+#define MAX_VERTICES_PER_GROUP MAX_PRIMS_PER_GROUP * 3
 
-[RootSignature(ROOT_SIG)]
-[NumThreads(128, 1, 1)]
-[OutputTopology("triangle")]
-void main(
+[numthreads(85, 1, 1)]
+[outputtopology("triangle")]
+void main
+(
+    uint dtid : SV_DispatchThreadID,
     uint gtid : SV_GroupThreadID,
     uint gid : SV_GroupID,
-    in payload payloaddata payload,
-    out indices uint3 tris[MAX_TRIANGLES_PER_GROUP],
+    out indices uint3 tris[MAX_PRIMS_PER_GROUP],
     out vertices meshshadervertex verts[MAX_VERTICES_PER_GROUP]
 )
 {
-    uint const numprims = payload.data[gid].numprims;
+    StructuredBuffer<gfx::dispatchparams> dispatchparams = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
+    StructuredBuffer<float3> triangle_positions = ResourceDescriptorHeap[dispatchparams[0].posbuffer];
+    StructuredBuffer<float2> triangle_texcoords = ResourceDescriptorHeap[dispatchparams[0].texcoordbuffer];
+    StructuredBuffer<tbn> triangle_tbns = ResourceDescriptorHeap[dispatchparams[0].tbnbuffer];
+    StructuredBuffer<index> triangle_indices = ResourceDescriptorHeap[dispatchparams[0].indexbuffer];
+
+    uint const numprims = min(dispatchparams[0].numprims - gid * MAX_PRIMS_PER_GROUP, MAX_PRIMS_PER_GROUP);
     SetMeshOutputCounts(numprims * 3, numprims);
 
     if (gtid < numprims)
     {
-        // The out buffers are local to group but input buffer is global
-        uint const instanceidx = (payload.data[gid].start + gtid) / dispatch_params.numprims_perinstance;
-        uint const v0idx = gtid * 3;
-        uint const v1idx = v0idx + 1;
-        uint const v2idx = v0idx + 2;
+        uint const v0idx = gtid * 3u;
 
-        tris[gtid] = uint3(v0idx, v1idx, v2idx);
-        uint const invertstart = ((payload.data[gid].start + gtid) % dispatch_params.numprims_perinstance) * 3;
-    
-        verts[v0idx] = getvertattribute(triangle_vertices[invertstart], instanceidx);
-        verts[v1idx] = getvertattribute(triangle_vertices[invertstart + 1], instanceidx);
-        verts[v2idx] = getvertattribute(triangle_vertices[invertstart + 2], instanceidx);
+        tris[gtid] = uint3(v0idx, v0idx + 1, v0idx + 2);
+
+        index i0 = triangle_indices[dtid * 3u];
+        index i1 = triangle_indices[dtid * 3u + 1];
+        index i2 = triangle_indices[dtid * 3u + 2];
+
+        // the out buffers are local to group but input buffer is global
+        // not very optimal as this is writing duplicate vertices, but the restriction according to specs is to
+        // export all vertices in a group from the same group
+        vertexin v0, v1, v2;
+
+        v0.position = triangle_positions[i0.pos];
+        v1.position = triangle_positions[i1.pos];
+        v2.position = triangle_positions[i2.pos];
+
+        v0.texcoord = triangle_texcoords[i0.texcoord];
+        v1.texcoord = triangle_texcoords[i1.texcoord];
+        v2.texcoord = triangle_texcoords[i2.texcoord];
+
+        v0.normal = triangle_tbns[i0.tbn].normal;
+        v1.normal = triangle_tbns[i1.tbn].normal;
+        v2.normal = triangle_tbns[i2.tbn].normal;
+
+        v0.tangent = triangle_tbns[i0.tbn].tangent;
+        v1.tangent = triangle_tbns[i1.tbn].tangent;
+        v2.tangent = triangle_tbns[i2.tbn].tangent;
+
+        v0.bitangent = triangle_tbns[i0.tbn].bitangent;
+        v1.bitangent = triangle_tbns[i1.tbn].bitangent;
+        v2.bitangent = triangle_tbns[i2.tbn].bitangent;
+
+        verts[v0idx] = getvertattribute(v0, dtid * 3u);
+        verts[v0idx + 1] = getvertattribute(v1, dtid * 3u + 1);
+        verts[v0idx + 2] = getvertattribute(v2, dtid * 3u + 2);
     }
 }

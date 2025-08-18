@@ -1,5 +1,6 @@
 
 #include "common.hlsli"
+#include "shared/common.h"
 
 struct linevertexin
 {
@@ -30,15 +31,21 @@ void main(
 
     if (gtid < numprims)
     {
+        StructuredBuffer<gfx::dispatchparams> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
+        StructuredBuffer<viewconstants> viewglobals = ResourceDescriptorHeap[descriptorsidx.viewglobals];
+
         // The out buffers are local to group but input buffer is global
-        uint const instanceidx = (payload.data[gid].start + gtid) / dispatch_params.numprims_perinstance;
+        uint const instanceidx = (payload.data[gid].start + gtid) / descriptors[0].numprims_perinstance;
         uint const v0idx = gtid * 3;
         uint const v1idx = v0idx + 1;
 
         lines[gtid] = uint2(v0idx, v1idx);
-        uint const inputvert_start = ((payload.data[gid].start + gtid) % dispatch_params.numprims_perinstance) * 2;
+        uint const inputvert_start = ((payload.data[gid].start + gtid) % descriptors[0].numprims_perinstance) * 2;
 
-        verts[v0idx].position = mul(float4(in_vertices[inputvert_start].position, 1), in_instances[instanceidx].mvpmatx);
-        verts[v1idx].position = mul(float4(in_vertices[inputvert_start + 1].position, 1), in_instances[instanceidx].mvpmatx);
+        // 0 is camera view
+        float4x4 mvpmatx = mul(in_instances[instanceidx].matx, viewglobals[0].viewproj);
+
+        verts[v0idx].position = mul(float4(in_vertices[inputvert_start].position, 1), mvpmatx);
+        verts[v1idx].position = mul(float4(in_vertices[inputvert_start + 1].position, 1), mvpmatx);
     }
 }

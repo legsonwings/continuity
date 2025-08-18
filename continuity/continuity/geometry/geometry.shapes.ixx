@@ -62,6 +62,7 @@ struct cube
 
     aabb const& bbox() const;
     std::vector<gfx::vertex> vertices() const;
+    std::vector<uint32> const& indices() const;
     std::vector<gfx::vertex> vertices_flipped() const;
     std::vector<gfx::instance_data> instancedata() const;
     vector3 const center, extents;

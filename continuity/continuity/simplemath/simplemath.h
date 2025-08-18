@@ -135,6 +135,7 @@ namespace DirectX
             // Unary operators
             Vector2 operator+ () const noexcept { return *this; }
             Vector2 operator- () const noexcept { return Vector2(-x, -y); }
+            float operator[] (uint32_t idx) const noexcept { return idx == 0 ? x : y; }
 
             // Vector operations
             bool InBounds(const Vector2& Bounds) const noexcept;

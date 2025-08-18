@@ -3,6 +3,7 @@ module;
 #define NOMINMAX
 #include <wtypes.h>
 #include <DirectXMath.h>
+#include "simplemath/simplemath.h"
 
 export module engine:simplecamera;
 
@@ -17,7 +18,7 @@ public:
     void Update(float elapsedSeconds);
     stdx::vec3 GetCurrentPosition() const;
     DirectX::XMMATRIX GetViewMatrix();
-    DirectX::XMMATRIX GetProjectionMatrix(float fov);
+    DirectX::XMMATRIX GetProjectionMatrix();
     DirectX::XMMATRIX GetOrthoProjectionMatrix();
 
     void lock(bool lock);
@@ -28,6 +29,7 @@ public:
     void farplane(float farp);
     void width(unsigned width);
     void height(unsigned height);
+    HWND& window();
 
     void SetMoveSpeed(float unitsPerSecond);
     void SetTurnSpeed(float radiansPerSecond);
@@ -61,11 +63,18 @@ private:
     float m_moveSpeed;            // Speed at which the camera moves, in units per second.
     float m_turnSpeed;            // Speed at which the camera turns, in radians per second.
 
+    DirectX::SimpleMath::Matrix m_cameramatx;
+
     bool _locked = false;
-    float _nearp = 0.01f;
-    float _farp = 1000.f;
+    float _nearp = std::numeric_limits<float>::max();
+    float _farp = 0.0001f;
     unsigned _width = 0;
     unsigned _height = 0;
 
     KeysPressed m_keysPressed;
+
+    stdx::vec2 cursorpos{0, 0};
+    stdx::vec2 lastcursorpos{0, 0};
+
+    HWND m_window = nullptr;
 };

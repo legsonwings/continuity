@@ -16,14 +16,14 @@ float3 blinnphong(float3 toeye, float3 normal, float3 intensity, material mat, f
 	float const m = (1.f - mat.roughness) * 256.f;
 	float3 const h = normalize((lightvec + toeye));
 
-	float3 const specular = specularcoefficient(mat.fresnelr, h, lightvec);
+	float3 const specular = specularcoefficient(mat.reflectance.xxx, h, lightvec);
 	float3 const roughness =  (m + 8.f ) * pow(max(dot(h, normal), 0.f), m) / 8.f;
 	float3 specalbedo = specular * roughness;
 	
 	// specalbedo can go out of range [0 1] which LDR doesn't support
 	specalbedo = specalbedo / (specalbedo + 1.0f);
 
-	return (mat.diffuse.rgb + specalbedo) * intensity;
+	return (mat.colour.rgb + specalbedo) * intensity;
 }
 
 float3 directionallight(light l, material m, float3 normal, float3 toeye)
@@ -47,18 +47,18 @@ float3 pointlight(light l, material m, float3 normal, float3 pos, float3 toeye)
 float4 computelighting(light lights[MAX_NUM_LIGHTS], material m, float3 pos, float3 normal)
 {
 	float3 result = 0;
-	float3 const toeye = normalize(globals.campos - pos);
-	
-	int i = 0;
-	for (; i < globals.numdirlights; ++i)
-	{
-		result += directionallight(lights[i], m, normal, toeye);
-	}
+	//float3 const toeye = normalize(globals.campos - pos);
+	//
+	//int i = 0;
+	//for (; i < globals.numdirlights; ++i)
+	//{
+	//	result += directionallight(lights[i], m, normal, toeye);
+	//}
 
-	for (; i < globals.numdirlights + globals.numpointlights; ++i)
-	{
-		result += pointlight(lights[i], m, normal, pos, toeye);
-	}
+	//for (; i < globals.numdirlights + globals.numpointlights; ++i)
+	//{
+	//	result += pointlight(lights[i], m, normal, pos, toeye);
+	//}
 
 	return float4(result, 1.f);
 }
@@ -76,11 +76,11 @@ float ggx_specularndf(float noh, float r2)
 // visibility function that takes microfacet heights into account
 float ggx_specularvisibility(float nol, float nov, float r2)
 {
-    // see https://google.github.io/filament/Filament.md.html#materialsystem/specularbrdf/normaldistributionfunction(speculard)
+    // see https://google.github.io/filament/Filament.md.html#materialsystem/specularbrdf/normaldistributionfunction(specularg)
     float ggt1 = nol * sqrt(nov * nov * (1.0f - r2) + r2);
     float ggt2 = nov * sqrt(nol * nol * (1.0f - r2) + r2);
 
-    return 0.5f / (ggt1 + ggt2);
+    return 0.5f / max(ggt1 + ggt2, 1e-10f);
 }
 
 float3 fresnel_schlick(float loh, float3 f0, float f90)
@@ -116,21 +116,20 @@ float3 specularbrdf(float3 l, float3 v, float3 n, float r, float3 f0)
 // irradiance is amount of light energy a surface recieves per unit area, at normal incidence
 // assume all surfaces recieve same amount of light energy at normal incidence for now,
 // this assumption holds well for directional lights which are assumed to be infinitely far away, but for point and spot lights we would need to attenuate the irradiance
-float3 calculatelighting(float3 irradiance, float3 basecolour, float reflectance, float3 l, float3 v, float3 n, float metallic, float r)
+float3 calculatelighting(float3 irradiance, float3 l, float3 v, float3 n, float3 c, float r, float fr, float m)
 {
-    bool ismetallic = metallic > 0.001f;
-
+    bool ismetal = m > 0.95f;
     // metals do not have diffuse reflectance and non-metals have low specular reflectance
-    float3 diffusealbedo = ismetallic ? (float3) 0.0f : basecolour;
-    float3 sepcularalbedo = ismetallic ? basecolour : (float3) 0.04f; // constant low specular reflectance for dielectrics
+    float3 diffusealbedo = ismetal ? (float3) 0.0f : c;
+    float3 sepcularalbedo = ismetal ? c : (float3) 0.04f; // constant low specular reflectance for dielectrics
 
     // dielectric specular reflectance is f0 = 0.16f * reflectance2
     // metallic specular reflectance is base colour
     // see Lagarde's "Moving Frostbite to PBR"
-    float3 f0dielectric = (0.16f * reflectance * reflectance).xxx;
-    float3 f0metallic = basecolour;
+    float3 f0dielectric = (0.16f * fr * fr).xxx;
+    float3 f0metallic = c;
 
-    float3 f0 = ismetallic ? f0metallic : f0dielectric;
+    float3 f0 = lerp(f0metallic, f0dielectric, m);
 
     // map roughness from perceptually linear roughness
     r = r * r;
@@ -142,5 +141,5 @@ float3 calculatelighting(float3 irradiance, float3 basecolour, float reflectance
     float3 reflectedcolour = diffusecolour + specularcolour;
 
     float nol = saturate(dot(n, l));
-    return irradiance * nol * reflectedcolour + float3(0.3, 0.3, 0.3); // ambient term
+    return irradiance * nol * reflectedcolour;
 }

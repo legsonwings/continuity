@@ -18,6 +18,7 @@ import graphics;
 namespace geometry
 {
 
+using vector2 = DirectX::SimpleMath::Vector2;
 using vector3 = DirectX::SimpleMath::Vector3;
 using vector4 = DirectX::SimpleMath::Vector4;
 
@@ -57,7 +58,7 @@ std::array<gfx::vertex, 4> transform_unitquad(const vector3(&verts)[4], const ve
         vector3::Transform(pos, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), pos);
         vector3::Transform(unitquad_normal, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), normal);
 
-        transformed_points[i] = { (pos + tx[1]), normal };
+        transformed_points[i] = { (pos + tx[1]), vector2{}, normal };
     }
 
     return transformed_points;
@@ -238,6 +239,21 @@ std::vector<gfx::vertex> cube::vertices() const
     return create_cube(vector3::Zero, extents);
 }
 
+std::vector<uint32> const& cube::indices() const
+{
+    static const std::vector<uint32> indices = []()
+    {
+        std::vector<uint32> indices;
+        indices.reserve(36);
+        for (auto i : stdx::range(36))
+            indices.push_back(uint32(i));
+
+        return indices;
+    }();
+    
+    return indices;
+}
+
 std::vector<gfx::vertex> cube::vertices_flipped() const
 {
     auto invert = [](auto const& verts)
@@ -247,7 +263,7 @@ std::vector<gfx::vertex> cube::vertices_flipped() const
 
         // todo : this only works if centre is at origin
         // just flip the position to turn geometry inside out
-        for (auto const& v : verts) { result.emplace_back(-v.position, v.normal); }
+        for (auto const& v : verts) { result.emplace_back(-v.position, vector2{}, v.normal); }
 
         return result;
     };
@@ -256,7 +272,7 @@ std::vector<gfx::vertex> cube::vertices_flipped() const
     return invertedvertices;
 }
 
-std::vector<gfx::instance_data> cube::instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center), gfx::globalresources::get().view(), gfx::globalresources::get().mat("")) }; }
+std::vector<gfx::instance_data> cube::instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center)) }; }
 
 stdx::vec3 tovec3(vector3 const & v)
 {
@@ -283,14 +299,14 @@ void sphere::generate_triangles()
     generate_triangles(unitspheres_tessellated[numsegments_longitude]);
 }
 
-std::vector<gfx::instance_data> sphere::instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center), gfx::globalresources::get().view(), gfx::globalresources::get().mat("")) }; }
+std::vector<gfx::instance_data> sphere::instancedata() const { return { gfx::instance_data(matrix::CreateTranslation(center)) }; }
 
 void sphere::generate_triangles(std::vector<vector3> const& unitsphere_triangles)
 {
     triangulated_sphere.clear();
     triangulated_sphere.reserve(unitsphere_triangles.size());
     for (auto const& v : unitsphere_triangles)
-        triangulated_sphere.emplace_back(v * radius + center, v);
+        triangulated_sphere.emplace_back(v * radius + center, vector2{}, v);
 }
 
 void sphere::cacheunitsphere(uint numsegments_longitude, uint numsegments_latitude)

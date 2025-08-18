@@ -33,13 +33,25 @@
     <ClCompile Include="graphics\body.cpp" />
     <ClCompile Include="graphics\body.ixx" />
     <ClCompile Include="graphics\graphics.cpp" />
+    <ClCompile Include="graphics\graphics.globalresources.cpp" />
+    <ClCompile Include="graphics\graphics.globalresources.ixx" />
     <ClCompile Include="graphics\graphics.ixx" />
     <ClCompile Include="cursor\cursor.cpp" />
     <ClCompile Include="cursor\cursor.ixx" />
     <ClCompile Include="geometry\geometry.cpp" />
     <ClCompile Include="geometry\geometry.ixx" />
+    <ClCompile Include="graphics\graphics.model.cpp" />
+    <ClCompile Include="graphics\graphics.model.ixx" />
+    <ClCompile Include="graphics\graphics.renderer.cpp" />
+    <ClCompile Include="graphics\graphics.renderer.ixx" />
+    <ClCompile Include="graphics\graphics.resourcetypes.cpp" />
+    <ClCompile Include="graphics\graphics.resourcetypes.ixx" />
+    <ClCompile Include="graphics\graphics.texture.cpp" />
+    <ClCompile Include="graphics\graphics.texture.ixx" />
     <ClCompile Include="graphics\graphicscore.ixx" />
     <ClCompile Include="sampleselection\activesample.cpp" />
+    <ClCompile Include="samples\playground\playground.cpp" />
+    <ClCompile Include="samples\playground\playground.ixx" />
     <ClCompile Include="samples\raytrace\raytrace.cpp" />
     <ClCompile Include="samples\raytrace\raytrace.ixx" />
     <ClCompile Include="samples\sphgpu\sphgpu.cpp" />
@@ -47,11 +59,13 @@
     <ClCompile Include="samples\sphintro\sphintro.cpp" />
     <ClCompile Include="samples\sphintro\sphintro.ixx" />
     <ClCompile Include="simplemath\simplemath.cpp" />
+    <ClCompile Include="thirdparty\wictextureloader12.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="sampleselection\activesample.ixx">
       <FileType>Document</FileType>
     </ClCompile>
+    <ClInclude Include="shared\common.h" />
     <ClInclude Include="shared\raytracecommon.h" />
     <ClInclude Include="shared\sharedconstants.h" />
     <ClInclude Include="shared\sharedtypes.h" />
@@ -59,6 +73,7 @@
     <ClInclude Include="thirdparty\d3dx12.h" />
     <ClInclude Include="thirdparty\dxhelpers.h" />
     <ClInclude Include="thirdparty\rapidobj.hpp" />
+    <ClInclude Include="thirdparty\wictextureloader12.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\common.hlsli" />
@@ -67,6 +82,12 @@
     <None Include="simplemath\simplemath.inl" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="shaders\instancesdepthonly_ms.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Mesh</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Mesh</ShaderType>
+    </FxCompile>
     <FxCompile Include="samples\sphgpu\shaders\sph_render_rs.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Library</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Library</ShaderType>
@@ -90,12 +111,19 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Mesh</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Mesh</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Mesh</ShaderType>
+      <FileType>Document</FileType>
     </FxCompile>
     <FxCompile Include="shaders\default_ps.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="shaders\genmipmaps_cs.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
     </FxCompile>
     <FxCompile Include="shaders\raytracetrisphere_rs.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Library</ShaderType>
@@ -309,12 +337,13 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
+      <AdditionalOptions>/Zc:__cplusplus /w34996 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>
       </SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;runtimeobject.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Lib />
     <Lib />
@@ -345,6 +374,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
+      <AdditionalOptions>/Zc:__cplusplus /w34996 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -352,7 +382,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;runtimeobject.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Lib />
     <Lib />
@@ -373,7 +403,7 @@
       <BuildStlModules>true</BuildStlModules>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/Zc:__cplusplus /w34996 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
@@ -381,7 +411,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;runtimeobject.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>
       </AdditionalLibraryDirectories>
     </Link>
@@ -414,7 +444,7 @@
       <BuildStlModules>true</BuildStlModules>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/Zc:__cplusplus /w34996 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
@@ -425,7 +455,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;runtimeobject.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>
       </AdditionalLibraryDirectories>
     </Link>

@@ -58,8 +58,8 @@ requires (n >= 0)
 struct grididx : public vec<n + 1, uint>
 {
 	constexpr grididx() = default;
-	constexpr grididx(vec<n + 1, uint> const & v) : stdx::vecui<n + 1>(v) {}
-	explicit constexpr grididx(uint idx) : stdx::vecui<n + 1>(getdigits<n + 1>(idx)) {}
+	constexpr grididx(vec<n + 1, uint> const & v) : stdx::vec<n + 1, uint>(v) {}
+	explicit constexpr grididx(uint idx) : stdx::vec<n + 1, uint>(getdigits<n + 1>(idx)) {}
 	template<uint_c ... args>
 	requires (sizeof...(args) == (n + 1))
 	constexpr grididx(args... _coords) : grididx{ static_cast<uint>(_coords)... } {}
@@ -158,7 +158,7 @@ private:
 
 	std::pair<uint, uint> container(uint idx) const
 	{
-		static constexpr auto invalidcont = std::make_pair(invalid<uint>(), invalid<uint>());
+		static constexpr auto invalidcont = std::make_pair(invalid<uint>, invalid<uint>);
 		uint sum = 0;
 		std::pair<uint, uint> ret = invalidcont;
 		for (uint i = 0; i < sizes.size(); ++i)

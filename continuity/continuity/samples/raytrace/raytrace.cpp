@@ -37,11 +37,11 @@ raytrace::raytrace(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(10.0f);
 }
 
-gfx::resourcelist raytrace::create_resources()
+gfx::resourcelist raytrace::create_resources(gfx::deviceresources& deviceres)
 {
     auto& globalres = gfx::globalresources::get();
 
-    constantbuffer.createresource();
+    //constantbuffer.createresource();
 
     gfx::resourcelist res;
 
@@ -54,29 +54,29 @@ gfx::resourcelist raytrace::create_resources()
 
         auto& raytracepipeline_objs = globalres.addraytracingpso("raytrace", "raytrace_rs.cso", rtshaders);
 
-        auto& device = globalres.device();
-        auto& cmdlist = globalres.cmdlist();
-
-        gfx::model model("models/spot.obj");
+        gfx::model model("models/spot.obj", res);
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
         gfx::blasinstancedescs instancedescs;
 
         // one material id per blas
         std::vector<uint32> material_idsdata(1u, 0u);
-        std::vector<rt::material> materials_data(1u);
-
-        materials_data[0].colour[0] = 0.0f;
-        materials_data[0].colour[1] = 1.0f;
-        materials_data[0].colour[2] = 0.0f;
-        materials_data[0].colour[3] = 1.0f;
+        std::vector<gfx::material> materials_data(1u);
+        materials_data[0].basecolour = { 0.0f, 1.0f, 0.0f, 1.0f };
         materials_data[0].metallic = 1u;
         materials_data[0].roughness = 0.25f;
         materials_data[0].reflectance = 0.5f;
 
-        res.push_back(vertexbuffer.create(model.vertices));
-        res.push_back(indexbuffer.create(model.indices));
-        res.push_back(materialids.create(material_idsdata));
-        res.push_back(materials.create(materials_data));
+        // todo 
+        //res.push_back(vertexbuffer.create(model.vertices));
+        //res.push_back(indexbuffer.create(model.indices));
+        //res.push_back(materialids.create(material_idsdata));
+        //res.push_back(materials.create(materials_data));
+
+        // todo vertices now has normal too 
+        //vertexbuffer.create(model.vertices);
+        //indexbuffer.create(model.indices);
+        //materialids.create(material_idsdata);
+        //materials.create(materials_data);
 
         // cannot use stdx::join because ComPtr is too smart for its own good
         for (auto r : triblas.build(instancedescs, opacity, vertexbuffer, indexbuffer))
@@ -106,8 +106,9 @@ gfx::resourcelist raytrace::create_resources()
         hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
         hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
-        raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        raytracingoutput.create(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
+        // todo : these are incorrect now
         // we don't store descriptors, as the indices are hardcoded in shaders
         // 0 rt srv
         // 1 rt uav
@@ -118,26 +119,28 @@ gfx::resourcelist raytrace::create_resources()
         // 6 index buffers
         // 7 material ids
         // 8 material data
-        constantbuffer.createcbv();
-        tlas.createsrv();
-        raytracingoutput.createuav();
-        vertexbuffer.createsrv();
-        indexbuffer.createsrv();
-        materialids.createsrv();
-        materials.createsrv();
+ 
+        // todo : bindless isn't hardcorded anymore
+        //constantbuffer.createcbv();
+        //tlas.createsrv();
+        //raytracingoutput.createuav();
+        //vertexbuffer.createsrv();
+        //indexbuffer.createsrv();
+        //materialids.createsrv();
+        //materials.createsrv();
     }
 
     return res;
 }
 
-void raytrace::render(float dt)
+void raytrace::render(float dt, gfx::renderer&)
 {
     auto& globalres = gfx::globalresources::get();
-    auto& framecbuffer = constantbuffer.data(0);
+    //auto& framecbuffer = constantbuffer.data(0);
 
-    framecbuffer.sundir = stdx::vec3{ 1.0f, 0.0f, 0.0f }.normalized();
-    framecbuffer.campos = camera.GetCurrentPosition();
-    framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
+    //framecbuffer.sundir = stdx::vec3{ 1.0f, 0.0f, 0.0f }.normalized();
+    //framecbuffer.campos = camera.GetCurrentPosition();
+    //framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
 
     auto cmd_list = globalres.cmdlist();
     auto const& pipelineobjects = globalres.psomap().find("raytrace")->second;

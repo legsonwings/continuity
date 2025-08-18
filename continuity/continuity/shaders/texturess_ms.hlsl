@@ -1,11 +1,16 @@
 #include "common.hlsli"
+#include "shared/common.h"
 
 StructuredBuffer<vertexin> triangle_verts : register(t0);
 
 texturessvertex getvertattribute(vertexin vertex)
 {
+    StructuredBuffer<gfx::dispatchparams> descriptors = ResourceDescriptorHeap[descriptorsidx.dispatchparams];
+    StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
+    StructuredBuffer<viewconstants> viewglobals = ResourceDescriptorHeap[descriptorsidx.viewglobals];
+
     texturessvertex outvert;
-    outvert.positionh = mul(float4(vertex.position, 1.f), objectconstants.mvpmatx);
+    outvert.positionh = mul(float4(vertex.position, 1.f), mul(objconstants[0].matx, viewglobals[0].viewproj));
     outvert.texcoord = vertex.texcoord;
     return outvert;
 }

@@ -127,20 +127,19 @@ UINT dispatchsize(uint dimension_dispatch, uint dimension_threads_pergroup)
     return static_cast<UINT>((dimension_dispatch + dimension_threads_pergroup - 1) / dimension_threads_pergroup);
 }
 
-gfx::resourcelist sphgpu::create_resources()
+gfx::resourcelist sphgpu::create_resources(gfx::deviceresources& deviceres)
 {
     using geometry::cube;
     using gfx::bodyparams;
 
     auto& globalres = gfx::globalresources::get();
-    constantbuffer.createresource();
-    sphconstants.createresource();
+    //constantbuffer.createresource();
+    //sphconstants.createresource();
 
     globalres.addpso("sphgpu_render_debugparticles", "", "sph_render_debugparticles_ms.cso", "sph_render_particles_ps.cso");
     globalres.addcomputepso("sphgpuinit", "sphgpuinit_cs.cso");
     globalres.addcomputepso("sphgpudensitypressure", "sphgpu_densitypressure_cs.cso");
     globalres.addcomputepso("sphgpuposition", "sphgpu_position_cs.cso");
-
 
     gfx::resourcelist res;
     databuffer.create(numparticles);
@@ -162,21 +161,21 @@ gfx::resourcelist sphgpu::create_resources()
         rootconstants.containerorigin[0] = rootconstants.containerorigin[1] = rootconstants.containerorigin[2] = 0.0f;
         rootconstants.containerextents[0] = rootconstants.containerextents[1] = rootconstants.containerextents[2] = roomextents;
 
-        auto cmd_list = globalres.cmdlist();
-
         auto const& pipelineobjects = globalres.psomap().find("sphgpuinit")->second;
-
-        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-        cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-        cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
-        cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetComputeRoot32BitConstants(5, 11, &rootconstants, 0);
+        auto& cmdlist = *deviceres.cmdlist.Get();
+        cmdlist.SetPipelineState(pipelineobjects.pso.Get());
+        cmdlist.SetComputeRootSignature(pipelineobjects.root_signature.Get());
+        
+        // todo cbuffer removed
+        //cmdlist.SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
+        cmdlist.SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
+        cmdlist.SetComputeRoot32BitConstants(5, 11, &rootconstants, 0);
 
         UINT const dispatchx = dispatchsize(numparticles, 64);
-        cmd_list->Dispatch(dispatchx, 1, 1);
+        cmdlist.Dispatch(dispatchx, 1, 1);
 
         auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(databuffer.d3dresource.Get());
-        cmd_list->ResourceBarrier(1, &uavBarrier);
+        cmdlist.ResourceBarrier(1, &uavBarrier);
     }
 
     {
@@ -201,22 +200,28 @@ gfx::resourcelist sphgpu::create_resources()
 
         // one material id per blas
         std::vector<uint32> material_idsdata(2u);
-        std::vector<rt::material> materials_data(1u);
+        std::vector<gfx::material> materials_data(1u);
 
         material_idsdata[0] = 0;
         material_idsdata[1] = 0;
 
-        materials_data[0].colour = { 1.0f, 0.0f, 0.0f, 1.0f };
+        materials_data[0].basecolour = { 1.0f, 0.0f, 0.0f, 1.0f };
         materials_data[0].metallic = 1u;
         materials_data[0].roughness = 0.25f;
         materials_data[0].reflectance = 0.5f;
 
-        gfx::model model("models/cornellbox.obj");
+        gfx::model model("models/cornellbox.obj", res);
 
-        res.push_back(roomvertbuffer.create(model.vertices));
-        res.push_back(roomindexbuffer.create(model.indices));
-        res.push_back(materialids.create(material_idsdata));
-        res.push_back(materials.create(materials_data));
+        //res.push_back(roomvertbuffer.create(model.vertices));
+        //res.push_back(roomindexbuffer.create(model.indices));
+        //res.push_back(materialids.create(material_idsdata));
+        //res.push_back(materials.create(materials_data));
+
+        // todo : vertices now has normals too
+        //roomvertbuffer.create(model.vertices);
+        //roomindexbuffer.create(model.indices);
+        //materialids.create(material_idsdata);
+        //materials.create(materials_data);
 
         for (auto r : triblas.build(instancedescs, gfx::geometryopacity::opaque, roomvertbuffer, roomindexbuffer))
             res.push_back(r);
@@ -252,7 +257,7 @@ gfx::resourcelist sphgpu::create_resources()
         hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
         hitgroupshadertable.addrecord(hitgroupshaderids_aabbgeometry);
 
-        raytracingoutput = gfx::texture(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        raytracingoutput.create(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     
         // we don't store descriptors, as the indices are hardcoded in shaders
         // 0 rt srv
@@ -266,15 +271,17 @@ gfx::resourcelist sphgpu::create_resources()
         // 8 material ids
         // 9 material data
         // 10 particle data buffer
-        constantbuffer.createcbv();
-        sphconstants.createcbv();
-        tlas.createsrv();
-        raytracingoutput.createuav();
-        roomvertbuffer.createsrv();
-        roomindexbuffer.createsrv();
-        materialids.createsrv();
-        materials.createsrv();
-        databuffer.createsrv();
+        
+        // todo : bindless isn't hardcorded anymore
+        //constantbuffer.createcbv();
+        //sphconstants.createcbv();
+        //tlas.createsrv();
+        //raytracingoutput.createuav();
+        //roomvertbuffer.createsrv();
+        //roomindexbuffer.createsrv();
+        //materialids.createsrv();
+        //materials.createsrv();
+        //databuffer.createsrv();
     }
 
     return res;
@@ -285,7 +292,7 @@ void sphgpu::update(float dt)
     sample_base::update(dt);
 }
 
-void sphgpu::render(float dt)
+void sphgpu::render(float dt, gfx::renderer& renderer)
 {
     struct
     {
@@ -328,7 +335,7 @@ void sphgpu::render(float dt)
     UINT const simdispatchx = dispatchsize(numparticles, 64);
 
     auto& globalres = gfx::globalresources::get();
-    auto cmd_list = globalres.cmdlist();
+    auto& cmdlist = *renderer.deviceres().cmdlist.Get();
 
     // todo : simulation is unstable at dt, use smaller time step
     // todo : use timestep from courant condition, but this might be tricky in gpu implementation
@@ -337,63 +344,64 @@ void sphgpu::render(float dt)
         auto const& pipelineobjects = globalres.psomap().find("sphgpudensitypressure")->second;
 
         // root signature is same for sim shaders
-        cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-        cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetComputeRoot32BitConstants(5, 23, &rootconstants, 0);
+        cmdlist.SetComputeRootSignature(pipelineobjects.root_signature.Get());
+        cmdlist.SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
+        cmdlist.SetComputeRoot32BitConstants(5, 23, &rootconstants, 0);
 
         // todo : handle time step 
         // simulation passes
         // density and pressure
         {
-            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-            gfx::uav_barrier(cmd_list, databuffer);
+            cmdlist.SetPipelineState(pipelineobjects.pso.Get());
+            gfx::uav_barrier(cmdlist, databuffer);
 
-            cmd_list->Dispatch(simdispatchx, 1, 1);
+            cmdlist.Dispatch(simdispatchx, 1, 1);
         }
 
         // acceleration, velocity and position
         {
             auto const& pipelineobjects = globalres.psomap().find("sphgpuposition")->second;
 
-            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+            cmdlist.SetPipelineState(pipelineobjects.pso.Get());
 
-            gfx::uav_barrier(cmd_list, databuffer);
+            gfx::uav_barrier(cmdlist, databuffer);
 
-            cmd_list->Dispatch(simdispatchx, 1, 1);
+            cmdlist.Dispatch(simdispatchx, 1, 1);
 
-            gfx::uav_barrier(cmd_list, databuffer);
+            gfx::uav_barrier(cmdlist, databuffer);
         }
     }
 
-    auto& sphparams = sphconstants.data(0);
+    // todo : pass these to ResourceDescriptorHeap
+    //sphconstants sphparams;
 
-    sphparams.numparticles = numparticles;
-    sphparams.containerextents.fill(5);
-    sphparams.dt = dt;
-    sphparams.particleradius = particleradius;
-    sphparams.h = h;
-    sphparams.hsqr = hsqr;
-    sphparams.k = k;
-    sphparams.rho0 = rho0;
-    sphparams.viscosityconstant = viscosityconstant;
-    sphparams.poly6coeff = poly6kernelcoeff();
-    sphparams.poly6gradcoeff = poly6gradcoeff();
-    sphparams.spikycoeff = spikykernelcoeff();
-    sphparams.viscositylapcoeff = viscositylaplaciancoeff();
-    sphparams.isolevel = isolevel;
+    //sphparams.numparticles = numparticles;
+    //sphparams.containerextents.fill(5);
+    //sphparams.dt = dt;
+    //sphparams.particleradius = particleradius;
+    //sphparams.h = h;
+    //sphparams.hsqr = hsqr;
+    //sphparams.k = k;
+    //sphparams.rho0 = rho0;
+    //sphparams.viscosityconstant = viscosityconstant;
+    //sphparams.poly6coeff = poly6kernelcoeff();
+    //sphparams.poly6gradcoeff = poly6gradcoeff();
+    //sphparams.spikycoeff = spikykernelcoeff();
+    //sphparams.viscositylapcoeff = viscositylaplaciancoeff();
+    //sphparams.isolevel = isolevel;
 
-    auto& framecbuffer = constantbuffer.data(0);
+    //auto& framecbuffer = constantbuffer.data(0);
 
-    framecbuffer.sundir = stdx::vec3::filled(1.0f).normalized();
-    framecbuffer.campos = camera.GetCurrentPosition();
-    framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
+    //framecbuffer.sundir = stdx::vec3::filled(1.0f).normalized();
+    //framecbuffer.campos = camera.GetCurrentPosition();
+    //framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
 
     auto const& pipelineobjects = globalres.psomap().find("sph_render")->second;
 
     // bind the global root signature, heaps and frame index, other resources are bindless
-    cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
-    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
+    cmdlist.SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
+    cmdlist.SetComputeRootSignature(pipelineobjects.root_signature.Get());
+    cmdlist.SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);

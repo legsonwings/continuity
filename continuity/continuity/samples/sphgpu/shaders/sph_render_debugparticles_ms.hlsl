@@ -35,9 +35,9 @@ void main(
         v0.position = v0p.xyz;
         v1.position = v1p.xyz;
         v2.position = v2p.xyz;
-        v0.positionh = mul(v0p, globals.viewproj);
-        v1.positionh = mul(v1p, globals.viewproj);
-        v2.positionh = mul(v2p, globals.viewproj);
+        //v0.positionh = mul(v0p, globals.viewproj);
+        //v1.positionh = mul(v1p, globals.viewproj);
+        //v2.positionh = mul(v2p, globals.viewproj);
    
         v0.normal = float3(0.0, 0.0, 1.0);
         v1.normal = float3(0.0, 0.0, 1.0);

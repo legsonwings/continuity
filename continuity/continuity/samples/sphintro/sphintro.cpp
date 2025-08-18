@@ -461,7 +461,7 @@ std::vector<stdx::vec3> fillwithspheres(geometry::aabb const& box, uint count, f
     stdx::cassert(cubelen * cubelen * cubelen > gridvol);
 
     auto const gridorigin = box.center() - stdx::vec3::filled(cubelen / 2.f) + stdx::vec3{ 0.0f, -0.5f, 0.0f };
-    for (auto i : stdx::range(0u, count))
+    for (auto i : stdx::range(count))
     {
         static std::uniform_int_distribution<uint> distvoxel(0u, numcells - 1);
 
@@ -500,8 +500,9 @@ sphfluid::sphfluid(geometry::aabb const& _bounds) : container(_bounds)
 {
     particlegeometry = geometry::sphere{ {0.0f, 0.0f, 0.0f }, particleradius };
    
-    auto const& redmaterial = gfx::globalresources::get().mat("ball");
+    //auto const& redmaterial = gfx::globalresources::get().mat("ball");
     particleparams.reserve(numparticles);
+    
     static std::uniform_real_distribution<float> distvel(-0.1f, 0.1f);
     static std::uniform_real_distribution<float> distacc(-0.1f, 0.1f);
 
@@ -517,7 +518,9 @@ sphfluid::sphfluid(geometry::aabb const& _bounds) : container(_bounds)
         // todo : expose this limit of 5000 somewhere
         // better yet make it a template parameter of the generator function
         stdx::cassert(numparticles <= 5000u);
-        particleparams.back().matname = gfx::generaterandom_matcolor(redmaterial);
+        
+        // todo : material id
+        //particleparams.back().matname = gfx::generaterandom_matcolor(redmaterial);
 
         particleparams.back().v = particleparams.back().a = vector3::Zero;
         // give small random acceleration and velocity to particles
@@ -574,12 +577,17 @@ std::vector<gfx::vertex> sphfluid::vertices() const
     return fluidsurface;
 }
 
+std::vector<uint32> const& sphfluid::indices() const
+{
+    return fluidsurfaceindices;
+}
+
 std::vector<gfx::instance_data> sphfluid::instancedata() const
 {
     std::vector<gfx::instance_data> particles_instancedata;
     for (auto const& particleparam : particleparams)
     {
-        particles_instancedata.emplace_back(matrix::CreateTranslation(particleparam.p), gfx::globalresources::get().view(), gfx::globalresources::get().mat(particleparam.matname));
+        particles_instancedata.emplace_back(matrix::CreateTranslation(particleparam.p));
     }
 
     return particles_instancedata;
@@ -766,7 +774,8 @@ void sphfluid::update(float dt)
         }
     }
 
-    fluidsurface.clear();
+    //fluidsurface.clear();
+    fluidsurfaceindices.clear();
 
     static constexpr float marchingcube_size = 0.1f;
 
@@ -835,9 +844,11 @@ void sphfluid::update(float dt)
         {
             for (uint j(0); j < numtris; ++j)
             {
-                fluidsurface.push_back(gfx::vertex{ triangles[j].p[0], triangles[j].n[0] });
-                fluidsurface.push_back(gfx::vertex{ triangles[j].p[1], triangles[j].n[1] });
-                fluidsurface.push_back(gfx::vertex{ triangles[j].p[2], triangles[j].n[2] });
+                //fluidsurface.push_back(gfx::vertex{ triangles[j].p[0], triangles[j].n[0] });
+                //fluidsurface.push_back(gfx::vertex{ triangles[j].p[1], triangles[j].n[1] });
+                //fluidsurface.push_back(gfx::vertex{ triangles[j].p[2], triangles[j].n[2] });
+
+                // todo : populate fluidsurfaceindices
             }
         }
     }
@@ -849,7 +860,7 @@ sphfluidintro::sphfluidintro(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(10.0f);
 }
 
-gfx::resourcelist sphfluidintro::create_resources()
+gfx::resourcelist sphfluidintro::create_resources(gfx::deviceresources& deviceres)
 {
     using geometry::cube;
     using geometry::sphere;
@@ -857,51 +868,53 @@ gfx::resourcelist sphfluidintro::create_resources()
     using gfx::material;
 
     auto& globalres = gfx::globalresources::get();
-    auto& globals = globalres.cbuffer().data();
+    
+    // todo : no constbuffers anymore
+    //auto& globals = globalres.cbuffer().data();
 
-    // initialize lights
-    globals.numdirlights = 1;
-    globals.numpointlights = 2;
+    //// initialize lights
+    //globals.numdirlights = 1;
+    //globals.numpointlights = 2;
 
-    globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
-    globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
-    globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
+    //globals.ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
+    //globals.lights[0].direction = vector3{ 0.3f, -0.27f, 0.57735f }.Normalized();
+    //globals.lights[0].color = { 0.2f, 0.2f, 0.2f };
 
-    globals.lights[1].position = { -15.f, 15.f, -15.f };
-    globals.lights[1].color = { 1.f, 1.f, 1.f };
-    globals.lights[1].range = 40.f;
+    //globals.lights[1].position = { -15.f, 15.f, -15.f };
+    //globals.lights[1].color = { 1.f, 1.f, 1.f };
+    //globals.lights[1].range = 40.f;
 
-    globals.lights[2].position = { 15.f, 15.f, -15.f };
-    globals.lights[2].color = { 1.f, 1.f, 1.f };
-    globals.lights[2].range = 40.f;
+    //globals.lights[2].position = { 15.f, 15.f, -15.f };
+    //globals.lights[2].color = { 1.f, 1.f, 1.f };
+    //globals.lights[2].range = 40.f;
 
-    globalres.cbuffer().updateresource();
+    //globalres.cbuffer().updateresource();
 
     // since these use static vertex buffers, just send 0 as maxverts
-    boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{roomextents} }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });
-    fluid.emplace_back(sphfluid(boxes[0]->bbox()), bodyparams{ 20000, 1, "default_twosided", "water"});
-    fluidparticles.emplace_back(fluid.back().get(), &sphfluid::particlevertices, &sphfluid::instancedata, bodyparams{0, numparticles, "instanced"});
+    //boxes.emplace_back(cube{ vector3{0.f, 0.f, 0.f}, vector3{roomextents} }, &cube::vertices_flipped, &cube::instancedata, bodyparams{ 0, 1, "instanced" });
+    //fluid.emplace_back(sphfluid(boxes[0]->bbox()), bodyparams{ 20000, 1, "default_twosided", 0});
+    //fluidparticles.emplace_back(fluid.back().get(), &sphfluid::particlevertices, &sphfluid::instancedata, bodyparams{0, numparticles, "instanced"});
 
     gfx::resourcelist res;
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid, fluidparticles)) { stdx::append(b->create_resources(), res); };
+    //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid, fluidparticles)) { stdx::append(b->create_resources(), res); };
     return res;
 }
 
 void sphfluidintro::update(float dt)
 {
     sample_base::update(dt);
-    for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->update(dt);
+    //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->update(dt);
 }
 
-void sphfluidintro::render(float dt)
+void sphfluidintro::render(float dt, gfx::renderer&)
 {
     static constexpr bool vizparticles = true;
     if (vizparticles)
     {
-        for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluidparticles, fluid)) b->render(dt, { true });
+        //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluidparticles, fluid)) b->render(dt, { true });
     }
     else
     {
-        for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->render(dt, { false });
+        //for (auto b : stdx::makejoin<gfx::bodyinterface>(boxes, fluid)) b->render(dt, { false });
     }
 }

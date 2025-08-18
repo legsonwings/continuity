@@ -52,6 +52,9 @@
     <Filter Include="shared">
       <UniqueIdentifier>{5d3d907d-6ebe-4c64-ad53-9ef0e04874f5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="samples\playground">
+      <UniqueIdentifier>{83accfb3-527a-4c5b-9e12-60b6f254d7a2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beziermaths\beziermaths.cpp">
@@ -120,9 +123,6 @@
     <ClCompile Include="samples\sphgpu\sphgpu.ixx">
       <Filter>samples\sphgpu</Filter>
     </ClCompile>
-    <ClCompile Include="engine\engine.utils.ixx">
-      <Filter>source\engine</Filter>
-    </ClCompile>
     <ClCompile Include="graphics\graphicscore.ixx">
       <Filter>source\graphics</Filter>
     </ClCompile>
@@ -140,6 +140,48 @@
     </ClCompile>
     <ClCompile Include="samples\raytrace\raytrace.ixx">
       <Filter>samples\raytrace</Filter>
+    </ClCompile>
+    <ClCompile Include="samples\playground\playground.cpp">
+      <Filter>samples\playground</Filter>
+    </ClCompile>
+    <ClCompile Include="samples\playground\playground.ixx">
+      <Filter>samples\playground</Filter>
+    </ClCompile>
+    <ClCompile Include="thirdparty\wictextureloader12.cpp">
+      <Filter>source\thirdparty</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.model.cpp">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.model.ixx">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.texture.cpp">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.texture.ixx">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.globalresources.cpp">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.globalresources.ixx">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.resourcetypes.ixx">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.resourcetypes.cpp">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="engine\engine.utils.ixx">
+      <Filter>source\engine</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.renderer.cpp">
+      <Filter>source\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\graphics.renderer.ixx">
+      <Filter>source\graphics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -164,6 +206,12 @@
     <ClInclude Include="shared\sharedtypes.h">
       <Filter>shared</Filter>
     </ClInclude>
+    <ClInclude Include="shared\common.h">
+      <Filter>shared</Filter>
+    </ClInclude>
+    <ClInclude Include="thirdparty\wictextureloader12.h">
+      <Filter>source\thirdparty</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="simplemath\simplemath.inl">
@@ -184,9 +232,6 @@
       <Filter>shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\default_as.hlsl">
-      <Filter>shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="shaders\default_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\default_ps.hlsl">
@@ -241,6 +286,15 @@
       <Filter>samples\sphgpu\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\blend_cs.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\default_ms.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\genmipmaps_cs.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\instancesdepthonly_ms.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
   </ItemGroup>

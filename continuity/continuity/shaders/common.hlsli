@@ -9,7 +9,7 @@
 // ps texture
 // ps sampler
 
-
+// todo : no constant bufffers anymore. this singature should be deleted as it is outdated
 #define ROOT_SIG "CBV(b0), \
                   CBV(b1), \
                   RootConstants(b2, num32bitconstants=7), \
@@ -37,19 +37,40 @@ struct dispatch_parameters
     uint numprims_perinstance;
 };
 
+struct index
+{
+    uint pos;
+    uint texcoord;
+    uint tbn;
+};
+
+struct tbn
+{
+    float3 normal;
+    float3 tangent;
+    float3 bitangent;
+};
+
 struct vertexin
 {
     float3 position;
     float3 normal;
     float2 texcoord;
+    float3 tangent;
+    float3 bitangent;
 };
 
 struct meshshadervertex
 {
     uint instanceid : instance_id;
     float4 positionh : SV_Position;
+    float4 positionl : lightclipspacepos;
     float3 position : POSITION0;
     float3 normal : NORMAL0;
+    float3 tangent : tangent;
+    float3 bitangent : bitangent;
+    float2 texcoords : texcoord0;
+    uint material : materialidx;
 };
 
 struct texturessvertex
@@ -63,45 +84,47 @@ struct light
     float3 color;
     float range;
     float3 position;
-    float padding1;
     float3 direction;
-    float padding2;
 };
 
 struct material
 {
-    float3 fresnelr;
+    float4 colour;
     float roughness;
-    float4 diffuse;
+    float reflectance;
+    float metallic;
+
+    uint diffusetex;
+    uint roughnesstex;
+    uint normaltex;
 };
 
-struct sceneconstants
+struct viewconstants
 {
-    float3 campos;
-    uint padding0;
-    float4 ambient;
-    light lights[MAX_NUM_LIGHTS];
+    float3 viewpos;
     float4x4 viewproj;
-    uint numdirlights;
-    uint numpointlights;
+};
+
+struct sceneglobals
+{
+    uint matbuffer;
+    uint shadowmap;
+    uint viewdirshading;
+    float3 lightdir;
+    float lightluminance;
 };
 
 struct instance_data
 {
     float4x4 matx;
-    float4x4 normalmatx;
-    float4x4 mvpmatx;
-    material mat;
+    float4x4 normalmatx; 
 };
 
-struct object_constants
+struct rootconstants
 {
-    float4x4 matx;
-    float4x4 normalmatx;
-    float4x4 mvpmatx;
-    material mat;
+    uint dispatchparams;
+    uint viewglobals;
+    uint sceneglobals;
 };
 
-ConstantBuffer<sceneconstants> globals : register(b0);
-ConstantBuffer<object_constants> objectconstants : register(b1);
-ConstantBuffer<dispatch_parameters> dispatch_params : register(b2);
+ConstantBuffer<rootconstants> descriptorsidx : register(b0);

@@ -2,7 +2,7 @@ module;
 
 #include <wrl.h>
 #include <d3d12.h>
-#include "thirdparty/d3dx12.h"
+#include <thirdparty/d3dx12.h>
 
 // create a module gfx core
 // todo : find a place for shared constants
@@ -30,6 +30,9 @@ using matrix = DirectX::SimpleMath::Matrix;
 
 using resourcelist = std::vector<ComPtr<ID3D12Resource>>;
 
+using device = ID3D12Device5;
+using gfxcmdlist = ID3D12GraphicsCommandList6;
+
 enum class topology
 {
     triangle,
@@ -44,19 +47,42 @@ enum psoflags
     twosided = 0x4
 };
 
+struct index
+{
+    uint32 pos;
+    uint32 texcoord;
+    uint32 tbn;
+};
+
+struct tbn
+{
+    vector3 normal = {};
+    vector3 tangent = {};
+    vector3 bitangent = {};
+};
+
 struct vertex
 {
 	vector3 position = {};
+    vector2 texcoord = {};
 	vector3 normal = {};
-	vector2 texcoord = {};
+    vector3 tangent = {};
+    vector3 bitangent = {};
+};
+
+struct vertexattribs
+{
+    std::vector<vector3> positions;
+    std::vector<vector2> texcoords;
+    std::vector<tbn> tbns;
 };
 
 struct color
 {
-    static inline vector4 red = vector4{ 1.f, 0.f, 0.f, 1.f };
-    static inline vector4 black = vector4{ 0.f, 0.f, 0.f, 1.f };
-    static inline vector4 white = vector4{ 1.f, 1.f, 1.f, 1.f };
-	static inline vector4 water = vector4{ 0.2f, 0.4f, 0.6f, 0.7f };
+    static constexpr auto red = stdx::vec4{ 1.f, 0.f, 0.f, 1.f };
+    static constexpr auto black = stdx::vec4{ 0.f, 0.f, 0.f, 1.f };
+    static constexpr auto white = stdx::vec4{ 1.f, 1.f, 1.f, 1.f };
+	static constexpr auto water = stdx::vec4{ 0.2f, 0.4f, 0.6f, 0.7f };
 };
 
 struct shader
@@ -84,8 +110,41 @@ struct rootbuffer
 
 struct rootconstants
 {
-    uint32_t slot;
-    std::vector<uint8_t> values;
+    uint32 slot;
+    std::vector<uint32> values;
+};
+
+// all resource views are created on the global resource heap right now
+struct resourceview
+{
+    uint32 heapidx;
+};
+
+struct srv : public resourceview
+{
+    D3D12_SHADER_RESOURCE_VIEW_DESC desc;
+};
+
+struct rtv : public resourceview {};
+
+struct dtv : public resourceview {};
+
+struct uav : public resourceview
+{
+    D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+};
+
+struct samplerv : public resourceview
+{
+    D3D12_SAMPLER_DESC desc;
+};
+
+struct pipelinestate
+{
+    std::string psoname;
+    stdx::vecui2 viewportsize;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rthandle;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dthandle;
 };
 
 struct pipeline_objects
@@ -100,53 +159,33 @@ struct pipeline_objects
 	ComPtr<ID3D12RootSignature> rootsignature_local;
 };
 
-struct resource_bindings
-{
-    rootbuffer constant;
-    rootbuffer objectconstant;
-    rootbuffer vertex;
-    rootbuffer instance;
-	rootbuffer customdata;
-    buffer texture;
-    rootconstants rootconstants;
-    pipeline_objects pipelineobjs;
-};
-
 struct viewinfo
 {
     matrix view;
     matrix proj;
 };
 
-// these are passed to gpu, so be careful about alignment and padding
 struct material
 {
-    // the member order is deliberate
-    vector3 fr = { 0.01f, 0.01f, 0.01f };
-    float r = 0.25f;
-    vector4 a = vector4::One;
+    stdx::vec4 basecolour = stdx::vec4{ 1, 0, 0, 0 };
+    float roughness = 0.25f;
+    float reflectance = 0.5f;
+    float metallic = 0.0f;
 
-    material& roughness(float _r) { r = _r; return *this; }
-    material& diffuse(vector4 const& _a) { a = _a; return *this; }
-    material& fresnelr(vector3 const& _fr) { fr = _fr; return *this; }
+    uint32 diffusetex = stdx::invalid<uint32>;
+    uint32 roughnesstex = stdx::invalid<uint32>;
+    uint32 normaltex = stdx::invalid<uint32>;
+
+    material& colour(stdx::vec4 const& colour) { basecolour = colour; return *this; }
 };
 
-// this is used in constant buffer so alignment is important
 struct instance_data
 {
     matrix matx;
     matrix normalmatx;
-    matrix mvpmatx;
-    material mat;
-    instance_data() = default;
-    instance_data(matrix const& m, viewinfo const& v, material const& _material)
-        : matx(m.Transpose()), normalmatx(m.Invert()), mvpmatx((m * v.view * v.proj).Transpose()), mat(_material) {}
-};
 
-struct alignas(256) objectconstants : public instance_data
-{
-    objectconstants() = default;
-    objectconstants(matrix const& m, viewinfo const& v, material const& _material) : instance_data(m, v, _material) {}
+    instance_data() = default;
+    instance_data(matrix const& m) : matx(m.Transpose()), normalmatx(m.Invert()) {}
 };
 
 struct light
@@ -154,22 +193,41 @@ struct light
     vector3 color;
     float range;
     vector3 position;
-    uint8_t padding1[4];
     vector3 direction;
-    uint8_t padding2[4];
 };
 
-struct alignas(256) sceneconstants
+// todo : make this safe by checking if all members of struct are 32 bits
+// perhaps can be done by recursive templates
+// see https://stackoverflow.com/questions/35463646/arity-of-aggregate-in-logarithmic-time
+template<typename t>
+std::vector<uint32> aggregatetovector(t v)
 {
-    stdx::vec3 campos;
-    uint8_t padding[4];
-    vector4 ambient;
-    light lights[MAX_NUM_LIGHTS];
-	matrix viewproj;
-    uint32_t numdirlights = 0;
-    uint32_t numpointlights;
-};
+    static constexpr auto numvals = sizeof(t) / 4u;
+    static_assert(numvals * 4u == sizeof(t));
 
+    uint32* vals = reinterpret_cast<uint32*>(&v);
+    std::vector<uint32> r;
+    for (uint i(0); i < numvals; ++i) r.push_back(vals[i]);
+
+    return r;
+}
+
+template<uint32 t_divisor>
+constexpr inline uint32 divideup(uint32 value) requires (t_divisor > 0)
+{
+    return (value + t_divisor - 1) / t_divisor;
+}
+
+CD3DX12_RESOURCE_BARRIER reversetransition(CD3DX12_RESOURCE_BARRIER const& barrier)
+{
+    D3D12_RESOURCE_BARRIER d3d12barrier = barrier;
+    auto statebefore = d3d12barrier.Transition.StateAfter;
+    auto stateafter = d3d12barrier.Transition.StateBefore;
+
+    return CD3DX12_RESOURCE_BARRIER::Transition(d3d12barrier.Transition.pResource, statebefore, stateafter);
+}
+
+// ray trace stuff below
 struct trianglehitgroup
 {
     std::string anyhit;

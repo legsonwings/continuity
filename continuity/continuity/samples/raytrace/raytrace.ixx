@@ -13,8 +13,8 @@ export class raytrace : public sample_base
 public:
 	raytrace(view_data const& viewdata);
 
-	gfx::resourcelist create_resources() override;
-	void render(float dt) override; 
+	gfx::resourcelist create_resources(gfx::deviceresources& deviceres) override;
+	void render(float dt, gfx::renderer&) override; 
 
 private:
 
@@ -23,11 +23,12 @@ private:
 	gfx::shadertable missshadertable;
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
-	gfx::texture raytracingoutput;
+	gfx::rtouttexture raytracingoutput;
 	gfx::rtvertexbuffer vertexbuffer;
 	gfx::rtindexbuffer indexbuffer;
 	gfx::structuredbuffer<uint32, gfx::accesstype::both> materialids;
-	gfx::structuredbuffer<rt::material, gfx::accesstype::both> materials;
+	gfx::structuredbuffer<gfx::material, gfx::accesstype::both> materials;
 
-	gfx::constantbuffer2<rt::sceneconstants, 1> constantbuffer;
+	// todo : constantbuffer2 removed
+	//gfx::constantbuffer2<rt::sceneconstants, 1> constantbuffer;
 };

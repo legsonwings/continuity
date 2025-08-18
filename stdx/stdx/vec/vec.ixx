@@ -14,7 +14,9 @@ struct vec : public std::array<t, d>
 	constexpr vec operator+(vec r) const { return stdx::binaryop(*this, r, std::plus<>()); }
 	constexpr vec operator-(vec r) const { return stdx::binaryop(*this, r, std::minus<>()); }
 	constexpr vec operator*(t r) const { return stdx::unaryop(*this, std::bind(std::multiplies<>(), std::placeholders::_1, r)); }
-	constexpr vec operator/(t r) const { return stdx::unaryop(*this, std::bind(std::multiplies<>(), std::placeholders::_1, 1 / r)); }
+	constexpr vec operator*(vec r) const { return stdx::binaryop(*this, r, std::multiplies<>()); }
+	constexpr vec operator/(t r) const { return stdx::unaryop(*this, std::bind(std::divides<>(), std::placeholders::_1, r)); }
+	constexpr vec operator/(vec r) const { return stdx::binaryop(*this, r, std::divides<>()); }
 	constexpr bool operator==(vec r) const { return stdx::equals(*this, r, t(0)); }
 	constexpr bool operator==(t r) const { return stdx::equals(*this, r, t(0)); }
 
@@ -39,7 +41,7 @@ struct vec : public std::array<t, d>
 	constexpr std::string str() const;
 };
 
-// could merge vec and matrix, if I was immortal
+// todo : could merge vec and matrix(use recursive template array)
 template<uint r, uint c, stdx::arithmeticpure_c t = float>
 struct matrix : public std::array<vec<c, t>, r>
 {
@@ -64,7 +66,7 @@ template<uint d>
 using veci = vec<d, int>;
 
 template<uint d>
-using vecui = vec<d, uint>;
+using vecui = vec<d, uint32>;
 
 using vec1 = vec<1>;
 using vec2 = vec<2>;
