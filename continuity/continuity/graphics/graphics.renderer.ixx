@@ -8,6 +8,7 @@ export module graphics:renderer;
 
 import stdxcore;
 import :resourcetypes;
+import :globalresources;
 
 using Microsoft::WRL::ComPtr;
 
@@ -25,17 +26,17 @@ class renderer
     uint32 frameidx = 0;
 
     ComPtr<ID3D12Fence> fence;
-    ComPtr<ID3D12Device5> d3ddevice;
+    deviceresources d3ddevres;
     ComPtr<IDXGISwapChain3> swapchain;
-    ComPtr<ID3D12GraphicsCommandList6> commandlist;
     ComPtr<ID3D12Resource> backbuffers[backbuffercount];
     ComPtr<ID3D12CommandAllocator> commandallocators[1];
     ComPtr<ID3D12CommandQueue> commandqueue;
+    resourcelist transientresources;
 
 public:
 
-    ComPtr<ID3D12Device5> const& device() { return d3ddevice; }
-    ComPtr<ID3D12GraphicsCommandList6> const& cmdlist() { return commandlist; }
+    deviceresources& deviceres() { return d3ddevres; }
+    resourcelist& transientres() { return transientresources; }
 
     texture<accesstype::gpu> rendertarget;
     texture<accesstype::gpu> depthtarget;

@@ -33,7 +33,7 @@ export namespace gfx
 std::string generaterandom_matcolor(stdx::ext<material, bool> definition, std::optional<std::string> const& preferred_name = {});
 
 template<typename... args>
-void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... resources)
+void uav_barrier(gfx::gfxcmdlist &cmdlist, args const&... resources)
 {
 	constexpr int num_var_args = sizeof ... (args);
 	static_assert(num_var_args > 0);
@@ -47,7 +47,7 @@ void uav_barrier(ComPtr<ID3D12GraphicsCommandList6>& cmdlist, args const&... res
 	for (auto i : stdx::range(num_var_args))
 		barriers[i] = CD3DX12_RESOURCE_BARRIER::UAV(resources_array[i].d3dresource.Get());
 
-	cmdlist->ResourceBarrier((UINT)barriers.size(), barriers.data());
+	cmdlist.ResourceBarrier((UINT)barriers.size(), barriers.data());
 }
 
 // raytrace stuff below
@@ -79,7 +79,7 @@ struct shadertable_recordsize
 	static constexpr uint size = std::max<uint>({ shaderrecord<rootargs_ts>::alignedsize... });
 };
 
-class shadertable : public resource
+class shadertable : public uploadbuffer
 {
 
 public:

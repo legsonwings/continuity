@@ -42,7 +42,7 @@ void continuity::OnInit()
     renderer.init(GetHwnd(), m_width, m_height);
 
     // need to keep these alive till data is uploaded to gpu
-    std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources();
+    std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources(renderer.deviceres());
 
     // this will block until resources are uploaded to the gpu
     renderer.createresources();

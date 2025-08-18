@@ -30,6 +30,9 @@ using matrix = DirectX::SimpleMath::Matrix;
 
 using resourcelist = std::vector<ComPtr<ID3D12Resource>>;
 
+using device = ID3D12Device5;
+using gfxcmdlist = ID3D12GraphicsCommandList6;
+
 enum class topology
 {
     triangle,

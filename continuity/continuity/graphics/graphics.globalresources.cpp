@@ -108,15 +108,12 @@ viewinfo& globalresources::view() { return _view; }
 psomapref globalresources::psomap() const { return _psos; }
 //matmapref globalresources::matmap() const { return _materials; }
 uint32 globalresources::materialsbuffer_idx() const { return _materialsbuffer_idx; }
-materialcref globalresources::defaultmat() const { return _defaultmat; }
 void globalresources::rendertarget(ComPtr<ID3D12Resource>& rendertarget) { _rendertarget = rendertarget; }
 ComPtr<ID3D12Resource>& globalresources::rendertarget() { return _rendertarget; }
 resourceheap& globalresources::resourceheap() { return _resourceheap; }
 samplerheap& globalresources::samplerheap() { return _samplerheap; }
 ComPtr<ID3D12Device5>& globalresources::device() { return _device; }
 ComPtr<ID3D12GraphicsCommandList6>& globalresources::cmdlist() { return _commandlist; }
-void globalresources::frameindex(uint idx) { _frameindex = idx; }
-uint globalresources::frameindex() const { return _frameindex; }
 std::string globalresources::assetfullpath(std::string const& path) const { return _assetspath + path; }
 void globalresources::psodesc(D3DX12_MESH_SHADER_PIPELINE_STATE_DESC const& psodesc) { _psodesc = psodesc; }
 

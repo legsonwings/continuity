@@ -28,7 +28,7 @@ playground::playground(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(200.0f);
 }
 
-gfx::resourcelist playground::create_resources()
+gfx::resourcelist playground::create_resources(gfx::deviceresources& deviceres)
 {
     using gfx::bodyparams;
 
@@ -45,10 +45,11 @@ gfx::resourcelist playground::create_resources()
 
     auto matid = globalres.addmat(mat);
 
-    // since these use static vertex buffers, just send 0 as maxverts
-    auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj"), bodyparams{ 0, 1, matid } );
-
     gfx::resourcelist res;
+
+    // since these use static vertex buffers, just send 0 as maxverts
+    auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj", res), bodyparams{ 0, 1, matid } );
+
     for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) { stdx::append(b->create_resources(), res); };
 
 	rootdescs.dispatchparams = models[0].descriptorsindex();
@@ -117,7 +118,7 @@ void playground::render(float dt, gfx::renderer& renderer)
 
     auto barrier_shadowmap = CD3DX12_RESOURCE_BARRIER::Transition(renderer.shadowmap.d3dresource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
  
-    auto& cmdlist = renderer.cmdlist();
+    auto& cmdlist = renderer.deviceres().cmdlist;
     cmdlist->ResourceBarrier(1, &barrier_shadowmap);
 
     renderer.dispatchmesh(dispatch, mainps, rootdescsv);

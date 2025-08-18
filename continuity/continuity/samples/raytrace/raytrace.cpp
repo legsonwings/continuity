@@ -37,7 +37,7 @@ raytrace::raytrace(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(10.0f);
 }
 
-gfx::resourcelist raytrace::create_resources()
+gfx::resourcelist raytrace::create_resources(gfx::deviceresources& deviceres)
 {
     auto& globalres = gfx::globalresources::get();
 
@@ -54,10 +54,7 @@ gfx::resourcelist raytrace::create_resources()
 
         auto& raytracepipeline_objs = globalres.addraytracingpso("raytrace", "raytrace_rs.cso", rtshaders);
 
-        auto& device = globalres.device();
-        auto& cmdlist = globalres.cmdlist();
-
-        gfx::model model("models/spot.obj");
+        gfx::model model("models/spot.obj", res);
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
         gfx::blasinstancedescs instancedescs;
 

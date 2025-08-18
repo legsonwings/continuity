@@ -154,13 +154,13 @@ void renderer::init(HWND window, UINT w, UINT h)
     ComPtr<IDXGIAdapter1> hardwareAdapter;
     gethardwareadapter(factory.Get(), &hardwareAdapter);
 
-    ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(d3ddevice.ReleaseAndGetAddressOf())));
+    ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(d3ddevres.dev.ReleaseAndGetAddressOf())));
 
     // todo : temp
-    globalresources::get().device() = d3ddevice;
+    globalresources::get().device() = d3ddevres.dev;
 
     D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = { D3D_SHADER_MODEL_6_6 };
-    if (FAILED(d3ddevice->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel)))
+    if (FAILED(d3ddevres.dev->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel)))
         || (shaderModel.HighestShaderModel < D3D_SHADER_MODEL_6_6))
     {
         OutputDebugStringA("ERROR: Shader Model 6.6 is not supported\n");
@@ -168,7 +168,7 @@ void renderer::init(HWND window, UINT w, UINT h)
     }
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS features = {};
-    if (FAILED(d3ddevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &features, sizeof(features)))
+    if (FAILED(d3ddevres.dev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &features, sizeof(features)))
         || (features.ResourceBindingTier != D3D12_RESOURCE_BINDING_TIER_3))
     {
         OutputDebugStringA("ERROR: Dynamic resources(Bindless resources) are not supported!\n");
@@ -176,14 +176,14 @@ void renderer::init(HWND window, UINT w, UINT h)
     }
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 features5 = {};
-    if (FAILED(d3ddevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &features5, sizeof(features5))) || features5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
+    if (FAILED(d3ddevres.dev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &features5, sizeof(features5))) || features5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
     {
         OutputDebugStringA("ERROR: Raytracing is not supported!\n");
         throw std::exception("Raytracing is not supported!");
     }
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 features7 = {};
-    if (FAILED(d3ddevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &features7, sizeof(features7)))
+    if (FAILED(d3ddevres.dev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &features7, sizeof(features7)))
         || (features7.MeshShaderTier == D3D12_MESH_SHADER_TIER_NOT_SUPPORTED))
     {
         OutputDebugStringA("ERROR: Mesh Shaders aren't supported!\n");
@@ -195,7 +195,7 @@ void renderer::init(HWND window, UINT w, UINT h)
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-    ThrowIfFailed(d3ddevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandqueue)));
+    ThrowIfFailed(d3ddevres.dev->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandqueue)));
 
     // describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC1 swapchaindesc = {};
@@ -234,7 +234,7 @@ void renderer::init(HWND window, UINT w, UINT h)
     shadowmapdtv = shadowmap.createdtv(dtheap);
 
     // create command allocator for only one frame since theres no frame buffering
-    ThrowIfFailed(d3ddevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandallocators[0])));
+    ThrowIfFailed(d3ddevres.dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandallocators[0])));
 
     // get back buffers
     for (UINT n = 0; n < backbuffercount; n++)
@@ -263,10 +263,10 @@ void renderer::init(HWND window, UINT w, UINT h)
     globalres.init();
 
     // create the command list in recording state
-    ThrowIfFailed(d3ddevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandallocators[0].Get(), nullptr, IID_PPV_ARGS(&commandlist)));
+    ThrowIfFailed(d3ddevres.dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandallocators[0].Get(), nullptr, IID_PPV_ARGS(&d3ddevres.cmdlist)));
 
     // todo : temp
-    globalres.cmdlist() = commandlist;
+    globalres.cmdlist() = d3ddevres.cmdlist;
     globalres.resourceheap() = resheap;
     globalres.samplerheap() = sampheap;
 
@@ -286,13 +286,13 @@ void renderer::createresources()
 {
     globalresources::get().create_resources();
 
-    ThrowIfFailed(commandlist->Close());
+    ThrowIfFailed(d3ddevres.cmdlist->Close());
 
-    ID3D12CommandList* ppCommandLists[] = { commandlist.Get() };
+    ID3D12CommandList* ppCommandLists[] = { d3ddevres.cmdlist.Get() };
     commandqueue->ExecuteCommandLists(1, ppCommandLists);
 
     // create synchronization objects
-    ThrowIfFailed(d3ddevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
+    ThrowIfFailed(d3ddevres.dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
 
     // why increment here?
     fencevalue++;
@@ -320,7 +320,7 @@ void renderer::prerender()
 
     // however, when ExecuteCommandList() is called on a particular command 
     // list, that command list can then be reset at any time and must be before re-recording
-    ThrowIfFailed(commandlist->Reset(commandallocators[0].Get(), nullptr));
+    ThrowIfFailed(d3ddevres.cmdlist->Reset(commandallocators[0].Get(), nullptr));
 }
 
 void renderer::postrender()
@@ -328,26 +328,29 @@ void renderer::postrender()
     auto rttocopysource = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
     auto barrier_backbuffer = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
 
-    commandlist->ResourceBarrier(1, &rttocopysource);
-    commandlist->ResourceBarrier(1, &barrier_backbuffer);
+    d3ddevres.cmdlist->ResourceBarrier(1, &rttocopysource);
+    d3ddevres.cmdlist->ResourceBarrier(1, &barrier_backbuffer);
 
     // copy from render target to back buffer
-    commandlist->CopyResource(backbuffers[frameidx].Get(), rendertarget.d3dresource.Get());
+    d3ddevres.cmdlist->CopyResource(backbuffers[frameidx].Get(), rendertarget.d3dresource.Get());
 
     auto barrier_backbuffer_restore = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
     auto copysrctort = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    commandlist->ResourceBarrier(1, &barrier_backbuffer_restore);
-    commandlist->ResourceBarrier(1, &copysrctort);
+    d3ddevres.cmdlist->ResourceBarrier(1, &barrier_backbuffer_restore);
+    d3ddevres.cmdlist->ResourceBarrier(1, &copysrctort);
 
-    ThrowIfFailed(commandlist->Close());
+    ThrowIfFailed(d3ddevres.cmdlist->Close());
 
-    ID3D12CommandList* ppCommandLists[] = { commandlist.Get() };
+    ID3D12CommandList* ppCommandLists[] = { d3ddevres.cmdlist.Get() };
     commandqueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
     ThrowIfFailed(swapchain->Present(1, 0));
 
     waitforgpu();
+
+    resheap.cleartransients();
+    transientresources.clear();
 
     frameidx = swapchain->GetCurrentBackBufferIndex();
 }
@@ -365,32 +368,32 @@ void renderer::dispatchmesh(stdx::vecui3 dispatch, pipelinestate ps, std::vector
     D3D12_CPU_DESCRIPTOR_HANDLE const* rts = numrts == 0 ? nullptr : &ps.rthandle;
     D3D12_CPU_DESCRIPTOR_HANDLE const* dt = ps.dthandle.ptr == 0 ? nullptr : &ps.dthandle;
 
-    commandlist->OMSetRenderTargets(numrts, rts, FALSE, dt);
+    d3ddevres.cmdlist->OMSetRenderTargets(numrts, rts, FALSE, dt);
 
     CD3DX12_VIEWPORT viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, float(ps.viewportsize[0]), float(ps.viewportsize[1])};
     CD3DX12_RECT scissorrect = CD3DX12_RECT{ 0, 0, LONG(ps.viewportsize[0]), LONG(ps.viewportsize[1]) };
 
-    commandlist->RSSetViewports(1, &viewport);
-    commandlist->RSSetScissorRects(1, &scissorrect);
+    d3ddevres.cmdlist->RSSetViewports(1, &viewport);
+    d3ddevres.cmdlist->RSSetScissorRects(1, &scissorrect);
 
     static const FLOAT clearcola[4] = { clearcol[0], clearcol[1], clearcol[2], clearcol[3] };
 
     if(rts != nullptr)
-        commandlist->ClearRenderTargetView(ps.rthandle, clearcola, 0, nullptr);
+        d3ddevres.cmdlist->ClearRenderTargetView(ps.rthandle, clearcola, 0, nullptr);
 
     if(dt != nullptr)
-        commandlist->ClearDepthStencilView(ps.dthandle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
+        d3ddevres.cmdlist->ClearDepthStencilView(ps.dthandle, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
 
-    commandlist->SetPipelineState(psobjs.pso.Get());
-    commandlist->SetGraphicsRootSignature(psobjs.root_signature.Get());
+    d3ddevres.cmdlist->SetPipelineState(psobjs.pso.Get());
+    d3ddevres.cmdlist->SetGraphicsRootSignature(psobjs.root_signature.Get());
 
     // todo : move these heaps over to renderer
     ID3D12DescriptorHeap* heaps[] = { globalres.resourceheap().d3dheap.Get(), globalres.samplerheap().d3dheap.Get() };
-    commandlist->SetDescriptorHeaps(_countof(heaps), heaps);
+    d3ddevres.cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
 
-    commandlist->SetGraphicsRoot32BitConstants(0, UINT(rootdescs.size()), rootdescs.data(), 0);
+    d3ddevres.cmdlist->SetGraphicsRoot32BitConstants(0, UINT(rootdescs.size()), rootdescs.data(), 0);
 
-    commandlist->DispatchMesh(UINT(dispatch[0]), UINT(dispatch[1]), UINT(dispatch[2]));
+    d3ddevres.cmdlist->DispatchMesh(UINT(dispatch[0]), UINT(dispatch[1]), UINT(dispatch[2]));
 }
 
 // wait for pending gpu work to complete

@@ -24,10 +24,15 @@ using matmapref = std::unordered_map<std::string, stdx::ext<material, bool>> con
 using materialentry = stdx::ext<material, bool>;
 using materialcref = stdx::ext<material, bool> const&;
 
+struct deviceresources
+{
+	ComPtr<device> dev;
+	ComPtr<gfxcmdlist> cmdlist;
+};
+
 class globalresources
 {
 	viewinfo _view;
-	uint _frameindex{ 0 };
 	std::string _assetspath;
 	resourceheap _resourceheap;
 	samplerheap _samplerheap;
@@ -36,7 +41,6 @@ class globalresources
 	ComPtr<ID3D12Resource> _rendertarget;
 	ComPtr<ID3D12GraphicsCommandList6> _commandlist;
 	std::unordered_map<std::string, pipeline_objects> _psos;
-	stdx::ext<material, bool> _defaultmat{ {}, false };
 
 	std::vector<material> _materials;
 	std::unordered_map<DXGI_FORMAT, uint> _dxgisizes{ {DXGI_FORMAT_R8G8B8A8_UNORM, 4} };
@@ -57,15 +61,12 @@ public:
 	psomapref psomap() const;
 	matmapref matmap() const;
 	uint32 materialsbuffer_idx() const;
-	materialcref defaultmat() const;
 	void rendertarget(ComPtr<ID3D12Resource>& rendertarget);
 	ComPtr<ID3D12Resource>& rendertarget();
 	ComPtr<ID3D12Device5>& device();
 	resourceheap& resourceheap();
 	samplerheap& samplerheap();
 	ComPtr<ID3D12GraphicsCommandList6>& cmdlist();
-	void frameindex(uint idx);
-	uint frameindex() const;
 	uint dxgisize(DXGI_FORMAT format);
 	material& mat(uint32 matid);
 	void psodesc(D3DX12_MESH_SHADER_PIPELINE_STATE_DESC const& psodesc);

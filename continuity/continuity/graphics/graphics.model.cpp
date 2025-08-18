@@ -12,7 +12,7 @@ import engine;
 namespace gfx
 {
 
-model::model(std::string const& objpath, modelloadparams loadparams)
+model::model(std::string const& objpath, gfx::resourcelist& transientres, modelloadparams loadparams)
 {
     rapidobj::Result result = rapidobj::ParseFile(std::filesystem::path(objpath), rapidobj::MaterialLibrary::Default(rapidobj::Load::Optional));
     stdx::cassert(!result.error);
@@ -43,7 +43,7 @@ model::model(std::string const& objpath, modelloadparams loadparams)
     std::filesystem::path path = objpath;
     auto const modeldir = path.parent_path().string();
 
-    auto createtexture = [&modeldir](std::string filename)
+    auto createtexture = [&modeldir, &transientres](std::string filename)
     {
         texture<accesstype::gpu> tex;
         std::filesystem::path filepath = filename;
@@ -53,7 +53,8 @@ model::model(std::string const& objpath, modelloadparams loadparams)
         if (!std::filesystem::exists(pathstr) || !std::filesystem::is_regular_file(pathstr))
             return tex;
 
-        tex.createfromfile(pathstr);
+        auto res = tex.createfromfile(pathstr);
+        transientres.insert(transientres.end(), res.begin(), res.end());
         return tex;
     };
 

@@ -24,7 +24,7 @@ struct modelloadparams
 struct model
 {
 	model() = default;
-	model(std::string const& objpath, modelloadparams loadparams = {});
+	model(std::string const& objpath, gfx::resourcelist& transientres, modelloadparams loadparams = {});
 
 	vertexattribs const& vertices() const { return _vertices; }
 	std::vector<index> const& indices() const { return _indices; }

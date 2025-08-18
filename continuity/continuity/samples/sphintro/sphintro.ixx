@@ -69,7 +69,7 @@ export class sphfluidintro : public sample_base
 public:
 	sphfluidintro(view_data const& viewdata);
 
-	gfx::resourcelist create_resources() override;
+	gfx::resourcelist create_resources(gfx::deviceresources& deviceres) override;
 	void update(float dt) override;
 	void render(float dt, gfx::renderer&) override;  
 

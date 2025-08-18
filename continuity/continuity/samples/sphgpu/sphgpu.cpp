@@ -127,7 +127,7 @@ UINT dispatchsize(uint dimension_dispatch, uint dimension_threads_pergroup)
     return static_cast<UINT>((dimension_dispatch + dimension_threads_pergroup - 1) / dimension_threads_pergroup);
 }
 
-gfx::resourcelist sphgpu::create_resources()
+gfx::resourcelist sphgpu::create_resources(gfx::deviceresources& deviceres)
 {
     using geometry::cube;
     using gfx::bodyparams;
@@ -140,7 +140,6 @@ gfx::resourcelist sphgpu::create_resources()
     globalres.addcomputepso("sphgpuinit", "sphgpuinit_cs.cso");
     globalres.addcomputepso("sphgpudensitypressure", "sphgpu_densitypressure_cs.cso");
     globalres.addcomputepso("sphgpuposition", "sphgpu_position_cs.cso");
-
 
     gfx::resourcelist res;
     databuffer.create(numparticles);
@@ -162,23 +161,21 @@ gfx::resourcelist sphgpu::create_resources()
         rootconstants.containerorigin[0] = rootconstants.containerorigin[1] = rootconstants.containerorigin[2] = 0.0f;
         rootconstants.containerextents[0] = rootconstants.containerextents[1] = rootconstants.containerextents[2] = roomextents;
 
-        auto cmd_list = globalres.cmdlist();
-
         auto const& pipelineobjects = globalres.psomap().find("sphgpuinit")->second;
-
-        cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-        cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+        auto& cmdlist = *deviceres.cmdlist.Get();
+        cmdlist.SetPipelineState(pipelineobjects.pso.Get());
+        cmdlist.SetComputeRootSignature(pipelineobjects.root_signature.Get());
         
         // todo cbuffer removed
-        //cmd_list->SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
-        cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetComputeRoot32BitConstants(5, 11, &rootconstants, 0);
+        //cmdlist.SetComputeRootConstantBufferView(0, globalres.cbuffer().currframe_gpuaddress());
+        cmdlist.SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
+        cmdlist.SetComputeRoot32BitConstants(5, 11, &rootconstants, 0);
 
         UINT const dispatchx = dispatchsize(numparticles, 64);
-        cmd_list->Dispatch(dispatchx, 1, 1);
+        cmdlist.Dispatch(dispatchx, 1, 1);
 
         auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(databuffer.d3dresource.Get());
-        cmd_list->ResourceBarrier(1, &uavBarrier);
+        cmdlist.ResourceBarrier(1, &uavBarrier);
     }
 
     {
@@ -213,7 +210,7 @@ gfx::resourcelist sphgpu::create_resources()
         materials_data[0].roughness = 0.25f;
         materials_data[0].reflectance = 0.5f;
 
-        gfx::model model("models/cornellbox.obj");
+        gfx::model model("models/cornellbox.obj", res);
 
         //res.push_back(roomvertbuffer.create(model.vertices));
         //res.push_back(roomindexbuffer.create(model.indices));
@@ -295,7 +292,7 @@ void sphgpu::update(float dt)
     sample_base::update(dt);
 }
 
-void sphgpu::render(float dt, gfx::renderer&)
+void sphgpu::render(float dt, gfx::renderer& renderer)
 {
     struct
     {
@@ -338,7 +335,7 @@ void sphgpu::render(float dt, gfx::renderer&)
     UINT const simdispatchx = dispatchsize(numparticles, 64);
 
     auto& globalres = gfx::globalresources::get();
-    auto cmd_list = globalres.cmdlist();
+    auto& cmdlist = *renderer.deviceres().cmdlist.Get();
 
     // todo : simulation is unstable at dt, use smaller time step
     // todo : use timestep from courant condition, but this might be tricky in gpu implementation
@@ -347,31 +344,31 @@ void sphgpu::render(float dt, gfx::renderer&)
         auto const& pipelineobjects = globalres.psomap().find("sphgpudensitypressure")->second;
 
         // root signature is same for sim shaders
-        cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-        cmd_list->SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
-        cmd_list->SetComputeRoot32BitConstants(5, 23, &rootconstants, 0);
+        cmdlist.SetComputeRootSignature(pipelineobjects.root_signature.Get());
+        cmdlist.SetComputeRootUnorderedAccessView(1, databuffer.gpuaddress());
+        cmdlist.SetComputeRoot32BitConstants(5, 23, &rootconstants, 0);
 
         // todo : handle time step 
         // simulation passes
         // density and pressure
         {
-            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
-            gfx::uav_barrier(cmd_list, databuffer);
+            cmdlist.SetPipelineState(pipelineobjects.pso.Get());
+            gfx::uav_barrier(cmdlist, databuffer);
 
-            cmd_list->Dispatch(simdispatchx, 1, 1);
+            cmdlist.Dispatch(simdispatchx, 1, 1);
         }
 
         // acceleration, velocity and position
         {
             auto const& pipelineobjects = globalres.psomap().find("sphgpuposition")->second;
 
-            cmd_list->SetPipelineState(pipelineobjects.pso.Get());
+            cmdlist.SetPipelineState(pipelineobjects.pso.Get());
 
-            gfx::uav_barrier(cmd_list, databuffer);
+            gfx::uav_barrier(cmdlist, databuffer);
 
-            cmd_list->Dispatch(simdispatchx, 1, 1);
+            cmdlist.Dispatch(simdispatchx, 1, 1);
 
-            gfx::uav_barrier(cmd_list, databuffer);
+            gfx::uav_barrier(cmdlist, databuffer);
         }
     }
 
@@ -402,9 +399,9 @@ void sphgpu::render(float dt, gfx::renderer&)
     auto const& pipelineobjects = globalres.psomap().find("sph_render")->second;
 
     // bind the global root signature, heaps and frame index, other resources are bindless
-    cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
-    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
+    cmdlist.SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
+    cmdlist.SetComputeRootSignature(pipelineobjects.root_signature.Get());
+    cmdlist.SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
