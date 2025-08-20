@@ -6,40 +6,42 @@
 
 // import modules here
 import stdxcore;
-import vec;
 
 #endif
 
 namespace rt
 {
 
-#if __cplusplus
-
-struct alignas(256) sceneconstants
+struct sceneglobals
 {
-    stdx::vec3 campos;
-    uint32 padding0;
+    uint32 matbuffer;
+    uint32 viewdirshading;
+    float3 lightdir;
+    float lightluminance;
+};
 
-    stdx::vec3 sundir;
-    uint32 padding1;
+struct viewglobals
+{
+    float3 viewpos;
+    float4x4 invviewproj;
+};
 
-    stdx::matrix4x4 inv_viewproj;
+struct rootdescs
+{
+    uint32 rootdesc;
+};
+
+struct dispatchparams
+{
+    uint32 accelerationstruct;
+    uint32 rtoutput;
+    uint32 indexbuffer;
+    uint32 primitivematerialsbuffer;
+    uint32 posbuffer;
+    uint32 texcoordbuffer;
+    uint32 tbnbuffer;
+    uint32 sceneglobals;
+    uint32 viewglobals;
 };
 
 }
-#else
-
-struct sceneconstants
-{
-    float3 campos;
-    uint32 padding0;
-    
-    float3 sundir;
-    uint32 padding1;
-
-    float4x4 inv_viewproj;
-};
-
-}
-
-#endif

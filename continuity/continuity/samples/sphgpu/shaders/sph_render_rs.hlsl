@@ -68,10 +68,12 @@ inline ray generateray(uint2 index, in float3 campos, in float4x4 projtoworld)
 [shader("raygeneration")]
 void raygenshader()
 {
-    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
+    //ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
     
     // generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
-    ray ray = generateray(DispatchRaysIndex().xy, frameconstants.campos, frameconstants.inv_viewproj);
+    //ray ray = generateray(DispatchRaysIndex().xy, frameconstants.campos, frameconstants.inv_viewproj);
+
+    ray ray;
 
     // set the ray's extents.
     RayDesc rayDesc;
@@ -98,7 +100,7 @@ void tri_closesthit(inout raypayload payload, in BuiltInTriangleIntersectionAttr
 {
     StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[6];
     StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[7];
-    ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
+    //ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
     StructuredBuffer<uint> material_ids = ResourceDescriptorHeap[8];
     StructuredBuffer<material> materials = ResourceDescriptorHeap[9];
 
@@ -118,11 +120,11 @@ void tri_closesthit(inout raypayload payload, in BuiltInTriangleIntersectionAttr
 
     // counter-clockwise winding
     float3 n = normalize(cross(v1 - v0, v2 - v0));
-    float3 l = -frameconstants.sundir;
-    float3 v = normalize(frameconstants.campos - hitpoint);
+    //float3 l = -frameconstants.sundir;
+    //float3 v = normalize(frameconstants.campos - hitpoint);
 
     payload.color.a = 1.0f;
-    payload.color.xyz = calculatelighting(float3(50, 50, 50), l, v, n, geomaterial.colour.xyz, geomaterial.roughness, geomaterial.reflectance, geomaterial.metallic) + float3(0.3, 0.3, 0.3); // ambient term;
+    payload.color.xyz = (float3)0;// calculatelighting(float3(50, 50, 50), l, v, n, geomaterial.colour.xyz, geomaterial.roughness, geomaterial.reflectance, geomaterial.metallic) + float3(0.3, 0.3, 0.3); // ambient term;
 }
 
 struct fluidhitattributes 

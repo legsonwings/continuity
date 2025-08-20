@@ -29,14 +29,6 @@ struct payloaddata
     msdata data[MAX_MSGROUPS_PER_ASGROUP];
 };
 
-struct dispatch_parameters
-{
-    uint numprims;
-    uint numverts_perprim;
-    uint maxprims_permsgroup;
-    uint numprims_perinstance;
-};
-
 struct index
 {
     uint pos;

@@ -82,7 +82,6 @@ struct bodyparams
 {
     uint maxverts;
     uint maxinstances;
-    uint32 mat;
 
     stdx::vecui2 dims;
 };
@@ -126,7 +125,7 @@ class body_static : public bodyinterface
     body_t body;
     structuredbuffer<instance_data, accesstype::both> _objconstants;
     structuredbuffer<dispatchparams, accesstype::both> _dispatchparams;
-    structuredbuffer<vector3, accesstype::both> _posbuffer;
+    structuredbuffer<stdx::vec3, accesstype::both > _posbuffer;
     structuredbuffer<vector2, accesstype::both> _texcoordbuffer;
     structuredbuffer<tbn, accesstype::both> _tbnbuffer;
     structuredbuffer<index, accesstype::both> _indexbuffer;

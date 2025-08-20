@@ -11,11 +11,12 @@ export enum class samples : int
 	sphintro,
 	sphgpu,
 	raytrace,
+	pathtrace,
 	num
 };
 
-export inline std::wstring sample_titles[int(samples::num)] = { L"Basic ", L"Playground", L"Intro SPH fluid ", L"Sph Gpu fluid", L"raytrace"};
-export auto constexpr activesample = samples::playground;
+export inline std::wstring sample_titles[int(samples::num)] = { L"Basic ", L"Playground", L"Intro SPH fluid ", L"Sph Gpu fluid", L"raytrace", L"pathtrace" };
+export auto constexpr activesample = samples::pathtrace;
 
 namespace gfx { class renderer; }
 
