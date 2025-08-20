@@ -56,9 +56,9 @@ struct index
 
 struct tbn
 {
-    vector3 normal = {};
-    vector3 tangent = {};
-    vector3 bitangent = {};
+    stdx::vec3 normal = {};
+    stdx::vec3 tangent = {};
+    stdx::vec3 bitangent = {};
 };
 
 struct vertex
@@ -72,7 +72,7 @@ struct vertex
 
 struct vertexattribs
 {
-    std::vector<vector3> positions;
+    std::vector<stdx::vec3> positions;
     std::vector<vector2> texcoords;
     std::vector<tbn> tbns;
 };

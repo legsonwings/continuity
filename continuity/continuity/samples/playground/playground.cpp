@@ -35,20 +35,12 @@ gfx::resourcelist playground::create_resources(gfx::deviceresources& deviceres)
     auto& globalres = gfx::globalresources::get();
 
     viewglobalsbuffer.create(2);
-    sceneglobalsbuffer.create(2);
-
-    gfx::material mat;
-    mat.basecolour = stdx::vec4{ 0.0f, 1.0, 0.0, 1.0f };
-    mat.metallic = 0u;
-    mat.roughness = 0.25f;
-    mat.reflectance = 0.5f;
-
-    auto matid = globalres.addmat(mat);
+    sceneglobalsbuffer.create(1);
 
     gfx::resourcelist res;
 
     // since these use static vertex buffers, just send 0 as maxverts
-    auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj", res), bodyparams{ 0, 1, matid } );
+    auto &model = models.emplace_back(gfx::model("models/sponza/sponza.obj", res), bodyparams{ 0, 1 } );
 
     for (auto b : stdx::makejoin<gfx::bodyinterface>(models)) { stdx::append(b->create_resources(), res); };
 

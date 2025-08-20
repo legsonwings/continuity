@@ -33,7 +33,7 @@ void setnamedebug(ComPtr<ID3D12Resource>& resource, std::wstring const& name)
 
 shadertable::shadertable(uint recordsize, uint numrecords) : shaderrecordsize(recordsize), numshaderrecords(numrecords)
 {
-    create(&mapped_records, recordsize * numrecords);
+    create(&mappeddata, recordsize * numrecords);
 }
 
 ComPtr<ID3D12Resource> blas::kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& geometrydesc)
@@ -124,7 +124,7 @@ std::array<ComPtr<ID3D12Resource>, triblas::numresourcetokeepalive> triblas::bui
     geometrydesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
     geometrydesc.Triangles.VertexCount = static_cast<UINT>(vertices.numelements);
     geometrydesc.Triangles.VertexBuffer.StartAddress = vertices.gpuaddress();
-    geometrydesc.Triangles.VertexBuffer.StrideInBytes = sizeof(stdx::vec3);
+    geometrydesc.Triangles.VertexBuffer.StrideInBytes = sizeof(rtvertexbuffer::struct_t);
 
     auto scratch = kickoffbuild(geometrydesc);
 
@@ -193,25 +193,20 @@ void raytrace::dispatchrays(shadertable const& raygen, shadertable const& miss, 
     globalresources::get().cmdlist()->DispatchRays(&dispatchdesc);
 }
 
-void raytrace::copyoutputtorendertarget(rtouttexture const& rtoutput)
+void raytrace::copyoutputtorendertarget(gfxcmdlist* cmdlist, rtouttexture const& rtoutput, ID3D12Resource* rendertarget)
 {
-    auto& globalres = globalresources::get();
-
-    auto cmd_list = globalres.cmdlist();
-    auto* rendertarget = globalres.rendertarget().Get();
-
     D3D12_RESOURCE_BARRIER precopybarriers[2];
     precopybarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
     precopybarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rtoutput.d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    cmd_list->ResourceBarrier(ARRAYSIZE(precopybarriers), precopybarriers);
+    cmdlist->ResourceBarrier(ARRAYSIZE(precopybarriers), precopybarriers);
 
-    cmd_list->CopyResource(rendertarget, rtoutput.d3dresource.Get());
+    cmdlist->CopyResource(rendertarget, rtoutput.d3dresource.Get());
 
     D3D12_RESOURCE_BARRIER postcopybarriers[2];
     postcopybarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
     postcopybarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(rtoutput.d3dresource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-    cmd_list->ResourceBarrier(ARRAYSIZE(postcopybarriers), postcopybarriers);
+    cmdlist->ResourceBarrier(ARRAYSIZE(postcopybarriers), postcopybarriers);
 }
 
 //std::string generaterandom_matcolor(stdx::ext<material, bool> definition, std::optional<std::string> const& preferred_name)

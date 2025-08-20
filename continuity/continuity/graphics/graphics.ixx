@@ -20,7 +20,6 @@ import stdx;
 import vec;
 import std;
 
-// todo : make graphicscore partial module unit
 import graphicscore;
 import geometry;
 
@@ -53,7 +52,7 @@ void uav_barrier(gfx::gfxcmdlist &cmdlist, args const&... resources)
 // raytrace stuff below
 using rtouttexture = texture<accesstype::gpu>;
 using rtvertexbuffer = structuredbuffer<stdx::vec3, accesstype::both>;
-using rtindexbuffer = structuredbuffer<uint32_t, accesstype::both>;
+using rtindexbuffer = structuredbuffer<uint32, accesstype::both>;
 
 uint alignshaderrecord(uint unalignedsize) { return align(unalignedsize, D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT); }
 
@@ -113,14 +112,13 @@ public:
 		numshaderrecordswritten += 2;
 	}
 
-	std::byte* getnewrecord_start() const { return mapped_records + numshaderrecordswritten * shaderrecordsize; }
+	std::byte* getnewrecord_start() const { return mappeddata + numshaderrecordswritten * shaderrecordsize; }
 
 private:
 
 	uint shaderrecordsize = 0;
 	uint numshaderrecords = 0;
 	uint numshaderrecordswritten = 0;
-	std::byte* mapped_records = nullptr;
 };
 
 enum class blastype
@@ -173,7 +171,7 @@ struct proceduralblas : public blas
 struct raytrace
 {
 	void dispatchrays(shadertable const& raygen, shadertable const& miss, shadertable const& hitgroup, ID3D12StateObject* stateobject, uint width, uint height);
-	void copyoutputtorendertarget(rtouttexture const& rtoutput);
+	void copyoutputtorendertarget(gfxcmdlist* cmdlist, rtouttexture const& rtoutput, ID3D12Resource* rendertarget);
 };
 
 }

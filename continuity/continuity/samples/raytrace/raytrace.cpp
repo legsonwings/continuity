@@ -133,7 +133,7 @@ gfx::resourcelist raytrace::create_resources(gfx::deviceresources& deviceres)
     return res;
 }
 
-void raytrace::render(float dt, gfx::renderer&)
+void raytrace::render(float dt, gfx::renderer& renderer)
 {
     auto& globalres = gfx::globalresources::get();
     //auto& framecbuffer = constantbuffer.data(0);
@@ -142,15 +142,15 @@ void raytrace::render(float dt, gfx::renderer&)
     //framecbuffer.campos = camera.GetCurrentPosition();
     //framecbuffer.inv_viewproj = utils::to_matrix4x4((globalres.view().view * globalres.view().proj).Invert());
 
-    auto cmd_list = globalres.cmdlist();
+    auto& cmdlist = renderer.deviceres().cmdlist;
     auto const& pipelineobjects = globalres.psomap().find("raytrace")->second;
 
     // bind the global root signature, heaps and frame index, other resources are bindless 
-    cmd_list->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
-    cmd_list->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    cmd_list->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
+    cmdlist->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
+    cmdlist->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+    cmdlist->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), 720, 720);
-    rt.copyoutputtorendertarget(raytracingoutput);
+    rt.copyoutputtorendertarget(cmdlist.Get(), raytracingoutput, renderer.rendertarget.d3dresource.Get());
 }

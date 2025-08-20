@@ -5,6 +5,8 @@
 #include "shared/raytracecommon.h"
 #include "shaders/lighting.hlsli"
 
+ConstantBuffer<rt::rootdescs> rootdescriptors : register(b0);
+
 struct raypayload
 {
     float4 color;
@@ -45,12 +47,13 @@ inline ray generateray(uint2 index, in float3 campos, in float4x4 projtoworld)
 [shader("raygeneration")]
 void raygenshader()
 {
-    //ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
-    
-    // generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
-    //ray ray = generateray(DispatchRaysIndex().xy, frameconstants.campos, frameconstants.inv_viewproj);
+    StructuredBuffer<rt::dispatchparams> descriptorsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc]; 
+    rt::dispatchparams descriptors = descriptorsbuffer[0];
 
-    ray ray;
+    StructuredBuffer<rt::viewglobals> view = ResourceDescriptorHeap[descriptors.viewglobals];
+
+    // generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
+    ray ray = generateray(DispatchRaysIndex().xy, view[0].viewpos, view[0].invviewproj);
 
     // set the ray's extents.
     RayDesc rayDesc;
@@ -63,10 +66,10 @@ void raygenshader()
     rayDesc.TMax = 10000;
     raypayload raypayload = { float4(0, 0, 0, 0)};
 
-    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[3];
+    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[descriptors.accelerationstruct];
     TraceRay(scene, RAY_FLAG_CULL_FRONT_FACING_TRIANGLES, ~0, 0, 1, 0, rayDesc, raypayload);
 
-    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[4];
+    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[descriptors.rtoutput];
 
     // write the raytraced color to the output texture.
     rendertarget[DispatchRaysIndex().xy] = raypayload.color;
@@ -75,33 +78,39 @@ void raygenshader()
 [shader("closesthit")]
 void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[5];
-    StructuredBuffer<uint> indexbuffer = ResourceDescriptorHeap[6];
-    //ConstantBuffer<rt::sceneconstants> frameconstants = ResourceDescriptorHeap[2];
-    StructuredBuffer<uint> material_ids = ResourceDescriptorHeap[7];
-    StructuredBuffer<material> materials = ResourceDescriptorHeap[8];
+    StructuredBuffer<rt::dispatchparams> descriptorsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
+    rt::dispatchparams descriptors = descriptorsbuffer[0];
+
+    StructuredBuffer<rt::viewglobals> view = ResourceDescriptorHeap[descriptors.viewglobals];
+    StructuredBuffer<rt::sceneglobals> scene = ResourceDescriptorHeap[descriptors.sceneglobals];
+
+    StructuredBuffer<float3> vertexbuffer = ResourceDescriptorHeap[descriptors.posbuffer];
+    StructuredBuffer<index> indexbuffer = ResourceDescriptorHeap[descriptors.indexbuffer];
+    StructuredBuffer<uint> primmaterialsbuffer = ResourceDescriptorHeap[descriptors.primitivematerialsbuffer];
+    StructuredBuffer<material> materials = ResourceDescriptorHeap[scene[0].matbuffer];
 
     // index of blas in tlas, assume each instance only contains geometries that use same material id
-    uint const geometryinstance_idx = InstanceIndex();
-
-    material geomaterial = materials[material_ids[geometryinstance_idx]];
+    //uint const geometryinstance_idx = InstanceIndex();
 
     uint const triidx = PrimitiveIndex();
+    material mat = materials[primmaterialsbuffer[triidx]];
     
-    float3 const v0 = vertexbuffer[indexbuffer[triidx * 3]];
-    float3 const v1 = vertexbuffer[indexbuffer[triidx * 3 + 1]];
-    float3 const v2 = vertexbuffer[indexbuffer[triidx * 3 + 2]];
+    float3 const v0 = vertexbuffer[indexbuffer[triidx * 3].pos];
+    float3 const v1 = vertexbuffer[indexbuffer[triidx * 3 + 1].pos];
+    float3 const v2 = vertexbuffer[indexbuffer[triidx * 3 + 2].pos];
 
     float3 const barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);    
     float3 const hitpoint = barycentrics.x * v0 + barycentrics.y * v1 + barycentrics.z * v2;
 
     // counter-clockwise winding
+    // todo : use vertex normals passed in
+    // todo : shade using textures
     float3 n = normalize(cross(v1 - v0, v2 - v0));
-    //float3 l = -frameconstants.sundir;
-    //float3 v = normalize(frameconstants.campos - hitpoint);
+    float3 l = -scene[0].lightdir;
+    float3 v = normalize(view[0].viewpos - hitpoint);
    
     payload.color.a = 1.0f;
-    payload.color.xyz = (float3)0; //calculatelighting(float3(50, 50, 50), l, v, n, geomaterial.colour.xyz, geomaterial.roughness, geomaterial.reflectance, geomaterial.metallic) + float3(0.3, 0.3, 0.3); // ambient term
+    payload.color.xyz = calculatelighting(float3(50, 50, 50), l, v, n, mat.colour.xyz, mat.roughness, mat.reflectance, mat.metallic) + float3(0.3, 0.3, 0.3); // ambient term
 }
 
 #endif // RAYTRACE_HLSL
