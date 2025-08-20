@@ -81,6 +81,8 @@ ComPtr<ID3D12Resource> create_accelerationstructbuffer(std::size_t const b_size)
 
 ComPtr<ID3D12Resource> createtexture_default(CD3DX12_RESOURCE_DESC const& texdesc, stdx::vec4 clear, D3D12_RESOURCE_STATES state)
 {
+    stdx::cassert(texdesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER && texdesc.Dimension != D3D12_RESOURCE_DIMENSION_UNKNOWN);
+
     D3D12_CLEAR_VALUE clearcolour = {};
     clearcolour.Format = texdesc.Format;
     clearcolour.Color[0] = clear[0];
@@ -88,10 +90,14 @@ ComPtr<ID3D12Resource> createtexture_default(CD3DX12_RESOURCE_DESC const& texdes
     clearcolour.Color[2] = clear[2];
     clearcolour.Color[3] = clear[3];
 
+    auto targetflags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+    D3D12_CLEAR_VALUE* clearp = (texdesc.Flags & targetflags) ? &clearcolour : nullptr;
+
     auto device = globalresources::get().device();
     ComPtr<ID3D12Resource> texdefault;
     auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, state, &clearcolour, IID_PPV_ARGS(texdefault.ReleaseAndGetAddressOf())));
+    ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, state, clearp, IID_PPV_ARGS(texdefault.ReleaseAndGetAddressOf())));
     return texdefault;
 }
 
