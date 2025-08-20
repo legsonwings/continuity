@@ -261,8 +261,13 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     // global root signature is a root signature that is shared across all raytracing shaders invoked during a DispatchRays() call.
 
     {
+        // todo : everything uses same root signature
+        // make a sharable one
         ComPtr<ID3D12RootSignature> rootsig;
-        CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(0, nullptr);
+
+        CD3DX12_ROOT_PARAMETER rootparam;
+        rootparam.InitAsConstants(1, 0);
+        CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(1, &rootparam);
         rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
         // empty root signature

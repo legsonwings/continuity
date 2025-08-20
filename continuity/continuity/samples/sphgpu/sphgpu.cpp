@@ -405,5 +405,5 @@ void sphgpu::render(float dt, gfx::renderer& renderer)
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
-    rt.copyoutputtorendertarget(raytracingoutput);
+    rt.copyoutputtorendertarget(&cmdlist, raytracingoutput, renderer.rendertarget.d3dresource.Get());
 }

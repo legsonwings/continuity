@@ -25,23 +25,26 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
     auto const& texcoords = result.attributes.texcoords;
 
     // make sure copying is safe
-    static_assert(sizeof(std::decay_t<decltype(positions)>::value_type) * 3 == sizeof(vector3));
+    static_assert(sizeof(std::decay_t<decltype(positions)>::value_type) * 3 == sizeof(stdx::vec3));
     static_assert(sizeof(std::decay_t<decltype(texcoords)>::value_type) * 2 == sizeof(vector2));
 
-    vector3 const* const posstart = reinterpret_cast<vector3 const*>(positions.data());
-    _vertices.positions = std::vector<vector3>(posstart, posstart + (positions.size() / 3));
+    stdx::vec3 const* const posstart = reinterpret_cast<stdx::vec3 const*>(positions.data());
+    _vertices.positions = std::vector<stdx::vec3>(posstart, posstart + (positions.size() / 3));
     
     // flip uvs as directx uses top left as origin of uv space
     for (auto i = 0u; i < texcoords.size(); i += 2)
         _vertices.texcoords.emplace_back(texcoords[i], 1.0f - texcoords[i + 1]);
 
     for (auto i = 0u; i < normals.size(); i += 3)
-        _vertices.tbns.emplace_back().normal = vector3{ normals[i], normals[i + 1], normals[i + 2] };
+        _vertices.tbns.emplace_back().normal = stdx::vec3{ normals[i], normals[i + 1], normals[i + 2] };
 
     auto const numverts = positions.size() / 3;
 
     std::filesystem::path path = objpath;
     auto const modeldir = path.parent_path().string();
+
+    auto fallbacktexcoord = int(_vertices.texcoords.size());
+    _vertices.texcoords.emplace_back();
 
     auto createtexture = [&modeldir, &transientres](std::string filename)
     {
@@ -57,6 +60,11 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
         transientres.insert(transientres.end(), res.begin(), res.end());
         return tex;
     };
+
+    // todo : add a default material
+    // add an empty material for faces without one
+    auto fallbackmaterial = int(result.materials.size());
+    result.materials.emplace_back();
 
     std::vector<uint32> materialidxtodescidx;
     for (auto const& m : result.materials)
@@ -134,12 +142,24 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
         {
             stdx::cassert(shape.mesh.num_face_vertices[i] == 3);
 
+            int old_normalindices[3] = {};
             rapidobj::Index face[3] = { objindices[i * 3], objindices[i * 3 + 1], objindices[i * 3 + 2] };
 
-            vector3 ps[3];
+            stdx::vec3 ps[3];
             vector2 uvs[3];
             for (auto j : stdx::range(3u))
             {
+                old_normalindices[j] = face[j].normal_index;
+                if (face[j].normal_index == -1)
+                {
+                    // if the vertex doesn't have a normal then add it to the end
+                    face[j].normal_index = int(_vertices.tbns.size());
+                    
+                    _vertices.tbns.emplace_back();
+                }
+
+                if (face[j].texcoord_index == -1) face[j].texcoord_index = fallbacktexcoord;
+
                 // all vectors in tbn are similarly indexed, so use normal index
                 _indices.emplace_back(face[j].position_index, face[j].texcoord_index, face[j].normal_index);
 
@@ -160,7 +180,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
             // there are lot of cases where triangles are degenerates in uv space but not in R3
             // caused by same texture coord used for two vertices, but position is different(where is this coming from?)
             // avoid such cases by setting tangent and bitangent to zero to prevent nan propagation
-            vector3 t, b;
+            stdx::vec3 t{}, b{};
             if (std::abs(det) > 1e-30f)
             {
                 // create tbn based on uvs for consistency
@@ -170,17 +190,19 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
             }
 
             // counter-clockwise
-            auto n = e0.Cross(e1).Normalized();
+            auto n = e0.cross(e1).normalized();
             for (auto j : stdx::range(3u))
             {
                 // compute vertex normals, if normals aren't provided
-                if (normals.size() == 0) _vertices.tbns[face[j].normal_index].normal += n;
+                if (old_normalindices[j] == -1) _vertices.tbns[face[j].normal_index].normal += n;
 
                 _vertices.tbns[face[j].normal_index].tangent += t;
                 _vertices.tbns[face[j].normal_index].bitangent += b;
             }
 
-            auto facematerial = shape.mesh.material_ids[i];
+            int facematerial = shape.mesh.material_ids[i];
+            facematerial = facematerial == -1 ? fallbackmaterial : facematerial;
+
             _materials.push_back(materialidxtodescidx[facematerial]);
         }
     }
@@ -191,9 +213,9 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
         auto& t = _vertices.tbns[i].tangent;
         auto& b = _vertices.tbns[i].bitangent;
 
-        n.Normalize();
-        t = (t - t.Dot(n) * n).Normalized();
-        b = (b - b.Dot(n) * n - b.Dot(t) * t).Normalized();
+        n = n.normalized();
+        t = (t - t.dot(n) * n).normalized();
+        b = (b - b.dot(n) * n - b.dot(t) * t).normalized();
     }
 
     //if (loadparams.translatetoorigin)

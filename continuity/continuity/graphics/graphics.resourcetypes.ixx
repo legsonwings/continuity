@@ -111,6 +111,8 @@ export enum class accesstype
 template<typename t, typename t_parent = resource>
 struct structuredbufferbase : public t_parent
 {
+	using struct_t = t;
+
 	srv createsrv(bool transient = false)
 	{
 		stdx::cassert(this->d3dresource != nullptr);
