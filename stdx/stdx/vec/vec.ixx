@@ -13,10 +13,12 @@ struct vec : public std::array<t, d>
 	constexpr vec operator-() const { return stdx::unaryop(*this, stdx::uminus()); }
 	constexpr vec operator+(vec r) const { return stdx::binaryop(*this, r, std::plus<>()); }
 	constexpr vec operator-(vec r) const { return stdx::binaryop(*this, r, std::minus<>()); }
-	constexpr vec operator*(t r) const { return stdx::unaryop(*this, std::bind(std::multiplies<>(), std::placeholders::_1, r)); }
 	constexpr vec operator*(vec r) const { return stdx::binaryop(*this, r, std::multiplies<>()); }
-	constexpr vec operator/(t r) const { return stdx::unaryop(*this, std::bind(std::divides<>(), std::placeholders::_1, r)); }
 	constexpr vec operator/(vec r) const { return stdx::binaryop(*this, r, std::divides<>()); }
+	constexpr vec operator+(t r) const { return stdx::unaryop(*this, std::bind(std::plus<>(), std::placeholders::_1, r)); }
+	constexpr vec operator-(t r) const { return stdx::unaryop(*this, std::bind(std::minus<>(), std::placeholders::_1, r)); }
+	constexpr vec operator*(t r) const { return stdx::unaryop(*this, std::bind(std::multiplies<>(), std::placeholders::_1, r)); }
+	constexpr vec operator/(t r) const { return stdx::unaryop(*this, std::bind(std::divides<>(), std::placeholders::_1, r)); }
 	constexpr bool operator==(vec r) const { return stdx::equals(*this, r, t(0)); }
 	constexpr bool operator==(t r) const { return stdx::equals(*this, r, t(0)); }
 

@@ -9,11 +9,11 @@ meshshadervertex getvertattribute(vertexin vertex)
     StructuredBuffer<instance_data> objconstants = ResourceDescriptorHeap[descriptors[0].objconstants];
 
     meshshadervertex outvert;
-    
+
     float4 const pos = float4(vertex.position, 1.f);
-    outvert.position = mul(pos, objconstants[0].matx).xyz;
-    //outvert.positionh = mul(pos, objconstants[0].mvpmatx);
-    outvert.normal = normalize(mul(float4(vertex.normal, 0), objconstants[0].normalmatx).xyz);
+    outvert.position = mul(objconstants[0].matx, pos).xyz;
+    //outvert.positionh = mul(objconstants[0].mvpmatx, pos);
+    outvert.normal = normalize(mul(objconstants[0].normalmatx, float4(vertex.normal, 0)).xyz);
     
     return outvert;
 }

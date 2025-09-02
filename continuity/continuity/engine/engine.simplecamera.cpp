@@ -154,7 +154,11 @@ XMMATRIX simplecamera::GetViewMatrix()
 
 XMMATRIX simplecamera::GetProjectionMatrix()
 {
-    return XMMatrixPerspectiveFovLH(XM_PI / 3.0f, static_cast<float>(_width) / static_cast<float>(_height), _nearp, _farp);
+    auto const projmat = XMMatrixPerspectiveFovLH(XM_PI / 3.0f, static_cast<float>(_width) / static_cast<float>(_height), _nearp, _farp);
+    auto const jittermat = XMMatrixTranslation(subpixeljitter[0], subpixeljitter[1], 0.0f);
+    auto jittredproj = XMMatrixMultiply(projmat, jittermat);
+
+    return jittredproj;
 }
 
 DirectX::XMMATRIX simplecamera::GetOrthoProjectionMatrix()
@@ -163,6 +167,8 @@ DirectX::XMMATRIX simplecamera::GetOrthoProjectionMatrix()
 }
 
 void simplecamera::lock(bool lock) { _locked = lock; }
+
+void simplecamera::jitter(stdx::vec2 jitter) { subpixeljitter = jitter; }
 
 float simplecamera::nearplane() const { return _nearp; }
 

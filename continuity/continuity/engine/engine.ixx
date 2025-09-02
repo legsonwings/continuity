@@ -14,8 +14,8 @@ import graphicscore;
 
 export struct view_data
 {
-    unsigned width = 2560;
-    unsigned height = 1440;
+    unsigned width = 1920;
+    unsigned height = 1080;
     float nearplane = 8000;
     float farplane = 0.0001f;
 

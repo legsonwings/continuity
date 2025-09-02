@@ -126,7 +126,7 @@ class body_static : public bodyinterface
     structuredbuffer<instance_data, accesstype::both> _objconstants;
     structuredbuffer<dispatchparams, accesstype::both> _dispatchparams;
     structuredbuffer<stdx::vec3, accesstype::both > _posbuffer;
-    structuredbuffer<vector2, accesstype::both> _texcoordbuffer;
+    structuredbuffer<stdx::vec2, accesstype::both> _texcoordbuffer;
     structuredbuffer<tbn, accesstype::both> _tbnbuffer;
     structuredbuffer<index, accesstype::both> _indexbuffer;
     structuredbuffer<uint32, gfx::accesstype::both> _materialsbuffer;

@@ -22,6 +22,7 @@ public:
     DirectX::XMMATRIX GetOrthoProjectionMatrix();
 
     void lock(bool lock);
+    void jitter(stdx::vec2 jitter);
 
     float nearplane() const;
     float farplane() const;
@@ -70,6 +71,7 @@ private:
     float _farp = 0.0001f;
     unsigned _width = 0;
     unsigned _height = 0;
+    stdx::vec2 subpixeljitter = {};
 
     KeysPressed m_keysPressed;
 
