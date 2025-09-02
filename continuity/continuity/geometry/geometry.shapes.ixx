@@ -52,8 +52,9 @@ struct aabb
     std::optional<aabb> intersect(aabb const& r) const;
 
     // bot left front = min, top right back = max
-    stdx::vec3 min_pt = std::numeric_limits<stdx::vec3>::max();
-    stdx::vec3 max_pt = std::numeric_limits<stdx::vec3>::lowest();
+    // std::numeric_limits<stdx::vec3> causes internal compiler error, so explicitly use float here
+    stdx::vec3 min_pt = stdx::vec3::filled(std::numeric_limits<float>::lowest());
+    stdx::vec3 max_pt = stdx::vec3::filled(std::numeric_limits<float>::max());
 };
 
 struct cube

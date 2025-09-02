@@ -5,6 +5,9 @@ module;
 #include "thirdparty/dxhelpers.h"
 #include "thirdparty/wictextureloader12.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "thirdparty/stb_image.h"
+
 module graphics:resourcetypes;
 
 import engine;
@@ -271,13 +274,13 @@ dtv dtheap::adddtv(ID3D12Resource* res)
 }
 
 
-srv texturebase::createsrv(DXGI_FORMAT format) const
+srv texturebase::createsrv(DXGI_FORMAT viewformat) const
 {
-    stdx::cassert(this->d3dresource != nullptr && format != DXGI_FORMAT::DXGI_FORMAT_UNKNOWN);
+    stdx::cassert(this->d3dresource != nullptr);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {};
     srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvdesc.Format = format;
+    srvdesc.Format = viewformat == DXGI_FORMAT_UNKNOWN ? format : viewformat;
     srvdesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvdesc.Texture2D.MipLevels = d3dresource->GetDesc().MipLevels;
 
@@ -302,8 +305,20 @@ uav texturebase::createuav(uint32 mipslice, bool transient) const
 {
     stdx::cassert(this->d3dresource != nullptr);
 
+    // uav writes don't support srgb formats
+    auto viewformat = format;
+    switch (format)
+    {
+    case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+        viewformat = DXGI_FORMAT_R8G8B8A8_UNORM;
+        break;
+    case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+        viewformat = DXGI_FORMAT_B8G8R8A8_UNORM;
+        break;
+    }
+
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavdesc = {};
-    uavdesc.Format = format;
+    uavdesc.Format = viewformat;
     uavdesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
     uavdesc.Texture2D.MipSlice = mipslice;
 
@@ -337,25 +352,49 @@ void texture<accesstype::gpu>::create(CD3DX12_RESOURCE_DESC const& texdesc, stdx
     d3dresource = createtexture_default(texdesc, clear, state);
 }
 
-resourcelist texture<accesstype::gpu>::createfromfile(std::string const& path)
+resourcelist texture<accesstype::gpu>::createfromfile(std::string const& path, bool srgb)
 {
     auto& globalres = gfx::globalresources::get();
     auto device = globalres.device();
     auto cmdlist = globalres.cmdlist();
 
     stdx::cassert(this->d3dresource == nullptr);
+    std::filesystem::path filepath = path;
 
     D3D12_SUBRESOURCE_DATA subresdata;
+    CD3DX12_RESOURCE_DESC texdesc;
     ID3D12Resource* texture = nullptr;
+
     std::unique_ptr<uint8_t[]> wicdata;
+    float* hdrdata = nullptr;
+    if (filepath.extension() == ".hdr")
+    {
+        int w, h, nc;
+        hdrdata = stbi_loadf(path.c_str(), &w, &h, &nc, 0);
+        stdx::cassert(hdrdata);
 
-    // WIC_LOADER_MIP_AUTOGEN will reserve mips but won't generate them
-    DirectX::LoadWICTextureFromFileEx(device.Get(), utils::strtowstr(path).c_str(), 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, WIC_LOADER_MIP_AUTOGEN, &texture, wicdata, subresdata);
-    stdx::cassert(texture != nullptr);
+        texdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32_FLOAT, UINT64(w), UINT(h), 1, 1);
+        auto defaultheap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+        ThrowIfFailed(device->CreateCommittedResource(&defaultheap_desc, D3D12_HEAP_FLAG_NONE, &texdesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&texture)));
 
-    auto const& texdesc = texture->GetDesc();
-    format = texture->GetDesc().Format;
-    dims = { uint32(texture->GetDesc().Width), uint32(texture->GetDesc().Height) };
+        subresdata.pData = hdrdata;
+        subresdata.RowPitch = sizeof(float) * nc * w;
+        subresdata.SlicePitch = subresdata.RowPitch * h;
+    }
+    else
+    {
+        // WIC_LOADER_MIP_AUTOGEN will reserve mips but won't generate them
+        WIC_LOADER_FLAGS loadflags = (srgb ? (WIC_LOADER_SRGB_DEFAULT | WIC_LOADER_MIP_AUTOGEN) : WIC_LOADER_MIP_AUTOGEN);
+        DirectX::LoadWICTextureFromFileEx(device.Get(), utils::strtowstr(path).c_str(), 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, loadflags, &texture, wicdata, subresdata);
+        stdx::cassert(texture != nullptr);
+
+        texdesc = CD3DX12_RESOURCE_DESC(texture->GetDesc());
+    }
+
+    stdx::cassert(std::has_single_bit(texdesc.Width) && std::has_single_bit(texdesc.Height));
+
+    format = texdesc.Format;
+    dims = { uint32(texdesc.Width), uint32(texdesc.Height) };
     d3dresource = texture;
 
     const UINT64 ubsize = GetRequiredIntermediateSize(texture, 0, 1);
@@ -383,9 +422,10 @@ resourcelist texture<accesstype::gpu>::createfromfile(std::string const& path)
         uint32 desttexture;
         uint32 linearsampler;
         stdx::vec2 texelsize;
+        uint32 srgb;
     };
 
-    // todo : texdesc.MipLevels isn't correct
+    // todo : not all textures are square so we get wrong dimensions for dispatch
     std::vector<uint32> paramindices(texdesc.MipLevels - 1);
     std::vector<structuredbuffer<genmipsparams, accesstype::both>> mipgenparambuffers;
 
@@ -398,6 +438,7 @@ resourcelist texture<accesstype::gpu>::createfromfile(std::string const& path)
         params.srctexture = createsrv(1, uint32(i), true).heapidx;
         params.desttexture = createuav(uint32(i + 1), true).heapidx;
         params.texelsize = { 1.0f / float(destdims[0]), 1.0f / float(destdims[1]) };
+        params.srgb = uint32(srgb);
 
         mipgenparambuffers.emplace_back().create({ params });
 
@@ -413,7 +454,6 @@ resourcelist texture<accesstype::gpu>::createfromfile(std::string const& path)
     cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
     cmdlist->SetPipelineState(pipelineobjects.pso.Get());
 
-    // todo : this should be dispatch mesh structure
     for (auto i : stdx::range(texdesc.MipLevels - 1))
     {
         uint32 destdims[2] = { uint32(texdesc.Width >> (i + 1)), uint32(texdesc.Height >> (i + 1)) };
@@ -421,13 +461,15 @@ resourcelist texture<accesstype::gpu>::createfromfile(std::string const& path)
         // only first root constant is read so its fine
         cmdlist->SetComputeRoot32BitConstants(0, 3, &paramindices[i], 0);
 
-        auto dispatchx = UINT(divideup<8>(destdims[0]));
-        auto dispatchy = UINT(divideup<8>(destdims[1]));
+        auto dispatchx = std::max<UINT>(divideup<8>(destdims[0]), 1u);
+        auto dispatchy = std::max<UINT>(divideup<8>(destdims[1]), 1u);
         cmdlist->Dispatch(dispatchx, dispatchy, 1);
 
         auto uavBarrier = CD3DX12_RESOURCE_BARRIER::UAV(texture);
         cmdlist->ResourceBarrier(1, &uavBarrier);
     }
+
+    if (hdrdata) stbi_image_free(hdrdata);
 
     return uploadres;
 }

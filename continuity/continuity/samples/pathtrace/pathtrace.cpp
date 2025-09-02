@@ -14,6 +14,11 @@ import activesample;
 
 using matrix = DirectX::SimpleMath::Matrix;
 
+static std::random_device rd;
+static std::mt19937 re(rd());
+static std::uniform_real_distribution<float> dist(0.f, 1.f);
+static std::uniform_int_distribution<uint32> distu(0, std::numeric_limits<uint32>::max());
+
 namespace sample_creator
 {
 
@@ -25,9 +30,6 @@ std::unique_ptr<sample_base> create_instance<samples::pathtrace>(view_data const
 
 }
 
-#define namkaran(d3dobject) { d3dobject->SetName(utils::strtowstr(#d3dobject).c_str()); }
-#define namkaranres(gfxresource) { gfxresource.d3dresource->SetName(utils::strtowstr(#gfxresource).c_str()); }
-
 // raytracing stuff
 static constexpr char const* hitgroupname = "trianglehitgroup";
 static constexpr char const* raygenshadername = "raygenshader";
@@ -36,8 +38,12 @@ static constexpr char const* missshadername = "missshader";
 
 pathtrace::pathtrace(view_data const& viewdata) : sample_base(viewdata)
 {
-	camera.Init({ 0.f, 0.f, -500.f });
+	camera.Init({ 0.f, 0.f, 0 });
 	camera.SetMoveSpeed(200.0f);
+
+    scenedata = {};
+    scenedata.numbounces = 1;
+    scenedata.numindirectrays = 2;
 }
 
 gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
@@ -58,15 +64,16 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
     gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
     gfx::blasinstancedescs instancedescs;
 
-    indexbuffer.create(model.indices());
-    posbuffer.create(model.vertices().positions);
-        
-    //texcoordbuffer.create(model.vertices().texcoords);
-    //tbnbuffer.create(model.vertices().tbns);
+    auto const& vertices = model.vertices();
+    auto const& indices = model.indices();
+    indexbuffer.create(indices);
+    posbuffer.create(vertices.positions);
+    texcoordbuffer.create(vertices.texcoords);
+    tbnbuffer.create(vertices.tbns);
 
     std::vector<uint32> positionindices;
-    positionindices.reserve(model.indices().size());
-    for (auto const& idx : model.indices())
+    positionindices.reserve(indices.size());
+    for (auto const& idx : indices)
         positionindices.emplace_back(idx.pos);
 
     gfx::structuredbuffer<uint32, gfx::accesstype::both> posindexbuffer;
@@ -107,43 +114,56 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
     hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
     hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
-    raytracingoutput.create(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
     rt::dispatchparams dispatch_params;
     dispatch_params.posbuffer = posbuffer.createsrv().heapidx;
-    //dispatch_params.texcoordbuffer = texcoordbuffer.createsrv().heapidx;
-    //dispatch_params.tbnbuffer = tbnbuffer.createsrv().heapidx;
+    dispatch_params.texcoordbuffer = texcoordbuffer.createsrv().heapidx;
+    dispatch_params.tbnbuffer = tbnbuffer.createsrv().heapidx;
     dispatch_params.primitivematerialsbuffer = materialsbuffer.createsrv().heapidx;
     dispatch_params.viewglobals = viewglobalsbuffer.createsrv().heapidx;
     dispatch_params.sceneglobals = sceneglobalsbuffer.createsrv().heapidx;
     dispatch_params.accelerationstruct = tlas.createsrv().heapidx;
-    dispatch_params.rtoutput = raytracingoutput.createuav().heapidx;
+    dispatch_params.rtoutput = deviceres.hdrrtuavidx;
     dispatch_params.indexbuffer = indexbuffer.createsrv().heapidx;
 
     dispatchparams.create({ dispatch_params });
 
     rootdescs.rootdesc = dispatchparams.createsrv().heapidx;
-
+    
     return res;
+}
+
+void pathtrace::update(float dt)
+{
+    auto const jitter = ((stdx::vec2{ dist(re), dist(re) } * 2.0f) - 1.0f) / stdx::vec2{ float(viewdata.width), float(viewdata.height) };
+    camera.jitter(jitter);
+
+    sample_base::update(dt);
 }
 
 void pathtrace::render(float dt, gfx::renderer& renderer)
 {
-    auto lightpos = stdx::vec3{ 800, 800, 0 };
-    auto lightfocus = stdx::vec3{ -800, 450, 0 };
-    auto lightdir = (lightfocus - lightpos).normalized();
+    auto currviewmatrix = matrix(camera.GetViewMatrix());
+    if (prevviewmatrix != currviewmatrix)
+        renderer.clearaccumcount();
 
+    auto lightdir = stdx::vec3{ -1.0f, -1.0f, -0.15f }.normalized();
     auto& globalres = gfx::globalresources::get();
 
     rt::viewglobals camviewinfo;
-    rt::sceneglobals scenedata;
     scenedata.matbuffer = globalres.materialsbuffer_idx();
     scenedata.viewdirshading = false; // todo : this shouldn't be in scenedata
     scenedata.lightdir = lightdir;
     scenedata.lightluminance = 6;
+    scenedata.frameidx = framecount++;
+    scenedata.seed = dist(re);
+    scenedata.aoradius = 50;
+    scenedata.enableao = 0;
+    scenedata.envtex = renderer.envtexidx;
 
+    auto viewproj = matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix());
     camviewinfo.viewpos = camera.GetCurrentPosition();
-    camviewinfo.invviewproj = utils::to_matrix4x4(matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix()).Invert());
+    camviewinfo.viewproj = utils::to_matrix4x4(viewproj);
+    camviewinfo.invviewproj = utils::to_matrix4x4(viewproj.Invert());
 
     viewglobalsbuffer.update({ camviewinfo });
     sceneglobalsbuffer.update({ scenedata });
@@ -151,12 +171,31 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     auto& cmdlist = renderer.deviceres().cmdlist;
     auto const& pipelineobjects = globalres.psomap().find("pathtrace")->second;
 
-    cmdlist->SetDescriptorHeaps(1, globalres.resourceheap().d3dheap.GetAddressOf());
+    ID3D12DescriptorHeap* heaps[] = { renderer.resheap.d3dheap.Get(), renderer.sampheap.d3dheap.Get() };
+    cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
     cmdlist->SetComputeRootSignature(pipelineobjects.root_signature.Get());
     cmdlist->SetComputeRoot32BitConstants(0, 1, &rootdescs, 0);
     cmdlist->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
-    rt.copyoutputtorendertarget(cmdlist.Get(), raytracingoutput, renderer.rendertarget.d3dresource.Get());
+
+    prevviewmatrix = currviewmatrix;
+}
+
+void pathtrace::on_key_up(unsigned key)
+{
+    sample_base::on_key_up(key);
+
+    if (key == 'K')
+        scenedata.numbounces++;
+    if (key == 'L')
+        scenedata.numbounces = std::max(scenedata.numbounces, 1u) - 1;
+    if (key == 'O')
+        scenedata.numindirectrays++;
+    if (key == 'P')
+        scenedata.numindirectrays = std::max(scenedata.numindirectrays, 1u) - 1;
+
+    if (key >= '0' && key <= '9')
+        scenedata.viewmode = key - '0';
 }

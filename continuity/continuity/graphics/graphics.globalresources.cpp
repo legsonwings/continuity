@@ -42,6 +42,8 @@ void globalresources::init()
 
     addcomputepso("blend", "blend_cs.cso");
     addcomputepso("genmipmaps", "genmipmaps_cs.cso");
+    addcomputepso("temporalaccum", "temporalaccum_cs.cso");
+    addcomputepso("tonemap", "tonemap_cs.cso");
 
     addmat(material().colour(color::black));
     addmat(material().colour(color::white));
@@ -59,7 +61,6 @@ void globalresources::create_resources()
     materialsbuffer.create(_materials);
     _materialsbuffer_idx = materialsbuffer.createsrv().heapidx;
 
-    // create a sampler at 
     D3D12_SAMPLER_DESC samplerdesc = {};
     samplerdesc.Filter = D3D12_FILTER_ANISOTROPIC;
     samplerdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -80,9 +81,9 @@ void globalresources::create_resources()
     stdx::cassert(samplerview.heapidx == 0);
 
     samplerdesc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-    samplerdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    samplerdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    samplerdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplerdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplerdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
     samplerdesc.MaxAnisotropy = 0;
 
@@ -92,14 +93,14 @@ void globalresources::create_resources()
 
     samplerdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 
-    // create a shadow map sampler at 2
+    // create a point sampler at 2
     samplerview = _samplerheap.addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 2);
 
     samplerdesc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
     samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS;
 
-    // create a shadow map sampler at 2
+    // create a shadow map sampler at 3
     samplerview = _samplerheap.addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 3);
 }
@@ -326,7 +327,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     // defines the maximum sizes in bytes for the ray payload and attribute structure.
     auto shaderConfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
 
-    UINT payloadSize = 4 * sizeof(float);   // float4 color
+    UINT payloadSize = 3 * sizeof(float) + 2 * sizeof(uint32);
     UINT attributeSize = 2 * sizeof(float); // float2 for barycentrics
     shaderConfig->Config(payloadSize, attributeSize);
 
@@ -340,7 +341,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     globalrootsig->SetRootSignature(_psos[name].root_signature.Get());
 
     auto pipelineconfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_PIPELINE_CONFIG_SUBOBJECT>();
-    pipelineconfig->Config(1); // primary rays only. 
+    pipelineconfig->Config(31); // primary rays only. 
 
     // create the state object.
     ThrowIfFailed(_device->CreateStateObject(raytracingpipeline, IID_PPV_ARGS(&_psos[name].pso_raytracing)));

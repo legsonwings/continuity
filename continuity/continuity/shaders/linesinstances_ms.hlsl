@@ -45,7 +45,7 @@ void main(
         // 0 is camera view
         float4x4 mvpmatx = mul(in_instances[instanceidx].matx, viewglobals[0].viewproj);
 
-        verts[v0idx].position = mul(float4(in_vertices[inputvert_start].position, 1), mvpmatx);
-        verts[v1idx].position = mul(float4(in_vertices[inputvert_start + 1].position, 1), mvpmatx);
+        verts[v0idx].position = mul(mvpmatx, float4(in_vertices[inputvert_start].position, 1));
+        verts[v1idx].position = mul(mvpmatx, float4(in_vertices[inputvert_start + 1].position, 1));
     }
 }

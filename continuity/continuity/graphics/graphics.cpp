@@ -53,7 +53,7 @@ ComPtr<ID3D12Resource> blas::kickoffbuild(D3D12_RAYTRACING_GEOMETRY_DESC const& 
     device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomlevelinputs, &bottomlevelprebuildinfo);
     stdx::cassert(bottomlevelprebuildinfo.ResultDataMaxSizeInBytes > 0);
 
-    defaultbuffer scratch;
+    uploadbuffer scratch;
     scratch.create(nullptr, bottomlevelprebuildinfo.ScratchDataSizeInBytes);
     d3dresource = create_accelerationstructbuffer(bottomlevelprebuildinfo.ResultDataMaxSizeInBytes);
 
@@ -89,7 +89,7 @@ std::array<ComPtr<ID3D12Resource>, tlas::numresourcetokeepalive> tlas::build(bla
     device->GetRaytracingAccelerationStructurePrebuildInfo(&toplevelinputs, &toplevelprebuildinfo);
     stdx::cassert(toplevelprebuildinfo.ResultDataMaxSizeInBytes > 0);
 
-    defaultbuffer scratch;
+    uploadbuffer scratch;
     scratch.create(nullptr, toplevelprebuildinfo.ScratchDataSizeInBytes);
     d3dresource = create_accelerationstructbuffer(toplevelprebuildinfo.ResultDataMaxSizeInBytes);
 
