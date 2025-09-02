@@ -82,10 +82,10 @@ void playground::render(float dt, gfx::renderer& renderer)
     matrix lightorthoproj = XMMatrixOrthographicLH(w, h, 5000, 0.05f);
     
     camviewinfo.viewpos = camera.GetCurrentPosition();
-    camviewinfo.viewproj = utils::to_matrix4x4(matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix()).Transpose());
+    camviewinfo.viewproj = utils::to_matrix4x4(matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix()));
 
     lightviewinfo.viewpos = { lightpos[0], lightpos[1], lightpos[2] };
-    lightviewinfo.viewproj = utils::to_matrix4x4((lightviewmatrix * lightorthoproj).Transpose());
+    lightviewinfo.viewproj = utils::to_matrix4x4((lightviewmatrix * lightorthoproj));
 
     viewglobalsbuffer.update({ camviewinfo, lightviewinfo });
     sceneglobalsbuffer.update({ scenedata });
@@ -106,17 +106,22 @@ void playground::render(float dt, gfx::renderer& renderer)
 
     stdx::vecui3 dispatch = { gfx::divideup<85>(models[0].numprims()), 1, 1 };
 
-    renderer.dispatchmesh(dispatch, shadowps, rootdescsv);
-
-    auto barrier_shadowmap = CD3DX12_RESOURCE_BARRIER::Transition(renderer.shadowmap.d3dresource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
- 
     auto& cmdlist = renderer.deviceres().cmdlist;
-    cmdlist->ResourceBarrier(1, &barrier_shadowmap);
+
+    CD3DX12_RESOURCE_BARRIER transitions[2];
+    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(renderer.rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(renderer.shadowmap.d3dresource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    cmdlist->ResourceBarrier(_countof(transitions), transitions);
+
+    renderer.dispatchmesh(dispatch, shadowps, rootdescsv);
 
     renderer.dispatchmesh(dispatch, mainps, rootdescsv);
 
-    auto revbarrier_shadowmap = gfx::reversetransition(barrier_shadowmap);
-    cmdlist->ResourceBarrier(1, &revbarrier_shadowmap);
+    for (auto& t : transitions)
+        t = gfx::reversetransition(t);
+
+    cmdlist->ResourceBarrier(_countof(transitions), transitions);
 }
 
 void playground::on_key_up(unsigned key)

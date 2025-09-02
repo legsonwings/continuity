@@ -28,6 +28,9 @@ struct deviceresources
 {
 	ComPtr<device> dev;
 	ComPtr<gfxcmdlist> cmdlist;
+
+	// todo : temp hack
+	uint32 hdrrtuavidx;
 };
 
 class globalresources

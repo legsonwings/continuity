@@ -120,3 +120,15 @@ struct rootconstants
 };
 
 ConstantBuffer<rootconstants> descriptorsidx : register(b0);
+
+template<typename t>
+t linearcolour(t colour)
+{
+    return pow(colour, 2.2);
+}
+
+template<typename t>
+t srgbcolour(t colour)
+{
+    return pow(colour, 1.0 / 2.2);
+}

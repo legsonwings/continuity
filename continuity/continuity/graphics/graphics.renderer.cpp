@@ -13,6 +13,7 @@ module graphics:renderer;
 
 import std;
 import stdx;
+import graphicscore;
 import :globalresources;
 
 using Microsoft::WRL::ComPtr;
@@ -202,7 +203,7 @@ void renderer::init(HWND window, UINT w, UINT h)
     swapchaindesc.BufferCount = backbuffercount;
     swapchaindesc.Width = viewwidth;
     swapchaindesc.Height = viewheight;
-    swapchaindesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // todo : use srgb format
+    swapchaindesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swapchaindesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapchaindesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapchaindesc.SampleDesc.Count = 1;
@@ -223,8 +224,13 @@ void renderer::init(HWND window, UINT w, UINT h)
     sampheap.d3dheap = createdescriptorheap(samplerheap::maxdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
     auto rtdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, UINT64(viewwidth), UINT(viewheight), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
-    rendertarget.create(rtdesc, clearcol, D3D12_RESOURCE_STATE_RENDER_TARGET);
     
+    rendertarget.create(rtdesc, clearcol, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+    auto hdrrtdesc = rtdesc;
+    hdrrtdesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    hdrrendertarget.create(hdrrtdesc, clearcol, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
     auto dtdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, viewwidth, viewheight, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
     depthtarget.create(dtdesc, cleardepth, D3D12_RESOURCE_STATE_DEPTH_WRITE);
     shadowmap.create(dtdesc, cleardepth, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -271,6 +277,12 @@ void renderer::init(HWND window, UINT w, UINT h)
     globalres.samplerheap() = sampheap;
 
     shadowmapsrv = shadowmap.createsrv(DXGI_FORMAT_R32_FLOAT);
+    hdrrtuav = hdrrendertarget.createuav();
+    rtuav = rendertarget.createuav();
+
+    accumparamsbuffer.create();
+    accumparamsidx = accumparamsbuffer.createsrv().heapidx;
+    d3ddevres.hdrrtuavidx = hdrrtuav.heapidx;
 }
 
 void renderer::deinit()
@@ -285,6 +297,9 @@ void renderer::deinit()
 void renderer::createresources()
 {
     globalresources::get().create_resources();
+
+    auto const& uploadtex = environmenttex.createfromfile("textures/sky.hdr");
+    envtexidx = environmenttex.createsrv().heapidx;
 
     ThrowIfFailed(d3ddevres.cmdlist->Close());
 
@@ -325,20 +340,44 @@ void renderer::prerender()
 
 void renderer::postrender()
 {
-    auto rttocopysource = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    auto barrier_backbuffer = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
+    auto& globalres = globalresources::get();
+    auto const& pipelineobjects = globalres.psomap().find("temporalaccum")->second;
 
-    d3ddevres.cmdlist->ResourceBarrier(1, &rttocopysource);
-    d3ddevres.cmdlist->ResourceBarrier(1, &barrier_backbuffer);
+    CD3DX12_RESOURCE_BARRIER hdrrtbarrier = CD3DX12_RESOURCE_BARRIER::UAV(hdrrendertarget.d3dresource.Get());
+    d3ddevres.cmdlist->ResourceBarrier(1, &hdrrtbarrier);
+
+    d3ddevres.cmdlist->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+    ID3D12DescriptorHeap* heaps[] = { resheap.d3dheap.Get(), sampheap.d3dheap.Get() };
+
+    d3ddevres.cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
+    d3ddevres.cmdlist->SetPipelineState(pipelineobjects.pso.Get());
+
+    accumparams params{ rtuav.heapidx, hdrrtuav.heapidx, accumcount++ };
+    accumparamsbuffer.update({ params });
+
+    auto dispatchx = UINT(divideup<8>(viewwidth));
+    auto dispatchy = UINT(divideup<8>(viewheight));
+
+    d3ddevres.cmdlist->SetComputeRoot32BitConstants(0, 3, &accumparamsidx, 0);
+
+    d3ddevres.cmdlist->Dispatch(dispatchx, dispatchy, 1);
+
+    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::UAV(rendertarget.d3dresource.Get());
+    d3ddevres.cmdlist->ResourceBarrier(1, &barrier);
+
+    CD3DX12_RESOURCE_BARRIER transitions[2];
+    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
+
+    d3ddevres.cmdlist->ResourceBarrier(_countof(transitions), transitions);
 
     // copy from render target to back buffer
     d3ddevres.cmdlist->CopyResource(backbuffers[frameidx].Get(), rendertarget.d3dresource.Get());
 
-    auto barrier_backbuffer_restore = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
-    auto copysrctort = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    for (auto& t : transitions)
+        t = reversetransition(t);
 
-    d3ddevres.cmdlist->ResourceBarrier(1, &barrier_backbuffer_restore);
-    d3ddevres.cmdlist->ResourceBarrier(1, &copysrctort);
+    d3ddevres.cmdlist->ResourceBarrier(_countof(transitions), transitions);
 
     ThrowIfFailed(d3ddevres.cmdlist->Close());
 
@@ -387,8 +426,7 @@ void renderer::dispatchmesh(stdx::vecui3 dispatch, pipelinestate ps, std::vector
     d3ddevres.cmdlist->SetPipelineState(psobjs.pso.Get());
     d3ddevres.cmdlist->SetGraphicsRootSignature(psobjs.root_signature.Get());
 
-    // todo : move these heaps over to renderer
-    ID3D12DescriptorHeap* heaps[] = { globalres.resourceheap().d3dheap.Get(), globalres.samplerheap().d3dheap.Get() };
+    ID3D12DescriptorHeap* heaps[] = { resheap.d3dheap.Get(), sampheap.d3dheap.Get() };
     d3ddevres.cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
 
     d3ddevres.cmdlist->SetGraphicsRoot32BitConstants(0, UINT(rootdescs.size()), rootdescs.data(), 0);
@@ -408,6 +446,11 @@ void renderer::waitforgpu()
 
     // increment the fence value for the current frame
     fencevalue++;
+}
+
+void renderer::clearaccumcount()
+{
+    accumcount = 0;
 }
 
 }

@@ -1,5 +1,6 @@
 module;
 
+#include "simplemath/simplemath.h"
 #include "shared/raytracecommon.h"
 
 export module pathtrace;
@@ -8,13 +9,17 @@ import engine;
 import graphics;
 import graphicscore;
 
+using matrix = DirectX::SimpleMath::Matrix;
+
 export class pathtrace : public sample_base
 {
 public:
 	pathtrace(view_data const& viewdata);
 
 	gfx::resourcelist create_resources(gfx::deviceresources& deviceres) override;
+	void update(float dt) override;
 	void render(float dt, gfx::renderer& renderer) override;
+	void on_key_up(unsigned key) override;
 
 private:
 
@@ -37,4 +42,10 @@ private:
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
 	gfx::rtouttexture raytracingoutput;
+
+	uint32 framecount = 0;
+	uint32 rtoutputuavidx = stdx::invalid<uint32>;
+	rt::sceneglobals scenedata;
+
+	matrix prevviewmatrix;
 };

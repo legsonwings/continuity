@@ -26,14 +26,14 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
 
     // make sure copying is safe
     static_assert(sizeof(std::decay_t<decltype(positions)>::value_type) * 3 == sizeof(stdx::vec3));
-    static_assert(sizeof(std::decay_t<decltype(texcoords)>::value_type) * 2 == sizeof(vector2));
+    static_assert(sizeof(std::decay_t<decltype(texcoords)>::value_type) * 2 == sizeof(stdx::vec2));
 
     stdx::vec3 const* const posstart = reinterpret_cast<stdx::vec3 const*>(positions.data());
     _vertices.positions = std::vector<stdx::vec3>(posstart, posstart + (positions.size() / 3));
     
     // flip uvs as directx uses top left as origin of uv space
     for (auto i = 0u; i < texcoords.size(); i += 2)
-        _vertices.texcoords.emplace_back(texcoords[i], 1.0f - texcoords[i + 1]);
+        _vertices.texcoords.push_back({ texcoords[i], 1.0f - texcoords[i + 1] });
 
     for (auto i = 0u; i < normals.size(); i += 3)
         _vertices.tbns.emplace_back().normal = stdx::vec3{ normals[i], normals[i + 1], normals[i + 2] };
@@ -46,7 +46,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
     auto fallbacktexcoord = int(_vertices.texcoords.size());
     _vertices.texcoords.emplace_back();
 
-    auto createtexture = [&modeldir, &transientres](std::string filename)
+    auto createtexture = [&modeldir, &transientres](std::string filename, bool forcesrgb)
     {
         texture<accesstype::gpu> tex;
         std::filesystem::path filepath = filename;
@@ -56,7 +56,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
         if (!std::filesystem::exists(pathstr) || !std::filesystem::is_regular_file(pathstr))
             return tex;
 
-        auto res = tex.createfromfile(pathstr);
+        auto res = tex.createfromfile(pathstr, forcesrgb);
         transientres.insert(transientres.end(), res.begin(), res.end());
         return tex;
     };
@@ -72,7 +72,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
         material mat;
         if (!m.diffuse_texname.empty())
         {
-            auto diffuse = createtexture(m.diffuse_texname);
+            auto diffuse = createtexture(m.diffuse_texname, true);
             stdx::cassert(diffuse.valid());
             mat.diffusetex = diffuse.createsrv().heapidx;
             _textures.push_back(diffuse);
@@ -96,7 +96,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
 
         if (!roughnesstex.empty())
         {
-            auto roughness = createtexture(roughnesstex);
+            auto roughness = createtexture(roughnesstex, false);
             stdx::cassert(roughness.valid());
             mat.roughnesstex = roughness.createsrv().heapidx;
             _textures.push_back(roughness);
@@ -120,7 +120,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
 
         if (!normaltexname.empty())
         {
-            auto normal = createtexture(normaltexname);
+            auto normal = createtexture(normaltexname, false);
             stdx::cassert(normal.valid());
             mat.normaltex = normal.createsrv().heapidx;
             _textures.push_back(normal);
@@ -146,7 +146,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
             rapidobj::Index face[3] = { objindices[i * 3], objindices[i * 3 + 1], objindices[i * 3 + 2] };
 
             stdx::vec3 ps[3];
-            vector2 uvs[3];
+            stdx::vec2 uvs[3];
             for (auto j : stdx::range(3u))
             {
                 old_normalindices[j] = face[j].normal_index;

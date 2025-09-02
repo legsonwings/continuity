@@ -12,20 +12,20 @@ meshshadervertex getvertattribute(vertexin vertex, uint vertidx)
     StructuredBuffer<viewconstants> viewglobals = ResourceDescriptorHeap[descriptorsidx.viewglobals];
 
     float4 const pos = float4(vertex.position, 1.f);
-    float4 const posw = mul(pos, objconstants[0].matx);
+    float4 const posw = mul(objconstants[0].matx, pos);
     outvert.instanceid = 0;
     outvert.position = posw.xyz;
-    outvert.positionh = mul(posw, viewglobals[0].viewproj);
+    outvert.positionh = mul(viewglobals[0].viewproj, posw);
     outvert.texcoords = vertex.texcoord;
     outvert.material = primmaterials[vertidx / 3];
 
     // world space vectors
-    outvert.normal = normalize(mul(float4(vertex.normal, 0), objconstants[0].normalmatx).xyz);
-    outvert.tangent = normalize(mul(float4(vertex.tangent, 0), objconstants[0].matx).xyz);
-    outvert.bitangent = normalize(mul(float4(vertex.bitangent, 0), objconstants[0].matx).xyz);
+    outvert.normal = normalize(mul(objconstants[0].normalmatx, float4(vertex.normal, 0)).xyz);
+    outvert.tangent = normalize(mul(objconstants[0].matx, float4(vertex.tangent, 0)).xyz);
+    outvert.bitangent = normalize(mul(objconstants[0].matx, float4(vertex.bitangent, 0)).xyz);
 
     // light's view projection matrix at index 1
-    outvert.positionl = mul(posw, viewglobals[1].viewproj);
+    outvert.positionl = mul(viewglobals[1].viewproj, posw);
 
     return outvert;
 }
