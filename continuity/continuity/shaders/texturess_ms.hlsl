@@ -10,7 +10,7 @@ texturessvertex getvertattribute(vertexin vertex)
     StructuredBuffer<viewconstants> viewglobals = ResourceDescriptorHeap[descriptorsidx.viewglobals];
 
     texturessvertex outvert;
-    outvert.positionh = mul(float4(vertex.position, 1.f), mul(objconstants[0].matx, viewglobals[0].viewproj));
+    outvert.positionh = mul(mul(objconstants[0].matx, viewglobals[0].viewproj), float4(vertex.position, 1.f));
     outvert.texcoord = vertex.texcoord;
     return outvert;
 }

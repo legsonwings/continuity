@@ -15,6 +15,7 @@ public:
 
 	gfx::resourcelist create_resources(gfx::deviceresources& deviceres) override;
 	void render(float dt, gfx::renderer& renderer) override;
+	void on_key_up(unsigned key) override;
 
 private:
 
@@ -37,4 +38,7 @@ private:
 	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
 	gfx::rtouttexture raytracingoutput;
+
+	uint32 framecount = 0;
+	rt::sceneglobals scenedata;
 };

@@ -73,7 +73,7 @@ struct vertex
 struct vertexattribs
 {
     std::vector<stdx::vec3> positions;
-    std::vector<vector2> texcoords;
+    std::vector<stdx::vec2> texcoords;
     std::vector<tbn> tbns;
 };
 
@@ -185,7 +185,7 @@ struct instance_data
     matrix normalmatx;
 
     instance_data() = default;
-    instance_data(matrix const& m) : matx(m.Transpose()), normalmatx(m.Invert()) {}
+    instance_data(matrix const& m) : matx(m), normalmatx(m.Invert().Transpose()) {}
 };
 
 struct light

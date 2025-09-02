@@ -26,14 +26,14 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
 
     // make sure copying is safe
     static_assert(sizeof(std::decay_t<decltype(positions)>::value_type) * 3 == sizeof(stdx::vec3));
-    static_assert(sizeof(std::decay_t<decltype(texcoords)>::value_type) * 2 == sizeof(vector2));
+    static_assert(sizeof(std::decay_t<decltype(texcoords)>::value_type) * 2 == sizeof(stdx::vec2));
 
     stdx::vec3 const* const posstart = reinterpret_cast<stdx::vec3 const*>(positions.data());
     _vertices.positions = std::vector<stdx::vec3>(posstart, posstart + (positions.size() / 3));
     
     // flip uvs as directx uses top left as origin of uv space
     for (auto i = 0u; i < texcoords.size(); i += 2)
-        _vertices.texcoords.emplace_back(texcoords[i], 1.0f - texcoords[i + 1]);
+        _vertices.texcoords.push_back({ texcoords[i], 1.0f - texcoords[i + 1] });
 
     for (auto i = 0u; i < normals.size(); i += 3)
         _vertices.tbns.emplace_back().normal = stdx::vec3{ normals[i], normals[i + 1], normals[i + 2] };
@@ -146,7 +146,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
             rapidobj::Index face[3] = { objindices[i * 3], objindices[i * 3 + 1], objindices[i * 3 + 2] };
 
             stdx::vec3 ps[3];
-            vector2 uvs[3];
+            stdx::vec2 uvs[3];
             for (auto j : stdx::range(3u))
             {
                 old_normalindices[j] = face[j].normal_index;
