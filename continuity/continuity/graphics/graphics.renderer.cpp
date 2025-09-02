@@ -387,8 +387,7 @@ void renderer::dispatchmesh(stdx::vecui3 dispatch, pipelinestate ps, std::vector
     d3ddevres.cmdlist->SetPipelineState(psobjs.pso.Get());
     d3ddevres.cmdlist->SetGraphicsRootSignature(psobjs.root_signature.Get());
 
-    // todo : move these heaps over to renderer
-    ID3D12DescriptorHeap* heaps[] = { globalres.resourceheap().d3dheap.Get(), globalres.samplerheap().d3dheap.Get() };
+    ID3D12DescriptorHeap* heaps[] = { resheap.d3dheap.Get(), sampheap.d3dheap.Get() };
     d3ddevres.cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
 
     d3ddevres.cmdlist->SetGraphicsRoot32BitConstants(0, UINT(rootdescs.size()), rootdescs.data(), 0);

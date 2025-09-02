@@ -82,10 +82,10 @@ void playground::render(float dt, gfx::renderer& renderer)
     matrix lightorthoproj = XMMatrixOrthographicLH(w, h, 5000, 0.05f);
     
     camviewinfo.viewpos = camera.GetCurrentPosition();
-    camviewinfo.viewproj = utils::to_matrix4x4(matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix()).Transpose());
+    camviewinfo.viewproj = utils::to_matrix4x4(matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix()));
 
     lightviewinfo.viewpos = { lightpos[0], lightpos[1], lightpos[2] };
-    lightviewinfo.viewproj = utils::to_matrix4x4((lightviewmatrix * lightorthoproj).Transpose());
+    lightviewinfo.viewproj = utils::to_matrix4x4((lightviewmatrix * lightorthoproj));
 
     viewglobalsbuffer.update({ camviewinfo, lightviewinfo });
     sceneglobalsbuffer.update({ scenedata });

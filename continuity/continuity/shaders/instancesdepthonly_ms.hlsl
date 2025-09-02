@@ -53,9 +53,9 @@ void main
         // ideally should be getting mvp from cpu
         float4x4 mvp = mul(objconstants[0].matx, viewglobals[1].viewproj);
 
-        outv0.positionh = mul(float4(v0.position, 1.0f), mvp);
-        outv1.positionh = mul(float4(v1.position, 1.0f), mvp);
-        outv2.positionh = mul(float4(v2.position, 1.0f), mvp);
+        outv0.positionh = mul(mvp, float4(v0.position, 1.0f));
+        outv1.positionh = mul(mvp, float4(v1.position, 1.0f));
+        outv2.positionh = mul(mvp, float4(v2.position, 1.0f));
 
         verts[v0idx] = outv0;
         verts[v0idx + 1] = outv1;
