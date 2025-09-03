@@ -139,23 +139,14 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
 
 void pathtrace::render(float dt, gfx::renderer& renderer)
 {
-    auto lightpos0 = stdx::vec3{ 600, 600, 100 };
-    auto lightpos1 = stdx::vec3{ 600, 600, -100 };
-    auto lightfocus = stdx::vec3{ -800, 450, 0 };
-    auto lightdir0 = (lightfocus - lightpos0).normalized();
-    auto lightdir1 = (lightfocus - lightpos1).normalized();
-
+    auto lightdir = stdx::vec3{ -1.0f, -1.0f, -0.15f }.normalized();
     auto& globalres = gfx::globalresources::get();
 
     rt::viewglobals camviewinfo;
     scenedata.matbuffer = globalres.materialsbuffer_idx();
     scenedata.viewdirshading = false; // todo : this shouldn't be in scenedata
-    scenedata.lightpos0 = lightpos0;
-    scenedata.lightdir0 = lightdir0;
-    scenedata.lightluminance0 = 6;
-    scenedata.lightpos1 = lightpos1;
-    scenedata.lightdir1 = lightdir1;
-    scenedata.lightluminance1 = 6;
+    scenedata.lightdir = lightdir;
+    scenedata.lightluminance = 6;
     scenedata.frameidx = framecount++;
     scenedata.seed = dist(re);
     scenedata.seedu = distu(re);

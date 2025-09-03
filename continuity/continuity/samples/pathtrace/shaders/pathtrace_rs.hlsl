@@ -266,14 +266,14 @@ void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleInter
 
     float4 sampledcolour = difftex.SampleGrad(sampler, uv, duvxy[0], duvxy[1]);
     float2 mr = roughnesstex.SampleGrad(sampler, uv, duvxy[0], duvxy[1]).bg;
-    float3 l = -scene[0].lightdir0;
+    float3 l = -scene[0].lightdir;
     float3 v = normalize(view.viewpos - p);
     
     RayDesc shadowraydesc;
     shadowraydesc.Origin = p;
     shadowraydesc.Direction = l;
     shadowraydesc.TMin = 1e-3f;
-    shadowraydesc.TMax = length(scene[0].lightpos0 - p);
+    shadowraydesc.TMax = 1e38;
 
     RayQuery<RAY_FLAG_CULL_NON_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> q;
 
@@ -284,7 +284,7 @@ void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleInter
 
     float3 directdiffuse = (float3)0;
     if (q.CommittedStatus() == COMMITTED_NOTHING)
-        directdiffuse = scene[0].lightluminance0;
+        directdiffuse = scene[0].lightluminance;
 
     float const nol = saturate(dot(normal, l));
 
