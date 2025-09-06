@@ -30,9 +30,6 @@ std::unique_ptr<sample_base> create_instance<samples::pathtrace>(view_data const
 
 }
 
-#define namkaran(d3dobject) { d3dobject->SetName(utils::strtowstr(#d3dobject).c_str()); }
-#define namkaranres(gfxresource) { gfxresource.d3dresource->SetName(utils::strtowstr(#gfxresource).c_str()); }
-
 // raytracing stuff
 static constexpr char const* hitgroupname = "trianglehitgroup";
 static constexpr char const* raygenshadername = "raygenshader";
@@ -149,7 +146,6 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     scenedata.lightluminance = 6;
     scenedata.frameidx = framecount++;
     scenedata.seed = dist(re);
-    scenedata.seedu = distu(re);
 
     auto viewproj = matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix());
     camviewinfo.viewpos = camera.GetCurrentPosition();
@@ -184,7 +180,7 @@ void pathtrace::on_key_up(unsigned key)
     if (key == 'O')
         scenedata.numindirectrays++;
     if (key == 'P')
-        scenedata.numindirectrays = std::max(scenedata.numbounces, 1u) - 1;
+        scenedata.numindirectrays = std::max(scenedata.numindirectrays, 1u) - 1;
 
     if (key >= '0' && key <= '9')
         scenedata.viewmode = key - '0';

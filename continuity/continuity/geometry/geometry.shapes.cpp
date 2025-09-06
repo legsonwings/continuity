@@ -134,7 +134,7 @@ std::vector<vector3> create_cube_lines(vector3 const& center, float scale)
     return create_box_lines(center, { scale, scale, scale });
 }
 
-std::vector<stdx::vec3> geometry::box::vertices()
+std::vector<stdx::vec3> box::vertices()
 {
     std::vector<stdx::vec3> verts;
 
@@ -149,7 +149,7 @@ std::vector<stdx::vec3> geometry::box::vertices()
 
 aabb::aabb() {}
 
-geometry::aabb::aabb(stdx::vec3 const (&tri)[3])
+aabb::aabb(stdx::vec3 const (&tri)[3])
 {
     stdx::vec3 const& v0 = tri[0];
     stdx::vec3 const& v1 = tri[1];
@@ -165,7 +165,7 @@ geometry::aabb::aabb(stdx::vec3 const (&tri)[3])
 
 aabb::aabb(std::vector<stdx::vec3> const& points) : aabb(points.data(), points.size()) {}
 
-geometry::aabb::aabb(stdx::vec3 const* points, uint len)
+aabb::aabb(stdx::vec3 const* points, uint len)
 {
     for (uint i = 0; i < len; ++i)
     {
@@ -179,7 +179,7 @@ geometry::aabb::aabb(stdx::vec3 const* points, uint len)
     }
 }
 
-aabb& geometry::aabb::operator+=(stdx::vec3 const& pt)
+aabb& aabb::operator+=(stdx::vec3 const& pt)
 {
     min_pt[0] = std::min(pt[0], min_pt[0]);
     min_pt[1] = std::min(pt[1], min_pt[1]);
@@ -208,7 +208,7 @@ bool aabb::contains(stdx::vec3 const& pt) const
     return std::abs(localpt[0]) < halfextents[0] && std::abs(localpt[1]) < halfextents[1] && std::abs(localpt[2]) < halfextents[2];
 }
 
-std::optional<aabb> geometry::aabb::intersect(aabb const& r) const
+std::optional<aabb> aabb::intersect(aabb const& r) const
 {
     if (max_pt[0] < r.min_pt[0] || min_pt[0] > r.max_pt[0]) return {};
     if (max_pt[1] < r.min_pt[1] || min_pt[1] > r.max_pt[1]) return {};

@@ -54,7 +54,8 @@ uint initrand(uint val0, uint val1, uint backoff = 16)
     return v0;
 }
 
-float3 uniformhemispheresample(inout uint seed, float3 normal)
+// Get a cosine-weighted random vector centered around a specified normal direction.
+float3 coshemispheresample(inout uint seed, float3 normal)
 {
     // get 2 random numbers to select our sample with
     float2 randomvals = float2(rand(seed), rand(seed));
@@ -62,10 +63,25 @@ float3 uniformhemispheresample(inout uint seed, float3 normal)
     // cosine weighted hemisphere sample from RNG
     float3 bitangent = perpendicular(normal);
     float3 tangent = cross(bitangent, normal);
-    float r = sqrt(max(0.0f, 1.0f - randomvals.x * randomvals.x));
+    float r = sqrt(randomvals.x);
     float phi = 2.0f * 3.14159265f * randomvals.y;
 
     // get our cosine-weighted hemisphere lobe sample direction
+    return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + normal.xyz * sqrt(max(0.0, 1.0f - randomvals.x));
+}
+
+float3 uniformhemispheresample(inout uint seed, float3 normal)
+{
+    // get 2 random numbers to select our sample with
+    float2 randomvals = float2(rand(seed), rand(seed));
+
+    // uniform hemisphere sample from RNG
+    float3 bitangent = perpendicular(normal);
+    float3 tangent = cross(bitangent, normal);
+    float r = sqrt(max(0.0f, 1.0f - randomvals.x * randomvals.x));
+    float phi = 2.0f * 3.14159265f * randomvals.y;
+
+    // get our uniform sample direction
     return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + normal.xyz * randomvals.x;
 }
 // taken from dxr tutorials https://intro-to-dxr.cwyman.org/
@@ -293,7 +309,7 @@ void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleInter
     float3 indirectdiffuse = (float3)0;
     for (uint i = 0; i < scene[0].numindirectrays; ++i)
     {
-        float3 dir = uniformhemispheresample(seed, normal);
+        float3 dir = coshemispheresample(seed, normal);
 
         ray ray;
         ray.origin = p;

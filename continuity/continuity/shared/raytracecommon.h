@@ -18,7 +18,6 @@ struct sceneglobals
     float3 lightdir;
     float lightluminance;
     uint32 frameidx;
-    uint32 seedu;
     float seed;
 
     // settings
