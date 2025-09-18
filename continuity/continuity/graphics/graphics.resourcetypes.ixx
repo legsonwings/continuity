@@ -187,7 +187,7 @@ struct structuredbuffer<t, accesstype::gpu> : public structuredbufferbase<t, def
 
 struct texturebase : public resource
 {
-	srv createsrv(DXGI_FORMAT format) const;
+	srv createsrv(DXGI_FORMAT viewformat) const;
 	srv createsrv(uint32 miplevels = 0, uint32 topmip = 0, bool transient = false) const;
 	uav createuav(uint32 mipslice = 0, bool transient = false) const;
 	rtv creatertv(rtheap& heap) const;
@@ -204,9 +204,9 @@ struct texture : public texturebase {};
 template<>
 struct texture<accesstype::gpu> : public texturebase
 {
-	void create(DXGI_FORMAT dxgiformat, stdx::vecui2 size, D3D12_RESOURCE_STATES state);
-	void create(CD3DX12_RESOURCE_DESC const& texdesc, stdx::vec4 clear, D3D12_RESOURCE_STATES state);
-	resourcelist createfromfile(std::string const& path);
+	void create(DXGI_FORMAT dxgiformat, stdx::vecui2 size, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON);
+	void create(CD3DX12_RESOURCE_DESC const& texdesc, stdx::vec4 clear, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON);
+	resourcelist createfromfile(std::string const& path, bool srgb = false);
 };
 
 template<typename t>

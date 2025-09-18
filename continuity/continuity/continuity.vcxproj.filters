@@ -224,6 +224,9 @@
     <ClInclude Include="thirdparty\wictextureloader12.h">
       <Filter>source\thirdparty</Filter>
     </ClInclude>
+    <ClInclude Include="thirdparty\stb_image.h">
+      <Filter>source\thirdparty</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="simplemath\simplemath.inl">
@@ -311,6 +314,12 @@
     </FxCompile>
     <FxCompile Include="samples\pathtrace\shaders\pathtrace_rs.hlsl">
       <Filter>samples\pathtrace\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\temporalaccum_cs.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\tonemap_cs.hlsl">
+      <Filter>shaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

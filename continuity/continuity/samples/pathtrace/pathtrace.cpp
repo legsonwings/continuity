@@ -114,8 +114,6 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
     hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
     hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
-    raytracingoutput.create(DXGI_FORMAT_R8G8B8A8_UNORM, stdx::vecui2{ viewdata.width, viewdata.height }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
     rt::dispatchparams dispatch_params;
     dispatch_params.posbuffer = posbuffer.createsrv().heapidx;
     dispatch_params.texcoordbuffer = texcoordbuffer.createsrv().heapidx;
@@ -124,18 +122,30 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
     dispatch_params.viewglobals = viewglobalsbuffer.createsrv().heapidx;
     dispatch_params.sceneglobals = sceneglobalsbuffer.createsrv().heapidx;
     dispatch_params.accelerationstruct = tlas.createsrv().heapidx;
-    dispatch_params.rtoutput = raytracingoutput.createuav().heapidx;
+    dispatch_params.rtoutput = deviceres.hdrrtuavidx;
     dispatch_params.indexbuffer = indexbuffer.createsrv().heapidx;
 
     dispatchparams.create({ dispatch_params });
 
     rootdescs.rootdesc = dispatchparams.createsrv().heapidx;
-
+    
     return res;
+}
+
+void pathtrace::update(float dt)
+{
+    auto const jitter = ((stdx::vec2{ dist(re), dist(re) } * 2.0f) - 1.0f) / stdx::vec2{ float(viewdata.width), float(viewdata.height) };
+    camera.jitter(jitter);
+
+    sample_base::update(dt);
 }
 
 void pathtrace::render(float dt, gfx::renderer& renderer)
 {
+    auto currviewmatrix = matrix(camera.GetViewMatrix());
+    if (prevviewmatrix != currviewmatrix)
+        renderer.clearaccumcount();
+
     auto lightdir = stdx::vec3{ -1.0f, -1.0f, -0.15f }.normalized();
     auto& globalres = gfx::globalresources::get();
 
@@ -146,6 +156,9 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     scenedata.lightluminance = 6;
     scenedata.frameidx = framecount++;
     scenedata.seed = dist(re);
+    scenedata.aoradius = 50;
+    scenedata.enableao = 0;
+    scenedata.envtex = renderer.envtexidx;
 
     auto viewproj = matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix());
     camviewinfo.viewpos = camera.GetCurrentPosition();
@@ -166,7 +179,8 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
-    rt.copyoutputtorendertarget(cmdlist.Get(), raytracingoutput, renderer.rendertarget.d3dresource.Get());
+
+    prevviewmatrix = currviewmatrix;
 }
 
 void pathtrace::on_key_up(unsigned key)

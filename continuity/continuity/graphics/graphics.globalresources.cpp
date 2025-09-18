@@ -42,6 +42,8 @@ void globalresources::init()
 
     addcomputepso("blend", "blend_cs.cso");
     addcomputepso("genmipmaps", "genmipmaps_cs.cso");
+    addcomputepso("temporalaccum", "temporalaccum_cs.cso");
+    addcomputepso("tonemap", "tonemap_cs.cso");
 
     addmat(material().colour(color::black));
     addmat(material().colour(color::white));

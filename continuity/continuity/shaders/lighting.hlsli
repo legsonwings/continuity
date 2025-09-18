@@ -133,11 +133,10 @@ float3 calculatelighting(float3 irradiance, float3 l, float3 v, float3 n, float3
 
     // map roughness from perceptually linear roughness
     r = r * r;
-    float3 brdfs = specularbrdf(l, v, n, r, f0);
+    float3 specularcolour = specularbrdf(l, v, n, r, f0);
     float brdfd = diffusebrdf();
     
     float3 diffusecolour = brdfd * diffusealbedo;
-    float3 specularcolour = brdfs * sepcularalbedo;
     float3 reflectedcolour = diffusecolour + specularcolour;
 
     float nol = saturate(dot(n, l));

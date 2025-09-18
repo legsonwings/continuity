@@ -46,7 +46,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
     auto fallbacktexcoord = int(_vertices.texcoords.size());
     _vertices.texcoords.emplace_back();
 
-    auto createtexture = [&modeldir, &transientres](std::string filename)
+    auto createtexture = [&modeldir, &transientres](std::string filename, bool forcesrgb)
     {
         texture<accesstype::gpu> tex;
         std::filesystem::path filepath = filename;
@@ -56,7 +56,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
         if (!std::filesystem::exists(pathstr) || !std::filesystem::is_regular_file(pathstr))
             return tex;
 
-        auto res = tex.createfromfile(pathstr);
+        auto res = tex.createfromfile(pathstr, forcesrgb);
         transientres.insert(transientres.end(), res.begin(), res.end());
         return tex;
     };
@@ -72,7 +72,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
         material mat;
         if (!m.diffuse_texname.empty())
         {
-            auto diffuse = createtexture(m.diffuse_texname);
+            auto diffuse = createtexture(m.diffuse_texname, true);
             stdx::cassert(diffuse.valid());
             mat.diffusetex = diffuse.createsrv().heapidx;
             _textures.push_back(diffuse);
@@ -96,7 +96,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
 
         if (!roughnesstex.empty())
         {
-            auto roughness = createtexture(roughnesstex);
+            auto roughness = createtexture(roughnesstex, false);
             stdx::cassert(roughness.valid());
             mat.roughnesstex = roughness.createsrv().heapidx;
             _textures.push_back(roughness);
@@ -120,7 +120,7 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
 
         if (!normaltexname.empty())
         {
-            auto normal = createtexture(normaltexname);
+            auto normal = createtexture(normaltexname, false);
             stdx::cassert(normal.valid());
             mat.normaltex = normal.createsrv().heapidx;
             _textures.push_back(normal);

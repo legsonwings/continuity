@@ -15,9 +15,10 @@ namespace rt
 struct sceneglobals
 {
     uint32 matbuffer;
+    uint32 frameidx;
+    uint32 envtex;
     float3 lightdir;
     float lightluminance;
-    uint32 frameidx;
     float seed;
 
     // settings
@@ -25,6 +26,8 @@ struct sceneglobals
     uint32 viewmode;
     uint32 numbounces;
     uint32 numindirectrays;
+    uint32 enableao;
+    float aoradius;
 };
 
 struct viewglobals
