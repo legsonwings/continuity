@@ -16,7 +16,8 @@ using matrix = DirectX::SimpleMath::Matrix;
 
 static std::random_device rd;
 static std::mt19937 re(rd());
-static std::uniform_real_distribution<float> dist(0.f, 1.f);
+static std::uniform_real_distribution<float> distuf(0.f, 1.f);
+static std::uniform_real_distribution<float> distsf(-0.5f, 0.5f);
 static std::uniform_int_distribution<uint32> distu(0, std::numeric_limits<uint32>::max());
 
 namespace sample_creator
@@ -42,8 +43,7 @@ pathtrace::pathtrace(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(200.0f);
 
     scenedata = {};
-    scenedata.numbounces = 1;
-    scenedata.numindirectrays = 2;
+    scenedata.numbounces = 8;
 }
 
 gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
@@ -132,14 +132,6 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
     return res;
 }
 
-void pathtrace::update(float dt)
-{
-    auto const jitter = ((stdx::vec2{ dist(re), dist(re) } * 2.0f) - 1.0f) / stdx::vec2{ float(viewdata.width), float(viewdata.height) };
-    camera.jitter(jitter);
-
-    sample_base::update(dt);
-}
-
 void pathtrace::render(float dt, gfx::renderer& renderer)
 {
     auto currviewmatrix = matrix(camera.GetViewMatrix());
@@ -155,7 +147,7 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     scenedata.lightdir = lightdir;
     scenedata.lightluminance = 6;
     scenedata.frameidx = framecount++;
-    scenedata.seed = dist(re);
+    scenedata.seed = distuf(re);
     scenedata.aoradius = 50;
     scenedata.enableao = 0;
     scenedata.envtex = renderer.envtexidx;
@@ -164,6 +156,13 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     camviewinfo.viewpos = camera.GetCurrentPosition();
     camviewinfo.viewproj = utils::to_matrix4x4(viewproj);
     camviewinfo.invviewproj = utils::to_matrix4x4(viewproj.Invert());
+
+    auto const jitter = stdx::vec2{ distsf(re), distsf(re) } / stdx::vec2{ float(viewdata.width), float(viewdata.height) };
+    
+    // no jitter for reference mode to compare with rtxpt
+    static constexpr bool refmode = true;
+    static constexpr uint32 spp = 16u;
+    camviewinfo.jitter = refmode ? stdx::vec2{} : jitter;
 
     viewglobalsbuffer.update({ camviewinfo });
     sceneglobalsbuffer.update({ scenedata });
@@ -174,11 +173,17 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     ID3D12DescriptorHeap* heaps[] = { renderer.resheap.d3dheap.Get(), renderer.sampheap.d3dheap.Get() };
     cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
     cmdlist->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    cmdlist->SetComputeRoot32BitConstants(0, 1, &rootdescs, 0);
     cmdlist->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;
-    rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
+
+    for (auto i : stdx::range(spp))
+    {
+        rootdescs.sampleidx = i;
+        cmdlist->SetComputeRoot32BitConstants(0, 2, &rootdescs, 0);
+        gfx::uav_barrier(*cmdlist.Get(), renderer.hdrrendertarget);
+        rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
+    }
 
     prevviewmatrix = currviewmatrix;
 }
@@ -191,10 +196,6 @@ void pathtrace::on_key_up(unsigned key)
         scenedata.numbounces++;
     if (key == 'L')
         scenedata.numbounces = std::max(scenedata.numbounces, 1u) - 1;
-    if (key == 'O')
-        scenedata.numindirectrays++;
-    if (key == 'P')
-        scenedata.numindirectrays = std::max(scenedata.numindirectrays, 1u) - 1;
 
     if (key >= '0' && key <= '9')
         scenedata.viewmode = key - '0';
