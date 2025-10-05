@@ -17,7 +17,6 @@ public:
 	pathtrace(view_data const& viewdata);
 
 	gfx::resourcelist create_resources(gfx::deviceresources& deviceres) override;
-	void update(float dt) override;
 	void render(float dt, gfx::renderer& renderer) override;
 	void on_key_up(unsigned key) override;
 
