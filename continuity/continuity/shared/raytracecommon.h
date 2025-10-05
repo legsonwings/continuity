@@ -25,13 +25,13 @@ struct sceneglobals
     uint32 viewdirshading;
     uint32 viewmode;
     uint32 numbounces;
-    uint32 numindirectrays;
     uint32 enableao;
     float aoradius;
 };
 
 struct viewglobals
 {
+    float2 jitter;
     float3 viewpos;
     float4x4 viewproj;
     float4x4 invviewproj;
@@ -40,6 +40,7 @@ struct viewglobals
 struct rootdescs
 {
     uint32 rootdesc;
+    uint32 sampleidx;
 };
 
 struct dispatchparams
