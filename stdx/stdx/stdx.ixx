@@ -98,6 +98,7 @@ struct ext
 	b base;
 	e ext;
 
+	constexpr ext() = default;
 	constexpr ext(b const& _b, e const& _e) : base(_b), ext(_e) {}
 
 	constexpr operator b& () { return base; }

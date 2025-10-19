@@ -1,5 +1,10 @@
 module;
 
+// there are three modes atm
+// reference : multiple spp, no denoising, simple temporal accumulation, unstable under motion
+// high quality : multiple spp, atrous wavelet denoising, simple temporal accumulation, unstable under motion
+// real time : single spp, svgf based temporal and spatial denoising, stable under motion
+
 #include "simplemath/simplemath.h"
 #include "thirdparty/d3dx12.h"
 #include "thirdparty/dxhelpers.h"
@@ -39,11 +44,12 @@ static constexpr char const* missshadername = "missshader";
 
 pathtrace::pathtrace(view_data const& viewdata) : sample_base(viewdata)
 {
-	camera.Init({ 0.f, 0.f, 0 });
-	camera.SetMoveSpeed(200.0f);
+	camera.Init({ -800.f, 180, 0 }, 1.57f);
+	camera.SetMoveSpeed(80.0f);
 
     scenedata = {};
-    scenedata.numbounces = 8;
+    scenedata.numbounces = 2;
+    scenedata.ggxsampleridx = 1;
 }
 
 gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
@@ -82,9 +88,17 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
     res.push_back(posindexbuffer.d3dresource);
 
     materialsbuffer.create(model.materials());
-        
-    viewglobalsbuffer.create(1);
-    sceneglobalsbuffer.create(1);
+
+    viewglobalsbuffer->create(2);
+    sceneglobalsbuffer->create(1);
+
+    viewglobalsbuffer.ex() = viewglobalsbuffer->createsrv().heapidx;
+    sceneglobalsbuffer.ex() = sceneglobalsbuffer->createsrv().heapidx;
+
+    // default initialize current frame view, so it gets copied to previous frame buffer correctly
+    rt::viewglobals& currview = viewglobalsbuffer.get()[1];
+    currview = {};
+    currview.view = currview.viewproj = currview.invviewproj = utils::to_matrix4x4(matrix::Identity);
 
     // cannot use stdx::join because ComPtr is too smart for its own good
     for (auto r : triblas.build(instancedescs, opacity, posbuffer, posindexbuffer))
@@ -114,29 +128,46 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
     hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
     hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
+	ptsettingsbuffer->create({ ptsettings });
+    ptsettingsbuffer.ex() = ptsettingsbuffer->createsrv().heapidx;
+
     rt::dispatchparams dispatch_params;
     dispatch_params.posbuffer = posbuffer.createsrv().heapidx;
     dispatch_params.texcoordbuffer = texcoordbuffer.createsrv().heapidx;
     dispatch_params.tbnbuffer = tbnbuffer.createsrv().heapidx;
     dispatch_params.primitivematerialsbuffer = materialsbuffer.createsrv().heapidx;
-    dispatch_params.viewglobals = viewglobalsbuffer.createsrv().heapidx;
-    dispatch_params.sceneglobals = sceneglobalsbuffer.createsrv().heapidx;
+    dispatch_params.viewglobals = viewglobalsbuffer.ex();
+    dispatch_params.sceneglobals = sceneglobalsbuffer.ex();
     dispatch_params.accelerationstruct = tlas.createsrv().heapidx;
+    dispatch_params.normaldepthtex = deviceres.normaldepthuavidx;
+    dispatch_params.historylentex = deviceres.historylenuavidx;
+    dispatch_params.diffcolortex = deviceres.diffcoloruavidx;
+    dispatch_params.specbrdftex = deviceres.specbrdfuavidx;
+    dispatch_params.diffradiancetex = deviceres.diffradianceuavidx;
+    dispatch_params.specradiancetex = deviceres.specradianceuavidx;
     dispatch_params.rtoutput = deviceres.hdrrtuavidx;
     dispatch_params.indexbuffer = indexbuffer.createsrv().heapidx;
+    dispatch_params.ptsettings = ptsettingsbuffer.ex();
+    dispatch_params.hitposition = deviceres.hitposition;
 
     dispatchparams.create({ dispatch_params });
 
     rootdescs.rootdesc = dispatchparams.createsrv().heapidx;
-    
+
     return res;
 }
 
 void pathtrace::render(float dt, gfx::renderer& renderer)
 {
+    viewglobalsbuffer.get()[0] = viewglobalsbuffer.get()[1];
+
     auto currviewmatrix = matrix(camera.GetViewMatrix());
-    if (prevviewmatrix != currviewmatrix)
+    accumdirty = accumdirty || (prevviewmatrix != currviewmatrix);
+    if (accumdirty)
+    {
+        accumdirty = false;
         renderer.clearaccumcount();
+    }
 
     auto lightdir = stdx::vec3{ -1.0f, -1.0f, -0.15f }.normalized();
     auto& globalres = gfx::globalresources::get();
@@ -146,26 +177,26 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     scenedata.viewdirshading = false; // todo : this shouldn't be in scenedata
     scenedata.lightdir = lightdir;
     scenedata.lightluminance = 6;
-    scenedata.frameidx = framecount++;
+    scenedata.frameidx = framecount;
     scenedata.seed = distuf(re);
     scenedata.aoradius = 50;
     scenedata.enableao = 0;
     scenedata.envtex = renderer.envtexidx;
 
-    auto viewproj = matrix(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+    auto viewmat = matrix(camera.GetViewMatrix());
+    auto viewproj = viewmat * matrix(camera.GetProjectionMatrix());
     camviewinfo.viewpos = camera.GetCurrentPosition();
+    camviewinfo.view = utils::to_matrix4x4(viewmat);
     camviewinfo.viewproj = utils::to_matrix4x4(viewproj);
     camviewinfo.invviewproj = utils::to_matrix4x4(viewproj.Invert());
 
-    auto const jitter = stdx::vec2{ distsf(re), distsf(re) } / stdx::vec2{ float(viewdata.width), float(viewdata.height) };
-    
-    // no jitter for reference mode to compare with rtxpt
-    static constexpr bool refmode = true;
-    static constexpr uint32 spp = 16u;
-    camviewinfo.jitter = refmode ? stdx::vec2{} : jitter;
+    auto const jitter = stdx::vec2{ distsf(re), distsf(re) };
 
-    viewglobalsbuffer.update({ camviewinfo });
-    sceneglobalsbuffer.update({ scenedata });
+    // jitter is probably only needed if using taa
+    camviewinfo.jitter = ptsettings.camjitter ? jitter : stdx::vec2{};
+
+    viewglobalsbuffer->update({ camviewinfo }, 1);
+    sceneglobalsbuffer->update({ scenedata });
 
     auto& cmdlist = renderer.deviceres().cmdlist;
     auto const& pipelineobjects = globalres.psomap().find("pathtrace")->second;
@@ -176,16 +207,25 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     cmdlist->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
 
     gfx::raytrace rt;
-
-    for (auto i : stdx::range(spp))
+    for (auto i : stdx::range(ptsettings.spp))
     {
         rootdescs.sampleidx = i;
         cmdlist->SetComputeRoot32BitConstants(0, 2, &rootdescs, 0);
-        gfx::uav_barrier(*cmdlist.Get(), renderer.hdrrendertarget);
         rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
+        gfx::uav_barrier(
+                        *cmdlist.Get(), renderer.hdrrendertarget, renderer.diffusecolortex, renderer.diffuseradiancetex[0], renderer.diffuseradiancetex[1], renderer.specularradiancetex[0], renderer.specularradiancetex[1],
+                        renderer.historylentex[0], renderer.historylentex[1], renderer.hitposition[0], renderer.hitposition[1]
+                        );
     }
 
+    renderer.viewglobals = viewglobalsbuffer.ex();
+    renderer.sceneglobals = sceneglobalsbuffer.ex();
+	renderer.ptsettings = ptsettingsbuffer.ex();
+    renderer.spatialdenoise = !ptsettings.simpleaccum;
+
     prevviewmatrix = currviewmatrix;
+
+    framecount++;
 }
 
 void pathtrace::on_key_up(unsigned key)
@@ -196,6 +236,12 @@ void pathtrace::on_key_up(unsigned key)
         scenedata.numbounces++;
     if (key == 'L')
         scenedata.numbounces = std::max(scenedata.numbounces, 1u) - 1;
+
+    if (key == 'B')
+    {
+        accumdirty = true;
+        scenedata.ggxsampleridx = (++scenedata.ggxsampleridx) % 3;
+    }
 
     if (key >= '0' && key <= '9')
         scenedata.viewmode = key - '0';

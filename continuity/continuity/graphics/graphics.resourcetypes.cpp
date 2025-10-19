@@ -146,7 +146,7 @@ void uploadbuffer::update(void const* datastart, size_t offset, size_t updatesiz
     memcpy(mappeddata + offset, datastart, updatesize);
 }
 
-ComPtr<ID3D12Resource> gfx::defaultbuffer::create(void const* datastart, size_t buffersize)
+ComPtr<ID3D12Resource> defaultbuffer::create(void const* datastart, size_t buffersize)
 {
     auto device = globalresources::get().device();
 
