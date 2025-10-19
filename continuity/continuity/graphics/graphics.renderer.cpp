@@ -6,8 +6,9 @@ module;
 #include <d3d12.h>
 #include "thirdparty/d3dx12.h"
 #include "thirdparty/dxhelpers.h"
-
 #include <shlobj.h>
+
+#include "shared/raytracecommon.h"
 
 module graphics:renderer;
 
@@ -15,11 +16,16 @@ import std;
 import stdx;
 import graphicscore;
 import :globalresources;
+import engine;
 
 using Microsoft::WRL::ComPtr;
+using namespace stdx;
 
-static constexpr stdx::vec4 clearcol = { 0.254901975f, 0.254901975f, 0.254901975f, 1.f };
+static constexpr stdx::vec4 clearcol = { 0, 0, 0, 0 };
 static constexpr stdx::vec4 cleardepth = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+// needs a callable createtexanduav
+#define createtexanduav_wrap(tex, desc) createtexanduav(#tex, tex, desc)
 
 namespace gfx
 {
@@ -215,7 +221,6 @@ void renderer::init(HWND window, UINT w, UINT h)
 
     // this sample does not support fullscreen transitions
     ThrowIfFailed(factory->MakeWindowAssociation(window, DXGI_MWA_NO_ALT_ENTER));
-
     ThrowIfFailed(sc.As(&swapchain));
 
     rtheap.d3dheap = createdescriptorheap(rtheap::maxdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -223,19 +228,51 @@ void renderer::init(HWND window, UINT w, UINT h)
     resheap.d3dheap = createdescriptorheap(resourceheap::maxdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     sampheap.d3dheap = createdescriptorheap(samplerheap::maxdescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
+    auto& globalres = globalresources::get();
+
+    // todo : temp
+    globalres.resourceheap() = resheap;
+    globalres.samplerheap() = sampheap;
+
+    auto createtexanduav = [&](char const* name, auto& tex, auto const& desc)
+    {
+        tex->create(desc, clearcol, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        tex->d3dresource->SetName(utils::strtowstr(name).c_str());
+        tex.ex() = tex->createuav().heapidx;
+    };
+
     auto rtdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, UINT64(viewwidth), UINT(viewheight), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
-    
-    rendertarget.create(rtdesc, clearcol, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     auto hdrrtdesc = rtdesc;
     hdrrtdesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-    hdrrendertarget.create(hdrrtdesc, clearcol, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+    createtexanduav_wrap(rendertarget, rtdesc);
+    createtexanduav_wrap(hdrrendertarget, hdrrtdesc);
+    createtexanduav_wrap(normaldepthtex[0], hdrrtdesc);
+    createtexanduav_wrap(normaldepthtex[1], hdrrtdesc);
+    createtexanduav_wrap(hitposition[0], hdrrtdesc);
+    createtexanduav_wrap(hitposition[1], hdrrtdesc);
+    createtexanduav_wrap(diffusecolortex, hdrrtdesc);
+    createtexanduav_wrap(specbrdftex, hdrrtdesc);
+    createtexanduav_wrap(diffuseradiancetex[0], hdrrtdesc);
+    createtexanduav_wrap(diffuseradiancetex[1], hdrrtdesc);
+    createtexanduav_wrap(specularradiancetex[0], hdrrtdesc);
+    createtexanduav_wrap(specularradiancetex[1], hdrrtdesc);
+    createtexanduav_wrap(historylentex[0], hdrrtdesc);
+    createtexanduav_wrap(historylentex[1], hdrrtdesc);
+
+    // todo : can moments be 16 bits
+    hdrrtdesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+    // todo : don't need second moments texture
+    createtexanduav_wrap(momentstex[0], hdrrtdesc);
+    createtexanduav_wrap(momentstex[1], hdrrtdesc);
 
     auto dtdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, viewwidth, viewheight, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
     depthtarget.create(dtdesc, cleardepth, D3D12_RESOURCE_STATE_DEPTH_WRITE);
     shadowmap.create(dtdesc, cleardepth, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-    rtview = rendertarget.creatertv(rtheap);
+    rtview = rendertarget->creatertv(rtheap);
     dtview = depthtarget.createdtv(dtheap);
     shadowmapdtv = shadowmap.createdtv(dtheap);
 
@@ -253,7 +290,7 @@ void renderer::init(HWND window, UINT w, UINT h)
 
     D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pso_desc = {};
     pso_desc.NumRenderTargets = 1;
-    pso_desc.RTVFormats[0] = rendertarget.d3dresource->GetDesc().Format;
+    pso_desc.RTVFormats[0] = rendertarget->d3dresource->GetDesc().Format;
     pso_desc.DSVFormat = depthtarget.d3dresource->GetDesc().Format;
     pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);      // CW front; cull back
     pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);                // opaque
@@ -262,8 +299,6 @@ void renderer::init(HWND window, UINT w, UINT h)
     pso_desc.SampleMask = UINT_MAX;
     pso_desc.SampleDesc = DefaultSampleDesc();
 
-    auto& globalres = globalresources::get();
-
     // todo : these shouldn't be passed using global resources but use renderer functions to access
     globalres.psodesc(pso_desc);
     globalres.init();
@@ -271,24 +306,31 @@ void renderer::init(HWND window, UINT w, UINT h)
     // create the command list in recording state
     ThrowIfFailed(d3ddevres.dev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandallocators[0].Get(), nullptr, IID_PPV_ARGS(&d3ddevres.cmdlist)));
 
-    // todo : temp
     globalres.cmdlist() = d3ddevres.cmdlist;
-    globalres.resourceheap() = resheap;
-    globalres.samplerheap() = sampheap;
 
     shadowmapsrv = shadowmap.createsrv(DXGI_FORMAT_R32_FLOAT);
-    hdrrtuav = hdrrendertarget.createuav();
-    rtuav = rendertarget.createuav();
 
-    accumparamsbuffer.create();
-    accumparamsidx = accumparamsbuffer.createsrv().heapidx;
-    d3ddevres.hdrrtuavidx = hdrrtuav.heapidx;
+    stdx::vecui2 diffradianceidx = { diffuseradiancetex[0].ex(), diffuseradiancetex[1].ex() };
+    stdx::vecui2 specradianceidx = { specularradiancetex[0].ex(), specularradiancetex[1].ex() };
+    stdx::vecui2 normaldepthidx = { normaldepthtex[0].ex(), normaldepthtex[1].ex() };
+    stdx::vecui2 histlenddxyidx = { historylentex[0].ex(), historylentex[1].ex() };
+    stdx::vecui2 hitpositionidx = { hitposition[0].ex(), hitposition[1].ex() };
+
+    accumparamsbuffer->create();
+    accumparamsbuffer.ex() = accumparamsbuffer->createsrv().heapidx;
+    d3ddevres.hdrrtuavidx = hdrrendertarget.ex();
+    d3ddevres.normaldepthuavidx = normaldepthidx;
+    d3ddevres.historylenuavidx = histlenddxyidx;
+    d3ddevres.diffcoloruavidx = diffusecolortex.ex();
+    d3ddevres.specbrdfuavidx = specbrdftex.ex();
+    d3ddevres.diffradianceuavidx = diffradianceidx;
+    d3ddevres.specradianceuavidx = specradianceidx;
+    d3ddevres.hitposition = hitpositionidx;
 }
 
 void renderer::deinit()
 {
-    // ensure that the GPU is no longer referencing resources that are about to be
-    // cleaned up by the destructor
+    // ensure that the GPU is no longer referencing resources that are about to be cleaned up by the destructor
     waitforgpu();
 
     CloseHandle(fenceevent);
@@ -341,38 +383,123 @@ void renderer::prerender()
 void renderer::postrender()
 {
     auto& globalres = globalresources::get();
-    auto const& pipelineobjects = globalres.psomap().find("temporalaccum")->second;
 
-    CD3DX12_RESOURCE_BARRIER hdrrtbarrier = CD3DX12_RESOURCE_BARRIER::UAV(hdrrendertarget.d3dresource.Get());
-    d3ddevres.cmdlist->ResourceBarrier(1, &hdrrtbarrier);
+    stdx::vecui2 diffradianceidx = { diffuseradiancetex[0].ex(), diffuseradiancetex[1].ex() };
+    stdx::vecui2 specradianceidx = { specularradiancetex[0].ex(), specularradiancetex[1].ex() };
+    stdx::vecui2 normaldepthidx = { normaldepthtex[0].ex(), normaldepthtex[1].ex() };
+    stdx::vecui2 histlenddxyidx = { historylentex[0].ex(), historylentex[1].ex() };
+    stdx::vecui2 hitpositionidx = { hitposition[0].ex(), hitposition[1].ex() };
 
-    d3ddevres.cmdlist->SetComputeRootSignature(pipelineobjects.root_signature.Get());
+    if (!denoiseparamsbuffer->d3dresource)
+    {
+        rt::denoiserparams params
+        {
+            diffradianceidx, specradianceidx, normaldepthidx, histlenddxyidx, hitpositionidx, { uint32(viewwidth), uint32(viewheight) }, sceneglobals
+        };
+
+        denoiseparamsbuffer->create({ params });
+        denoiseparamsbuffer.ex() = denoiseparamsbuffer->createsrv().heapidx;
+
+        stdx::cassert(!postdenoiseparamsbuffer->d3dresource);
+
+        rt::postdenoiseparams postdenparams = { diffusecolortex.ex(), specbrdftex.ex(), diffradianceidx, specradianceidx, rendertarget.ex(), sceneglobals};
+        postdenoiseparamsbuffer->create({ postdenparams });
+        postdenoiseparamsbuffer.ex() = postdenoiseparamsbuffer->createsrv().heapidx;
+    }
+
     ID3D12DescriptorHeap* heaps[] = { resheap.d3dheap.Get(), sampheap.d3dheap.Get() };
 
-    d3ddevres.cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
-    d3ddevres.cmdlist->SetPipelineState(pipelineobjects.pso.Get());
-
-    accumparams params{ rtuav.heapidx, hdrrtuav.heapidx, accumcount++ };
-    accumparamsbuffer.update({ params });
-
+    auto const& accumpipeobjs = globalres.psomap().find("temporalaccum")->second;
+    
+    // all compute pso's have the same root signature so just set it once
+    d3ddevres.cmdlist->SetComputeRootSignature(accumpipeobjs.root_signature.Get());
+   
     auto dispatchx = UINT(divideup<8>(viewwidth));
     auto dispatchy = UINT(divideup<8>(viewheight));
 
-    d3ddevres.cmdlist->SetComputeRoot32BitConstants(0, 3, &accumparamsidx, 0);
+    CD3DX12_RESOURCE_BARRIER preaccumbarriers[] =
+    {
+        CD3DX12_RESOURCE_BARRIER::UAV(hdrrendertarget->d3dresource.Get()),
+        CD3DX12_RESOURCE_BARRIER::UAV(normaldepthtex[0]->d3dresource.Get()),
+        CD3DX12_RESOURCE_BARRIER::UAV(normaldepthtex[1]->d3dresource.Get()),
+    };
 
+    d3ddevres.cmdlist->ResourceBarrier(_countof(preaccumbarriers), preaccumbarriers);
+
+    // todo: revisit alpha after spatial denoising
+    float alpha = 0.1f;
+    rt::accumparams params
+    { 
+        rendertarget.ex(), hdrrendertarget.ex(), accumcount++, ptsettings, viewglobals, sceneglobals, { hitposition[0].ex(), hitposition[1].ex() }, { diffuseradiancetex[0].ex(), diffuseradiancetex[1].ex() }, {specularradiancetex[0].ex(), specularradiancetex[1].ex()},
+        { normaldepthtex[0].ex(), normaldepthtex[1].ex() }, { historylentex[0].ex(), historylentex[1].ex()}, { momentstex[0].ex(), momentstex[1].ex()},
+        {uint32(viewwidth), uint32(viewheight)}, alpha, alpha
+    };
+
+    accumparamsbuffer->update({ params });
+
+    d3ddevres.cmdlist->SetPipelineState(accumpipeobjs.pso.Get());
+    d3ddevres.cmdlist->SetComputeRoot32BitConstants(0, 3, &accumparamsbuffer.ex(), 0);
     d3ddevres.cmdlist->Dispatch(dispatchx, dispatchy, 1);
 
-    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::UAV(rendertarget.d3dresource.Get());
-    d3ddevres.cmdlist->ResourceBarrier(1, &barrier);
+    if (spatialdenoise)
+    {
+        // we only need to barrier resources written this frame, however due to pingpong nature add all of them
+        CD3DX12_RESOURCE_BARRIER predenoisebarriers[] =
+        {
+            CD3DX12_RESOURCE_BARRIER::UAV(historylentex[0]->d3dresource.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(historylentex[1]->d3dresource.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(momentstex[0]->d3dresource.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(momentstex[1]->d3dresource.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(diffusecolortex->d3dresource.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(diffuseradiancetex[0]->d3dresource.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(specularradiancetex[0]->d3dresource.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(diffuseradiancetex[1]->d3dresource.Get()),
+            CD3DX12_RESOURCE_BARRIER::UAV(specularradiancetex[1]->d3dresource.Get())
+        };
 
+        d3ddevres.cmdlist->ResourceBarrier(_countof(predenoisebarriers), predenoisebarriers);
+
+        auto const& denoisepipeobjs = globalres.psomap().find("denoise")->second;
+
+        d3ddevres.cmdlist->SetPipelineState(denoisepipeobjs.pso.Get());
+
+        rt::denoiserootconsts denrootconsts = { denoiseparamsbuffer.ex() };
+        for (uint32 i = 0; i < 1; ++i)
+        {
+            denrootconsts.passidx = i;
+
+            d3ddevres.cmdlist->SetComputeRoot32BitConstants(0, 2, &denrootconsts, 0);
+            d3ddevres.cmdlist->Dispatch(dispatchx, dispatchy, 1);
+
+            CD3DX12_RESOURCE_BARRIER barriersradiance[] =
+            {
+                CD3DX12_RESOURCE_BARRIER::UAV(diffuseradiancetex[0]->d3dresource.Get()), CD3DX12_RESOURCE_BARRIER::UAV(diffuseradiancetex[1]->d3dresource.Get()),
+                CD3DX12_RESOURCE_BARRIER::UAV(specularradiancetex[0]->d3dresource.Get()), CD3DX12_RESOURCE_BARRIER::UAV(specularradiancetex[1]->d3dresource.Get())
+            };
+
+            d3ddevres.cmdlist->ResourceBarrier(_countof(barriersradiance), barriersradiance);
+        }
+
+        auto const& postdenoisepipeobjs = globalres.psomap().find("postdenoise")->second;
+
+        // todo : filter moments and illumination bilaterally before denosing(for low accumulated samples)
+        d3ddevres.cmdlist->SetPipelineState(postdenoisepipeobjs.pso.Get());
+        d3ddevres.cmdlist->SetComputeRoot32BitConstants(0, 1, &postdenoiseparamsbuffer.ex(), 0);
+        d3ddevres.cmdlist->Dispatch(dispatchx, dispatchy, 1);
+    }
+
+    auto rtbarrier = CD3DX12_RESOURCE_BARRIER::UAV(rendertarget->d3dresource.Get());
+    d3ddevres.cmdlist->ResourceBarrier(1, &rtbarrier);
+
+    // no uav barrier needed for rendertarget due to transition
     CD3DX12_RESOURCE_BARRIER transitions[2];
-    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget.d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(rendertarget->d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
 
     d3ddevres.cmdlist->ResourceBarrier(_countof(transitions), transitions);
 
     // copy from render target to back buffer
-    d3ddevres.cmdlist->CopyResource(backbuffers[frameidx].Get(), rendertarget.d3dresource.Get());
+    d3ddevres.cmdlist->CopyResource(backbuffers[frameidx].Get(), rendertarget->d3dresource.Get());
 
     for (auto& t : transitions)
         t = reversetransition(t);

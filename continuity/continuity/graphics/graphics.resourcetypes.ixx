@@ -69,6 +69,11 @@ public:
 		return { d3dheap->GetCPUDescriptorHandleForHeapStart(), INT(slot * heapdesc_incrementsize(heaptype)) };
 	}
 
+	CD3DX12_GPU_DESCRIPTOR_HANDLE gpuhandle(uint32 slot) const
+	{
+		return { d3dheap->GetGPUDescriptorHandleForHeapStart(), INT(slot * heapdesc_incrementsize(heaptype)) };
+	}
+
 	uint32 currslot = 0;
 	ComPtr<ID3D12DescriptorHeap> d3dheap;
 };
@@ -167,11 +172,14 @@ struct structuredbuffer<t, accesstype::both> : public structuredbufferbase<t, up
 		uploadbuffer::create(data.data(), this->numelements * sizeof(t));
 	}
 
-	void update(std::vector<t> const& data)
+	void update(std::vector<t> const& data, std::size_t offset = 0)
 	{
 		stdx::cassert(data.size() <= this->numelements, "cannot update buffer with more data than initial size");
-		uploadbuffer::update(data.data(), 0, uint32(this->numelements * sizeof(t)));
+		uploadbuffer::update(data.data(), offset * sizeof(t), uint32(data.size() * sizeof(t)));
 	}
+
+	t& operator[](std::size_t idx) { stdx::cassert(this->mappeddata); return *(reinterpret_cast<t*>(this->mappeddata) + idx); }
+	t const& operator[](std::size_t idx) const { stdx::cassert(this->mappeddata); return *(reinterpret_cast<t*>(this->mappeddata) + idx); }
 };
 
 // gpu only
