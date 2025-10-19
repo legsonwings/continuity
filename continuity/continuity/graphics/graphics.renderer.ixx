@@ -4,6 +4,8 @@ module;
 #include <dxgi1_6.h>
 #include "thirdparty/d3dx12.h"
 
+#include "shared/raytracecommon.h"
+
 export module graphics:renderer;
 
 import stdxcore;
@@ -19,21 +21,10 @@ constexpr uint32 backbuffercount = 2;
 
 class renderer
 {
-    struct accumparams
-    {
-        uint32 currtexture;
-        uint32 hdrcolourtex;
-        uint32 accumcount;
-    };
-
     HANDLE fenceevent{};
     UINT64 fencevalue = 0;
     UINT viewwidth;
     UINT viewheight;
-    uint32 frameidx = 0;
-
-    uav hdrrtuav;
-    uav rtuav;
 
     ComPtr<ID3D12Fence> fence;
     deviceresources d3ddevres;
@@ -44,10 +35,10 @@ class renderer
     resourcelist transientresources;
     
     texture<accesstype::gpu> environmenttex;
-    
-    uint32 accumparamsidx;
 
-    gfx::structuredbuffer<accumparams, gfx::accesstype::both> accumparamsbuffer;
+    stdx::ext<structuredbuffer<rt::accumparams, accesstype::both>, uint32> accumparamsbuffer;
+    stdx::ext<structuredbuffer<rt::denoiserparams, accesstype::both>, uint32> denoiseparamsbuffer;
+    stdx::ext<structuredbuffer<rt::postdenoiseparams, accesstype::both>, uint32> postdenoiseparamsbuffer;
 
     uint32 accumcount = 0;
 public:
@@ -55,8 +46,19 @@ public:
     deviceresources& deviceres() { return d3ddevres; }
     resourcelist& transientres() { return transientresources; }
 
-    texture<accesstype::gpu> hdrrendertarget;
-    texture<accesstype::gpu> rendertarget;
+    stdx::ext<texture<accesstype::gpu>, uint32> hitposition[2];
+    stdx::ext<texture<accesstype::gpu>, uint32> normaldepthtex[2];
+    stdx::ext<texture<accesstype::gpu>, uint32> diffusecolortex;
+    stdx::ext<texture<accesstype::gpu>, uint32> specbrdftex;
+    stdx::ext<texture<accesstype::gpu>, uint32> diffuseradiancetex[2];
+    stdx::ext<texture<accesstype::gpu>, uint32> specularradiancetex[2];
+    stdx::ext<texture<accesstype::gpu>, uint32> momentstex[2];
+
+    // todo : encode normal into two floats and use remaining channel for depth instead of having two channel historylen
+    stdx::ext<texture<accesstype::gpu>, uint32> historylentex[2];
+
+    stdx::ext<texture<accesstype::gpu>, uint32> hdrrendertarget;
+    stdx::ext<texture<accesstype::gpu>, uint32> rendertarget;
     texture<accesstype::gpu> depthtarget;
     texture<accesstype::gpu> shadowmap;
 
@@ -70,7 +72,14 @@ public:
     dtv shadowmapdtv;
     srv shadowmapsrv;
 
+    // todo : hack 
+    uint32 sceneglobals;
+    uint32 viewglobals;
+    uint32 ptsettings;
+
     uint32 envtexidx;
+    uint32 frameidx = 0;
+    bool spatialdenoise = true;
 
     void init(HWND window, UINT w, UINT h);
     void deinit();

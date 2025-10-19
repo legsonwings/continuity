@@ -9,6 +9,7 @@ export module graphics:globalresources;
 
 import stdxcore;
 import stdx;
+import vec;
 import std;
 import :resourcetypes;
 
@@ -31,6 +32,13 @@ struct deviceresources
 
 	// todo : temp hack
 	uint32 hdrrtuavidx;
+	stdx::vecui2 normaldepthuavidx;
+	stdx::vecui2 historylenuavidx;
+	uint32 diffcoloruavidx;
+	uint32 specbrdfuavidx;
+	stdx::vecui2 hitposition;
+	stdx::vecui2 diffradianceuavidx;
+	stdx::vecui2 specradianceuavidx;
 };
 
 class globalresources

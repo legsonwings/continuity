@@ -14,7 +14,7 @@ class simplecamera
 public:
     simplecamera();
 
-    void Init(stdx::vec3 position);
+    void Init(stdx::vec3 position, float yaw = 0);
     void Update(float elapsedSeconds);
     stdx::vec3 GetCurrentPosition() const;
     DirectX::XMMATRIX GetViewMatrix();
@@ -48,6 +48,8 @@ private:
         bool a;
         bool s;
         bool d;
+        bool q;
+        bool e;
 
         bool left;
         bool right;
@@ -56,6 +58,7 @@ private:
     };
 
     stdx::vec3 m_initialPosition;
+    float m_initialyaw;
     stdx::vec3 m_position;
     float m_yaw;                // Relative to the +z axis.
     float m_pitch;                // Relative to the xz plane.

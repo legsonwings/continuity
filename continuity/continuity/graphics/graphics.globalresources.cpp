@@ -43,6 +43,8 @@ void globalresources::init()
     addcomputepso("blend", "blend_cs.cso");
     addcomputepso("genmipmaps", "genmipmaps_cs.cso");
     addcomputepso("temporalaccum", "temporalaccum_cs.cso");
+    addcomputepso("denoise", "atrouswaveletdenoise_cs.cso");
+    addcomputepso("postdenoise", "postdenoise_cs.cso");
     addcomputepso("tonemap", "tonemap_cs.cso");
 
     addmat(material().colour(color::black));
@@ -267,7 +269,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
         ComPtr<ID3D12RootSignature> rootsig;
 
         CD3DX12_ROOT_PARAMETER rootparam;
-        rootparam.InitAsConstants(1, 0);
+        rootparam.InitAsConstants(2, 0);
         CD3DX12_ROOT_SIGNATURE_DESC rootsig_desc(1, &rootparam);
         rootsig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
@@ -327,7 +329,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
     // defines the maximum sizes in bytes for the ray payload and attribute structure.
     auto shaderConfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
 
-    UINT payloadSize = 3 * sizeof(float) + 2 * sizeof(uint32);
+    UINT payloadSize = 56;
     UINT attributeSize = 2 * sizeof(float); // float2 for barycentrics
     shaderConfig->Config(payloadSize, attributeSize);
 
