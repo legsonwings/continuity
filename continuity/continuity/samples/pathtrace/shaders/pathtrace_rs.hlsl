@@ -1,14 +1,15 @@
-#ifndef RAYTRACE_HLSL
-#define RAYTRACE_HLSL
+#ifndef PATHRACE_HLSL
+#define PATHRACE_HLSL
 
 #include "shaders/common.hlsli"
+#include "shaders/brdf.hlsli"
 #include "shared/raytracecommon.h"
 #include "shaders/lighting.hlsli"
 
-// params
-static const bool randomsampleoffset = true;
-static const bool usesuppliedrandoms = true;
-static const bool userussianroulette = true;
+// todo : these are not on ptsettings as they are supposed to be removed eventually after being tested
+static const bool randomlyoffsetcamerarays = false;
+static const bool usehqrandoms = false;
+static const bool userussianroulette = false;
 
 #define use_ldsampler 0
 
@@ -23,7 +24,10 @@ enum sequencegen
 
 struct raypayload
 {
+    // todo : remove radiance
     float3 radiance;
+    float3 diffradiance;
+    float3 specradiance;
     float3 thp;
     uint seed;
     uint currbounce;
@@ -207,26 +211,10 @@ struct uniformsampler
 // taken from dxr tutorials https://intro-to-dxr.cwyman.org/
 // renamed functions and variables
 
-// returns a relative luminance of an input linear rgb color in the ITU-R BT.709 color space
-float luminance(float3 rgb)
-{
-    return dot(rgb, float3(0.2126f, 0.7152f, 0.0722f));
-}
-
 float rand(inout uint seed)
 {
     seed = (1664525u * seed + 1013904223u);
     return float(seed & 0x00FFFFFF) / float(0x01000000);
-}
-
-// from "Efficient Construction of Perpendicular Vectors Without Branching")
-float3 perpendicular(float3 u)
-{
-    float3 a = abs(u);
-    uint xm = ((a.x - a.y) < 0 && (a.x - a.z) < 0) ? 1 : 0;
-    uint ym = (a.y - a.z) < 0 ? (1 ^ xm) : 0;
-    uint zm = 1 ^ (xm | ym);
-    return cross(u, float3(xm, ym, zm));
 }
 
 // generates a seed for a random number generator from 2 inputs plus a backoff
@@ -245,10 +233,10 @@ uint initrand(uint val0, uint val1, uint backoff = 16)
 }
 
 // Get a cosine-weighted random vector centered around a specified normal direction.
-float3 coshemispheresample(inout uint seed, float3 normal, bool usesuppliedrandoms = false, float2 suppliedrandomvals = (float2)0)
+float3 coshemispheresample(float2 rands, float3 normal, bool usehqrandoms = false, float2 hqrandomvals = 0.xx)
 {
     // get 2 random numbers to select our sample with
-    float2 randomvals = usesuppliedrandoms ? suppliedrandomvals : float2(rand(seed), rand(seed));
+    float2 randomvals = usehqrandoms ? hqrandomvals : rands;
 
     // cosine weighted hemisphere sample from RNG
     float3 bitangent = perpendicular(normal);
@@ -282,28 +270,6 @@ float2 wsvector_tolatlong(float3 dir)
     float v = acos(p.y) * (1.0 / pi);
     return float2(u, v);
 }
-
-// get a ggx half vector / microfacet normal, sampled according to the distribution computed by the function ggxnormaldistribution() above.  
-// when using this function to sample, the probability density is pdf = d*g*f / (4*nol*nov)
-float3 ggxmicrofacetn(inout uint randseed, float r, float3 hitnorm, bool usesuppliedrandoms = false, float2 suppliedrandomvals = (float2)0)
-{
-    // todo : does this produce vector in positive hemisphere only?
-    // get our uniform random numbers
-    float2 randval = usesuppliedrandoms ? suppliedrandomvals : float2(rand(randseed), rand(randseed));
-
-    // get an orthonormal basis from the normal
-    float3 b = perpendicular(hitnorm);
-    float3 t = cross(b, hitnorm);
-
-    // ggx ndf sampling
-    float a2 = r * r;
-    float costhetah = sqrt(max(0.0f, (1.0 - randval.x) / ((a2 - 1.0) * randval.x + 1)));
-    float sinthetah = sqrt(max(0.0f, 1.0f - costhetah * costhetah));
-    float phih = randval.y * pi * 2.0f;
-
-    // get our ggx ndf sample (i.e., the half vector)
-    return t * (sinthetah * cos(phih)) + b * (sinthetah * sin(phih)) + hitnorm * costhetah;
-}
 // taken from dxr tutorials https://intro-to-dxr.cwyman.org/
 
 [shader("miss")]
@@ -312,17 +278,36 @@ void missshader(inout raypayload payload)
     if (payload.currbounce <= 1)
     {
         // for direct rays that miss sample sky texture
-        StructuredBuffer<rt::dispatchparams> descriptorsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
-        rt::dispatchparams descriptors = descriptorsbuffer[0];
+        StructuredBuffer<rt::dispatchparams> paramsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
 
-        StructuredBuffer<rt::sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptors.sceneglobals];
+        rt::dispatchparams params = paramsbuffer[0];
+
+        StructuredBuffer<rt::sceneglobals> sceneglobals = ResourceDescriptorHeap[params.sceneglobals];
         Texture2D<float3> envtex = ResourceDescriptorHeap[sceneglobals[0].envtex];
 
+        // todo : env map is broken
+        // also pass dims
         float2 texdims;
         envtex.GetDimensions(texdims.x, texdims.y);
 
         float2 uv = wsvector_tolatlong(WorldRayDirection());
         payload.radiance = envtex[uint2(uv * texdims)];
+
+        uint2 texel = DispatchRaysIndex().xy;
+
+        uint idx = (sceneglobals[0].frameidx & 1u) ^ 1u;
+        RWTexture2D<float4> difftex = ResourceDescriptorHeap[params.diffcolortex];
+        RWTexture2D<float4> historylendepthdxtex = ResourceDescriptorHeap[params.historylentex[idx]];
+        RWTexture2D<float4> specbrdfesttex = ResourceDescriptorHeap[params.specbrdftex];
+
+        // clear textures on miss
+        specbrdfesttex[texel] = 0.xxxx;
+        difftex[texel] = 0.xxxx;
+
+        // set high motion on miss so that reprojection always fails
+        // we also don't need to clear hitposition and normal depth because they are only used if reprojection doens't fail
+        float2 motion = float2(1e34f, 1e34f);
+        historylendepthdxtex[texel].yzw = float3(0, motion);
     }
     else
         payload.radiance = float3(0, 0, 0);
@@ -373,7 +358,7 @@ float3 barycentriccoordinates(float3 pt, float3 v0, float3 v1, float3 v2)
     return float3(u, v, w);
 }
 
-float2x2 duv(float3x3 tri, float3x2 uvs, float3 p, float2 uv, float3 campos, float4x4 viewproj, float4x4 invproj)
+float2x3 dxdydz(float3x3 tri, float3 p, float3 campos, float4x4 viewproj, float4x4 invproj)
 {
     float3 n = normalize(cross(tri[2] - tri[0], tri[1] - tri[0]));
 
@@ -384,7 +369,7 @@ float2x2 duv(float3x3 tri, float3x2 uvs, float3 p, float2 uv, float3 campos, flo
 
     // project the hit point to ndc
     float4 ndc = mul(viewproj, float4(p, 1));
-	ndc.xy = ndc.xy * rcp(ndc.w);
+    ndc.xy = ndc.xy * rcp(ndc.w);
 
     float2 pixndcsize = 2.0 / DispatchRaysDimensions().xy;
     float2 ndcxoff = float2(ndc.x + pixndcsize.x, ndc.y);
@@ -395,7 +380,7 @@ float2x2 duv(float3x3 tri, float3x2 uvs, float3 p, float2 uv, float3 campos, flo
     world0.xyz /= world0.w;
 
     float4 world1 = mul(invproj, float4(ndcyoff, 0, 1));
-	world1.xyz /= world1.w;
+    world1.xyz /= world1.w;
 
     // helper rays
     ray ray0, ray1;
@@ -408,9 +393,14 @@ float2x2 duv(float3x3 tri, float3x2 uvs, float3 p, float2 uv, float3 campos, flo
     float3 xoffset = rayplaneintersect(p, n, ray0);
     float3 yoffset = rayplaneintersect(p, n, ray1);
 
+    return float2x3(xoffset, yoffset);
+}
+
+float2x2 duv(float2x3 rayhits, float3x3 tri, float3x2 uvs, float2 uv)
+{
     // compute barycentrics 
-    float3 baryx = barycentriccoordinates(xoffset, tri[0], tri[1], tri[2]);
-    float3 baryy = barycentriccoordinates(yoffset, tri[0], tri[1], tri[2]);
+    float3 baryx = barycentriccoordinates(rayhits[0], tri[0], tri[1], tri[2]);
+    float3 baryy = barycentriccoordinates(rayhits[1], tri[0], tri[1], tri[2]);
 
     // compute uvs and take the difference
     float2 duvx = mul(baryx, uvs) - uv;
@@ -425,19 +415,20 @@ shadingdata getshadingdata()
 	return (shadingdata)0;
 }
 
-raypayload traceray(ray ray, uint currbounce, inout uint seed)
+raypayload traceray(ray ray, uint currbounce, float3 thp, inout uint seed)
 {
-    StructuredBuffer<rt::dispatchparams> descriptorsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
-    rt::dispatchparams descriptors = descriptorsbuffer[0];
+    StructuredBuffer<rt::dispatchparams> paramsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
+    rt::dispatchparams params = paramsbuffer[0];
 
-    StructuredBuffer<rt::sceneglobals> scenedata = ResourceDescriptorHeap[descriptors.sceneglobals];
+    StructuredBuffer<rt::sceneglobals> scenedata = ResourceDescriptorHeap[params.sceneglobals];
 
     raypayload payload = (raypayload)0;
     payload.seed = seed;
     payload.currbounce = currbounce + 1;
+    payload.thp = thp;
     if (currbounce >= scenedata[0].numbounces + 1)
     {
-        payload.radiance = (float3)0.0;
+        payload.radiance = 0.xxx;
         return payload;
     }
 
@@ -447,7 +438,7 @@ raypayload traceray(ray ray, uint currbounce, inout uint seed)
     raydesc.TMin = 1e-3f;
     raydesc.TMax = 1e38;
 
-    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[descriptors.accelerationstruct];
+    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[params.accelerationstruct];
     TraceRay(scene, RAY_FLAG_CULL_FRONT_FACING_TRIANGLES, ~0, 0, 1, 0, raydesc, payload);
     seed = payload.seed;
 
@@ -457,56 +448,64 @@ raypayload traceray(ray ray, uint currbounce, inout uint seed)
 [shader("raygeneration")]
 void raygenshader()
 {
-    StructuredBuffer<rt::dispatchparams> descriptorsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
-    rt::dispatchparams descriptors = descriptorsbuffer[0];
+    StructuredBuffer<rt::dispatchparams> paramsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
+    rt::dispatchparams params = paramsbuffer[0];
 
-    StructuredBuffer<rt::viewglobals> viewbuf = ResourceDescriptorHeap[descriptors.viewglobals];
-    StructuredBuffer<rt::sceneglobals> sceneglobals = ResourceDescriptorHeap[descriptors.sceneglobals];
-    rt::viewglobals view = viewbuf[0];
+    StructuredBuffer<rt::viewglobals> viewbuf = ResourceDescriptorHeap[params.viewglobals];
+    StructuredBuffer<rt::sceneglobals> sceneglobals = ResourceDescriptorHeap[params.sceneglobals];
+    rt::viewglobals view = viewbuf[1];
     
-    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[descriptors.accelerationstruct];
+    RaytracingAccelerationStructure scene = ResourceDescriptorHeap[params.accelerationstruct];
+    StructuredBuffer<rt::ptsettings> ptsettingsbuffer = ResourceDescriptorHeap[params.ptsettings];
 
-    // todo : assumes 16 spp
-    uint sampleidx = sceneglobals[0].frameidx * 16u + rootdescriptors.sampleidx;
+    uint sampleidx = sceneglobals[0].frameidx * ptsettingsbuffer[0].spp + rootdescriptors.sampleidx;
 
     float2 dxdy = seqsampler::generate(rayhash(DispatchRaysIndex().xy, sampleidx, seqcameraray, 0), sampleidx, 2).xy;
 
     // technically subpixeloffset can cause the sample to be located outside the pixel but this is fine?
-    float2 const subpixeloffset = (randomsampleoffset ? (dxdy - 0.5.xx) : (float2)0) + view.jitter;
+    float2 const subpixeloffset = (randomlyoffsetcamerarays ? (dxdy - 0.5.xx) : 0.xx) + view.jitter;
 
     // generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
     ray ray = generatecameraray(DispatchRaysIndex().xy, view.viewpos, subpixeloffset, view.invviewproj);
 
     uint seed = initrand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, sceneglobals[0].frameidx, 16);
 
-    raypayload payload = traceray(ray, 0, seed);
-    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[descriptors.rtoutput];
+    // write to 1st texture on even frames
+    uint idx = (sceneglobals[0].frameidx & 1u) ^ 1u;
+    raypayload payload = traceray(ray, 0, 1.xxx, seed);
+    RWTexture2D<float4> rendertarget = ResourceDescriptorHeap[params.rtoutput];
+    RWTexture2D<float4> diffradiancetex = ResourceDescriptorHeap[params.diffradiancetex[idx]];
+    RWTexture2D<float4> specradiancetex = ResourceDescriptorHeap[params.specradiancetex[idx]];
 
-    bool colorsnan = any(isnan(payload.radiance));
+    uint2 const texel = DispatchRaysIndex().xy;
 
-    // write the raytraced color to the output texture
-    rendertarget[DispatchRaysIndex().xy] = float4(colorsnan ? 0.xxx : payload.radiance / 16u, 1.0);
+    // most path tracers do 1spp per frame, but we do all samples in same frame
+    // todo : temp do not accumulate right now(assume 1spp)
+    rendertarget[texel] = float4(any(isnan(payload.radiance)) ? 0.xxx : payload.radiance * rcp(ptsettingsbuffer[0].spp), 1.0);
+    diffradiancetex[texel] = float4(any(isnan(payload.diffradiance)) ? 0.xxx : payload.diffradiance * rcp(ptsettingsbuffer[0].spp), 1.0f);
+    specradiancetex[texel] = float4(any(isnan(payload.specradiance)) ? 0.xxx : payload.specradiance * rcp(ptsettingsbuffer[0].spp), 1.0f);
 }
 
 [shader("closesthit")]
 void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    StructuredBuffer<rt::dispatchparams> descriptorsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
-    rt::dispatchparams descriptors = descriptorsbuffer[0];
+    StructuredBuffer<rt::dispatchparams> paramsbuffer = ResourceDescriptorHeap[rootdescriptors.rootdesc];
+    rt::dispatchparams params = paramsbuffer[0];
 
-    StructuredBuffer<rt::viewglobals> viewbuf = ResourceDescriptorHeap[descriptors.viewglobals];
-    StructuredBuffer<rt::sceneglobals> scene = ResourceDescriptorHeap[descriptors.sceneglobals];
+    StructuredBuffer<rt::viewglobals> viewbuf = ResourceDescriptorHeap[params.viewglobals];
+    StructuredBuffer<rt::sceneglobals> scene = ResourceDescriptorHeap[params.sceneglobals];
 
-    StructuredBuffer<float3> posbuffer = ResourceDescriptorHeap[descriptors.posbuffer];
-    StructuredBuffer<index> indexbuffer = ResourceDescriptorHeap[descriptors.indexbuffer];
-    StructuredBuffer<uint> primmaterialsbuffer = ResourceDescriptorHeap[descriptors.primitivematerialsbuffer];
+    StructuredBuffer<float3> posbuffer = ResourceDescriptorHeap[params.posbuffer];
+    StructuredBuffer<index> indexbuffer = ResourceDescriptorHeap[params.indexbuffer];
+    StructuredBuffer<uint> primmaterialsbuffer = ResourceDescriptorHeap[params.primitivematerialsbuffer];
     StructuredBuffer<material> materials = ResourceDescriptorHeap[scene[0].matbuffer];
-    StructuredBuffer<float2> texcoords = ResourceDescriptorHeap[descriptors.texcoordbuffer];
-    StructuredBuffer<tbn> tbns = ResourceDescriptorHeap[descriptors.tbnbuffer];
+    StructuredBuffer<float2> texcoords = ResourceDescriptorHeap[params.texcoordbuffer];
+    StructuredBuffer<tbn> tbns = ResourceDescriptorHeap[params.tbnbuffer];
     
-    RaytracingAccelerationStructure as = ResourceDescriptorHeap[descriptors.accelerationstruct];
+    RaytracingAccelerationStructure as = ResourceDescriptorHeap[params.accelerationstruct];
 
-    rt::viewglobals view = viewbuf[0];
+    rt::viewglobals prevview = viewbuf[0];
+    rt::viewglobals view = viewbuf[1];
 
     uint const triidx = PrimitiveIndex();
 
@@ -540,6 +539,11 @@ void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleInter
     float3 const b = normalize(barycentrics.x * b0 + barycentrics.y * b1 + barycentrics.z * b2);
     float3 const n = normalize(barycentrics.x * n0 + barycentrics.y * n1 + barycentrics.z * n2);
 
+    // reorthonormalize?
+    // todo : can use these as tangent basis for sampling specualr rays?
+    //t = normalize((t - dot(t, n) * n));
+    //b = normalize((b - dot(b, n) * n - dot(b, t) * t));
+
     material m = materials[primmaterialsbuffer[triidx]];
 
     Texture2D<float4> difftex = ResourceDescriptorHeap[NonUniformResourceIndex(m.diffusetex)];
@@ -548,15 +552,20 @@ void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleInter
 
     SamplerState sampler = SamplerDescriptorHeap[0];
 
-    float2x2 duvxy = duv(float3x3(p0, p1, p2), float3x2(uv0, uv1, uv2), p, uv, view.viewpos, view.viewproj, view.invviewproj);
+    float3x3 tris = float3x3(p0, p1, p2);
+    float2x3 rayhits = dxdydz(tris, p, view.viewpos, view.viewproj, view.invviewproj);
+    float2x2 duvxy = duv(rayhits, tris, float3x2(uv0, uv1, uv2), uv);
 
     float3 normal = normaltex.SampleGrad(sampler, uv, duvxy[0], duvxy[1]).xyz * 2.0 - 1.0;
     normal = t * normal.x + b * normal.y + n * normal.z;
 
+    // todo : bug with normal maps so use geometry normal(possibly sampling below hemisphere causing nans)
+    normal = n;
+
     float4 sampledcolour = difftex.SampleGrad(sampler, uv, duvxy[0], duvxy[1]);
     float2 mr = roughnesstex.SampleGrad(sampler, uv, duvxy[0], duvxy[1]).bg;
     float3 l = -scene[0].lightdir;
-    float3 v = normalize(view.viewpos - p);
+    float3 v = -WorldRayDirection();
     
     uint seed = payload.seed;
 
@@ -574,18 +583,10 @@ void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleInter
     float const nol = saturate(dot(normal, l));
 
     float3 const diffcolour = lerp(sampledcolour.rgb, 0.xxx, mr.x);
-    float3 const speccolour = lerp(0.04f.xxx, sampledcolour.rgb, mr.x);
-
-    float const nov = saturate(dot(normal, v));
+    float3 const speccolour = lerp(0.04.xxx, sampledcolour.rgb, mr.x);
     float const r = mr.y * mr.y;
 
-    float3 directcolour = (float3)0;
-    if (q.CommittedStatus() == COMMITTED_NOTHING)
-    {
-        float3 const specular = specularbrdf(l, v, normal, r, speccolour);
-        directcolour = scene[0].lightluminance * nol * (specular + diffusebrdf() * diffcolour);
-    }
-
+    float3 const directirradiance = q.CommittedStatus() == COMMITTED_NOTHING ? scene[0].lightluminance * nol : 0.xxx;
     if (scene[0].enableao)
     {
         RayDesc aoray;
@@ -608,87 +609,137 @@ void closesthitshader_triangle(inout raypayload payload, in BuiltInTriangleInter
     float const lumdiffuse = max(0.01f, luminance(diffcolour.rgb));
     float const lumspecular = max(0.01f, luminance(speccolour.rgb));
 
-    // todo : assumes 16 spp
-    uint sampleidx = scene[0].frameidx * 16u + rootdescriptors.sampleidx;
-    
+    StructuredBuffer<rt::ptsettings> ptsettingsbuffer = ResourceDescriptorHeap[params.ptsettings];
+
+    uint sampleidx = scene[0].frameidx * ptsettingsbuffer[0].spp + rootdescriptors.sampleidx;
+
+    // todo : dispatch pixel subsamples from raygen instead of cpp?(with atomic add cpp dispatch could eliminate barriers)
     // todo : white furnance test
-    // todo : rejecting indirect direction sample below surfaces will create a bias, so better to just sample positive hemisphere
-    //        sample vndf to get less variance for ggx specular, diffuse probably has someting similar in rtxpt
     // todo : use inline ray tracing
     // todo : add diffuse and sepcular transmissions, for transparent objects
     // todo : add delta reflections(is it really needed? maybe for mirrors??)
-
 	uint baserayhash = hashcombine(hashbounce(DispatchRaysDimensions().xy, payload.currbounce), seqindirectray);
     float3 rayrands = seqsampler::generate(baserayhash, sampleidx, 3).xyz;
 
     // we have to decide whether we sample our diffuse or specular/ggx lobe
     // todo : does this need to be more involved if transmission is ignored
     float probdiffuse = lumdiffuse / (lumdiffuse + lumspecular);
-    float choosediffuse = rayrands.z < probdiffuse;
+    //bool choosediffuse = rayrands.z < probdiffuse;
+    bool choosediffuse = rand(seed) < probdiffuse;
+    float rcpprobdiff = rcp(probdiffuse);
+
+    ggxsamplertype samplertype = (ggxsamplertype)scene[0].ggxsampleridx;
 
     ray ray;
     ray.origin = p;
 
-	float3 currentthp = (float3)0;
-    float3 indirectcol = (float3)0;
+    float2 randoms = float2(rand(seed), rand(seed));
+
+	float3 currentthp = 0.xxx;
     if (choosediffuse)
     {
-        ray.direction = coshemispheresample(seed, normal, usesuppliedrandoms, rayrands.xy);
+        ray.direction = coshemispheresample(randoms, normal, usehqrandoms, rayrands.xy);
 
         // thp = (costheta * brdf ) / (probdiffuse * costheta / pi)
-        currentthp = diffcolour * rcp(probdiffuse);
+        currentthp = diffcolour * rcpprobdiff;
     }
     else
     {
-        // randomly sample the ndf to get a microfacet in our brdf to reflect off of
-        // then compute the outgoing direction based on this (perfectly reflective) microfacet
-        float3 const spech = ggxmicrofacetn(seed, r, normal, usesuppliedrandoms, rayrands.xy);
-        float3 const specdir = normalize(2.f * dot(v, spech) * spech - v);
-        
-        ray.direction = specdir;
+        ggxsampleeval res;
+        if (samplertype == ggxsamplertype::vndf)
+            res = eval<ggxvndf>(r, v, randoms, normal, speccolour);
+        else if (samplertype == ggxsamplertype::bvndf)
+            res = eval<ggxbvndf>(r, v, randoms, normal, speccolour);
+        else
+            res = eval<ggxndf>(r, v, randoms, normal, speccolour);
 
-        float const loh = saturate(dot(specdir, spech));
-        float const noh = saturate(dot(normal, spech));
-        float const nol = saturate(dot(normal, specdir));
-
-        float const r2 = r * r;
-        float const ndf = ggx_specularndf(noh, r2);
-        float const vis = ggx_specularvisibility(nov, nol, r2);
-        float3 const f = fresnel_schlick(loh, speccolour, 1.0f);
-
-        float3 const specular = ndf * vis * f;
-
-        float const ndfprob = ndf * noh / (4 * loh);
-
-        // throughput : ggx-brdf * nol / probability-of-sampling
-        currentthp = nol * specular / (ndfprob * (1.0f - probdiffuse));
+        currentthp = res.brdf / (1.0f - probdiffuse);
+        ray.direction = res.dir;
     }
 
     payload.thp *= currentthp;
 
+    // todo : normal we use here is normal mapped(is this correct?)
     // make sure our randomly selected, normal mapped ray didn't go below the surface
-	// always boost throughput due to roulette termination
-    bool terminatepath = dot(n, ray.direction) <= 0.0f;
+    // even without normal maps, not having this test creates darker results so keeping it
+    bool terminatepath = dot(normal, ray.direction) <= 0.0f;
     if (userussianroulette)
     {
+        float const rrprob = saturate(sqrt(luminance(currentthp)));
         uint rrhash = rayhash(baserayhash, sampleidx, seqrussianroulette);
-        float const rrprob = sqrt(luminance(payload.thp));
+        float const terminateprob = uniformsampler::generate(murmurhash3(rrhash), sampleidx, 1).x;
 
-        if (uniformsampler::generate(murmurhash3(rrhash), sampleidx, 1).x > rrprob)
+        // todo : we don't use payload.thp anywhere so rr doesn't work
+        // always boost throughput due to roulette termination
+        if (terminateprob > rrprob)
             terminatepath = true;
         else
             payload.thp *= rcp(rrprob);
     }
 
+    float3 const directspecular = specularbrdf(l, v, normal, r, speccolour);
+
+    payload.diffradiance += directirradiance * diffusebrdf().xxx * diffcolour;
+    payload.specradiance += directirradiance * directspecular;
+
+    float3 indirectcol = 0.xxx;
     if (!terminatepath)
     {
-        raypayload indirectpayload = traceray(ray, payload.currbounce, seed);
-
+        raypayload indirectpayload = traceray(ray, payload.currbounce, payload.thp, seed);
         indirectcol = indirectpayload.radiance * currentthp;
+
+        payload.diffradiance += choosediffuse ? indirectcol : 0.xxx;
+        payload.specradiance += choosediffuse ? 0.xxx : indirectcol;
+    }
+
+    // store gbuffer data for camera ray hits of first sample
+    if(payload.currbounce == 1 && rootdescriptors.sampleidx == 0)
+    {
+        uint idx = (scene[0].frameidx & 1u) ^ 1u;
+
+        // todo : optimize these so they are packed tightly
+        RWTexture2D<float4> normaldepthtex = ResourceDescriptorHeap[params.normaldepthtex[idx]];
+        RWTexture2D<float4> difftex = ResourceDescriptorHeap[params.diffcolortex];
+        RWTexture2D<float4> historylendepthdxtex = ResourceDescriptorHeap[params.historylentex[idx]];
+        RWTexture2D<float4> hitpostex = ResourceDescriptorHeap[params.hitposition[idx]];
+        RWTexture2D<float4> specbrdfesttex = ResourceDescriptorHeap[params.specbrdftex];
+
+        float lineardepth = mul(view.view, float4(p, 1.0)).z;
+
+        uint2 texel = DispatchRaysIndex().xy;
+
+        // note : this is meant to work with ggx vndf
+        float3 specbrdfestimate = approxspecularggxintegral(speccolour, r, saturate(dot(normal, v)));
+
+        payload.diffradiance /= max(diffcolour, 1e-10);
+        payload.specradiance /= max(specbrdfestimate, 1e-10);
+
+        difftex[texel] = float4(diffcolour, 1.0);
+        specbrdfesttex[texel] = float4(specbrdfestimate, 1.0);
+        normaldepthtex[texel] = float4(n, lineardepth);
+        hitpostex[texel] = float4(p, 0.0);
+
+        float2 viewrayhitdepths = float2(mul(view.view, float4(rayhits[0], 1.0)).z, mul(view.view, float4(rayhits[1], 1.0)).z);
+
+        // todo : this is planar derivative, so will not work for curved surfaces
+        // todo : compute screen space finite difference derivatives
+        float dxd = abs(viewrayhitdepths[0] - lineardepth) + abs(viewrayhitdepths[1] - lineardepth);
+
+        // todo : pass dims
+        float2 uv = float2(texel + 0.5) / float2(1920, 1080);
+        float4 prevclip = mul(prevview.viewproj, float4(p, 1.0));
+        float2 prevndc = prevclip.xy / prevclip.w;
+        float2 prevuv = (prevndc / 2.0) + 0.5;
+        prevuv.y = 1.0f - prevuv.y;
+
+        float2 motionvector = (prevuv - uv);
+
+        // todo : output dxd somewhere else
+        historylendepthdxtex[texel] = float4(historylendepthdxtex[texel].x, dxd, motionvector.x, motionvector.y);
     }
 
     payload.seed = seed;
-    payload.radiance = (directcolour + indirectcol) * rcp(16);
+    payload.radiance = directirradiance * (directspecular + diffusebrdf() * diffcolour) + indirectcol;
 }
 
-#endif // RAYTRACE_HLSL
+#endif // PATHRACE_HLSL

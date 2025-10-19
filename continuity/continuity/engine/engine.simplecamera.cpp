@@ -30,10 +30,12 @@ simplecamera::simplecamera() :
 {
 }
 
-void simplecamera::Init(stdx::vec3 position)
+void simplecamera::Init(stdx::vec3 position, float yaw)
 {
     m_initialPosition = position;
+    m_initialyaw = yaw;
     m_cameramatx.Translation(vector3(&m_initialPosition[0]));
+
     Reset();
 }
 
@@ -50,8 +52,9 @@ void simplecamera::SetTurnSpeed(float radiansPerSecond)
 void simplecamera::Reset()
 {
     m_position = m_initialPosition;
-    m_cameramatx.Translation(vector3(&m_position[0]));
-    m_yaw = 0;
+    m_cameramatx = matrix::CreateTranslation(vector3(&m_position[0])) * matrix::CreateFromAxisAngle(vector3::Up, XMConvertToRadians(m_initialyaw));
+
+    m_yaw = m_initialyaw;
     m_pitch = 0.0f;
     m_lookDirection = { defaultlook_dir };
 }
@@ -92,11 +95,17 @@ void simplecamera::Update(float elapsedSeconds)
         move.z += 1.0f;
     if (m_keysPressed.s)
         move.z -= 1.0f;
+    if (m_keysPressed.q)
+        move.y += 1.0f;
+    if (m_keysPressed.e)
+        move.y -= 1.0f;
 
-    if (fabs(move.x) > 0.1f && fabs(move.z) > 0.1f)
+    // todo : was this correct
+    if (fabs(move.x) > 0.1f || fabs(move.z) > 0.1f || fabs(move.y) > 0.1f)
     {
         XMVECTOR vector = XMVector3Normalize(XMLoadFloat3(&move));
         move.x = XMVectorGetX(vector);
+        move.y = XMVectorGetY(vector);
         move.z = XMVectorGetZ(vector);
     }
 
@@ -130,9 +139,10 @@ void simplecamera::Update(float elapsedSeconds)
 
     vector3 campos = vector3(m_position[0], m_position[1], m_position[2]);
 
-    vector3 camright = vector3::UnitY.Cross(camfwd);
+    vector3 camup = vector3::UnitY;
+    vector3 camright = camup.Cross(camfwd);
 
-    campos += camfwd * move.z * moveInterval + camright * move.x * moveInterval;
+    campos += camfwd * move.z * moveInterval + camup * move.y * moveInterval + camright * move.x * moveInterval;
 
     // this constructs a world to view matrix
     m_cameramatx = XMMatrixLookToLH(campos, camfwd, vector3::UnitY);
@@ -216,6 +226,12 @@ void simplecamera::OnKeyDown(WPARAM key)
     case 'D':
         m_keysPressed.d = true;
         break;
+    case 'Q':
+        m_keysPressed.q = true;
+        break;
+    case 'E':
+        m_keysPressed.e = true;
+        break;
     case VK_LEFT:
         m_keysPressed.left = true;
         break;
@@ -249,6 +265,12 @@ void simplecamera::OnKeyUp(WPARAM key)
         break;
     case 'D':
         m_keysPressed.d = false;
+        break;
+    case 'Q':
+        m_keysPressed.q = false;
+        break;
+    case 'E':
+        m_keysPressed.e = false;
         break;
     case VK_LEFT:
         m_keysPressed.left = false;

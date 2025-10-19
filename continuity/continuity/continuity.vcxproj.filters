@@ -241,6 +241,9 @@
     <None Include="samples\sphgpu\shaders\sphcommon.hlsli">
       <Filter>samples\sphgpu\shaders</Filter>
     </None>
+    <None Include="shaders\brdf.hlsli">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shaders\basic_ps.hlsl">
@@ -319,6 +322,12 @@
       <Filter>shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\tonemap_cs.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\atrouswaveletdenoise_cs.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\postdenoise_cs.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
   </ItemGroup>

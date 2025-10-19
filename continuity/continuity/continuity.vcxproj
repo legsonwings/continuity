@@ -79,6 +79,7 @@
     <ClInclude Include="thirdparty\wictextureloader12.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="shaders\brdf.hlsli" />
     <None Include="shaders\common.hlsli" />
     <None Include="shaders\lighting.hlsli" />
     <None Include="samples\sphgpu\shaders\sphcommon.hlsli" />
@@ -94,6 +95,10 @@
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">6.6</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.6</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.6</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="shaders\atrouswaveletdenoise_cs.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
     </FxCompile>
     <FxCompile Include="shaders\instancesdepthonly_ms.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Mesh</ShaderType>
@@ -135,6 +140,10 @@
     <FxCompile Include="shaders\genmipmaps_cs.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Compute</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+    </FxCompile>
+    <FxCompile Include="shaders\postdenoise_cs.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
     </FxCompile>
@@ -452,7 +461,8 @@
       <ShaderModel>6.6</ShaderModel>
     </FxCompile>
     <PostBuildEvent>
-      <Command>xcopy "$(ProjectDir)models" "$(TargetDir)models" /Y /I /E</Command>
+      <Command>xcopy "$(ProjectDir)models" "$(TargetDir)models" /Y /I /E
+xcopy "$(ProjectDir)textures" "$(TargetDir)textures" /Y /I /E</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -495,7 +505,8 @@
       <ShaderModel>6.6</ShaderModel>
     </FxCompile>
     <PostBuildEvent>
-      <Command>xcopy "$(ProjectDir)models" "$(TargetDir)models" /Y /I /E</Command>
+      <Command>xcopy "$(ProjectDir)models" "$(TargetDir)models" /Y /I /E
+xcopy "$(ProjectDir)textures" "$(TargetDir)textures" /Y /I /E</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

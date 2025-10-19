@@ -1,6 +1,9 @@
 #pragma once
 #include "shared/sharedconstants.h"
 
+#ifndef COMMON_HLSL
+#define COMMON_HLSL
+
 // globals
 // object constants
 // various dispatch params(numprims, etc)
@@ -132,3 +135,27 @@ t srgbcolour(t colour)
 {
     return pow(colour, 1.0 / 2.2);
 }
+
+// returns a relative luminance of an input linear rgb color in the ITU-R BT.709 color space
+float luminance(float3 rgb)
+{
+    return dot(rgb, float3(0.2126f, 0.7152f, 0.0722f));
+}
+
+// perpendicular distance of a point 'p' to the plane with normal n(pp is point on the plane)
+float planedist(float3 p, float3 pp, float3 n)
+{
+    return dot(p - pp, n);
+}
+
+// from "Efficient Construction of Perpendicular Vectors Without Branching")
+float3 perpendicular(float3 u)
+{
+    float3 a = abs(u);
+    uint xm = ((a.x - a.y) < 0 && (a.x - a.z) < 0) ? 1 : 0;
+    uint ym = (a.y - a.z) < 0 ? (1 ^ xm) : 0;
+    uint zm = 1 ^ (xm | ym);
+    return cross(u, float3(xm, ym, zm));
+}
+
+#endif
