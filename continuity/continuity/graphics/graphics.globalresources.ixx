@@ -29,16 +29,6 @@ struct deviceresources
 {
 	ComPtr<device> dev;
 	ComPtr<gfxcmdlist> cmdlist;
-
-	// todo : temp hack
-	uint32 hdrrtuavidx;
-	stdx::vecui2 normaldepthuavidx;
-	stdx::vecui2 historylenuavidx;
-	uint32 diffcoloruavidx;
-	uint32 specbrdfuavidx;
-	stdx::vecui2 hitposition;
-	stdx::vecui2 diffradianceuavidx;
-	stdx::vecui2 specradianceuavidx;
 };
 
 class globalresources
@@ -84,7 +74,7 @@ public:
 	uint32 addmat(material const& mat);
 	void addcomputepso(std::string const& name, std::string const& cs);
 	void addpso(std::string const& name, std::string const& as, std::string const& ms, std::string const& ps, uint flags = psoflags::none);
-	pipeline_objects& addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders);
+	pipeline_objects& addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders, uint payloadsize, uint attribsize);
 	std::string assetfullpath(std::string const& path) const;
 
 	static globalresources& get();

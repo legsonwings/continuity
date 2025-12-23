@@ -30,7 +30,7 @@ public:
 
     virtual ~sample_base() {}
 
-    virtual gfx::resourcelist create_resources(gfx::deviceresources& deviceres) = 0;
+    virtual gfx::resourcelist create_resources(gfx::renderer& renderer) = 0;
 
     virtual void update(float dt) { updateview(dt); };
     virtual void render(float dt, gfx::renderer& renderer) = 0;
@@ -49,7 +49,7 @@ protected:
 export class continuity
 {
 public:
-    continuity(view_data const& data = {});
+    continuity();
 
     virtual void OnInit();
     virtual void OnUpdate();

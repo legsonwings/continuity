@@ -28,7 +28,7 @@ playground::playground(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(200.0f);
 }
 
-gfx::resourcelist playground::create_resources(gfx::deviceresources& deviceres)
+gfx::resourcelist playground::create_resources(gfx::renderer& renderer)
 {
     using gfx::bodyparams;
 

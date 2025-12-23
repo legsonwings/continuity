@@ -149,6 +149,7 @@ struct dispatchparams
     uint32 sceneglobals;
     uint32 viewglobals;
 	uint32 ptsettings;
+    uint2 dims;
 };
 
 }

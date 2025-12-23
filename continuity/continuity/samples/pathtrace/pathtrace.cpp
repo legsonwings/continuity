@@ -37,22 +37,19 @@ std::unique_ptr<sample_base> create_instance<samples::pathtrace>(view_data const
 }
 
 // raytracing stuff
-static constexpr char const* hitgroupname = "trianglehitgroup";
 static constexpr char const* raygenshadername = "raygenshader";
-static constexpr char const* closesthitshadername = "closesthitshader_triangle";
-static constexpr char const* missshadername = "missshader";
 
 pathtrace::pathtrace(view_data const& viewdata) : sample_base(viewdata)
 {
-	camera.Init({ -800.f, 180, 0 }, 1.57f);
+    camera.Init({ -600.f, 180, 0 }, 1.57f);
 	camera.SetMoveSpeed(80.0f);
 
     scenedata = {};
-    scenedata.numbounces = 2;
+    scenedata.numbounces = 3;
     scenedata.ggxsampleridx = 1;
 }
 
-gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
+gfx::resourcelist pathtrace::create_resources(gfx::renderer& r)
 {
     auto& globalres = gfx::globalresources::get();
 
@@ -60,11 +57,8 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
 
     gfx::raytraceshaders rtshaders;
     rtshaders.raygen = raygenshadername;
-    rtshaders.miss = missshadername;
-    rtshaders.tri_hitgrp.name = hitgroupname;
-    rtshaders.tri_hitgrp.closesthit = closesthitshadername;
 
-    auto& raytracepipeline_objs = globalres.addraytracingpso("pathtrace", "pathtrace_rs.cso", rtshaders);
+    auto& raytracepipeline_objs = globalres.addraytracingpso("pathtrace", "pathtrace_rs.cso", rtshaders, 0, 0);
 
     model = gfx::model("models/sponza/sponza.obj", res);
     gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;
@@ -113,20 +107,11 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
 
     // get shader id's
     void* raygenshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(raygenshadername).c_str());
-    void* missshaderid = stateobjectprops->GetShaderIdentifier(utils::strtowstr(missshadername).c_str());
-    void* hitgroupshaderids_trianglegeometry = stateobjectprops->GetShaderIdentifier(utils::strtowstr(hitgroupname).c_str());
 
     // now build shader tables
     // only one records for ray gen and miss shader tables
     raygenshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
     raygenshadertable.addrecord(raygenshaderid);
-
-    missshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
-    missshadertable.addrecord(missshaderid);
-
-    // triangle record for hitgroup shader table
-    hitgroupshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
-    hitgroupshadertable.addrecord(hitgroupshaderids_trianglegeometry);
 
 	ptsettingsbuffer->create({ ptsettings });
     ptsettingsbuffer.ex() = ptsettingsbuffer->createsrv().heapidx;
@@ -139,16 +124,17 @@ gfx::resourcelist pathtrace::create_resources(gfx::deviceresources& deviceres)
     dispatch_params.viewglobals = viewglobalsbuffer.ex();
     dispatch_params.sceneglobals = sceneglobalsbuffer.ex();
     dispatch_params.accelerationstruct = tlas.createsrv().heapidx;
-    dispatch_params.normaldepthtex = deviceres.normaldepthuavidx;
-    dispatch_params.historylentex = deviceres.historylenuavidx;
-    dispatch_params.diffcolortex = deviceres.diffcoloruavidx;
-    dispatch_params.specbrdftex = deviceres.specbrdfuavidx;
-    dispatch_params.diffradiancetex = deviceres.diffradianceuavidx;
-    dispatch_params.specradiancetex = deviceres.specradianceuavidx;
-    dispatch_params.rtoutput = deviceres.hdrrtuavidx;
+    dispatch_params.dims = { viewdata.width, viewdata.height };
     dispatch_params.indexbuffer = indexbuffer.createsrv().heapidx;
     dispatch_params.ptsettings = ptsettingsbuffer.ex();
-    dispatch_params.hitposition = deviceres.hitposition;
+    dispatch_params.normaldepthtex = { r.normaldepthtex[0].ex(), r.normaldepthtex[1].ex() };
+    dispatch_params.historylentex = { r.historylentex[0].ex(), r.historylentex[1].ex() };
+    dispatch_params.diffcolortex = r.diffusecolortex.ex();
+    dispatch_params.specbrdftex = r.specbrdftex.ex();
+    dispatch_params.diffradiancetex = { r.diffuseradiancetex[0].ex(), r.diffuseradiancetex[1].ex() };
+    dispatch_params.specradiancetex = { r.specularradiancetex[0].ex(), r.specularradiancetex[1].ex() };
+    dispatch_params.rtoutput = r.hdrrendertarget.ex();
+    dispatch_params.hitposition = { r.hitposition[0].ex(), r.hitposition[1].ex() };
 
     dispatchparams.create({ dispatch_params });
 
@@ -169,7 +155,7 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
         renderer.clearaccumcount();
     }
 
-    auto lightdir = stdx::vec3{ -1.0f, -1.0f, -0.15f }.normalized();
+    auto lightdir = stdx::vec3{ -1.0f, -1.0f, -0.0f }.normalized();
     auto& globalres = gfx::globalresources::get();
 
     rt::viewglobals camviewinfo;
@@ -211,7 +197,7 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     {
         rootdescs.sampleidx = i;
         cmdlist->SetComputeRoot32BitConstants(0, 2, &rootdescs, 0);
-        rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
+        rt.dispatchrays(raygenshadertable, {}, {}, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
         gfx::uav_barrier(
                         *cmdlist.Get(), renderer.hdrrendertarget, renderer.diffusecolortex, renderer.diffuseradiancetex[0], renderer.diffuseradiancetex[1], renderer.specularradiancetex[0], renderer.specularradiancetex[1],
                         renderer.historylentex[0], renderer.historylentex[1], renderer.hitposition[0], renderer.hitposition[1]

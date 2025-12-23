@@ -253,7 +253,7 @@ void globalresources::addpso(std::string const& name, std::string const& as, std
     }
 }
 
-gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders)
+gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name, std::string const& libname, raytraceshaders const& shaders, uint payloadsize, uint attribsize)
 {
     if (auto existing = _psos.find(name); existing != _psos.cend())
     {
@@ -328,10 +328,7 @@ gfx::pipeline_objects& globalresources::addraytracingpso(std::string const& name
 
     // defines the maximum sizes in bytes for the ray payload and attribute structure.
     auto shaderConfig = raytracingpipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
-
-    UINT payloadSize = 56;
-    UINT attributeSize = 2 * sizeof(float); // float2 for barycentrics
-    shaderConfig->Config(payloadSize, attributeSize);
+    shaderConfig->Config(UINT(payloadsize), UINT(attribsize));
 
     // empty local root signature
     auto localrootsignature = raytracingpipeline.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
