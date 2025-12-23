@@ -860,7 +860,7 @@ sphfluidintro::sphfluidintro(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(10.0f);
 }
 
-gfx::resourcelist sphfluidintro::create_resources(gfx::deviceresources& deviceres)
+gfx::resourcelist sphfluidintro::create_resources(gfx::renderer& renderer)
 {
     using geometry::cube;
     using geometry::sphere;

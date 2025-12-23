@@ -37,7 +37,7 @@ raytrace::raytrace(view_data const& viewdata) : sample_base(viewdata)
 	camera.SetMoveSpeed(10.0f);
 }
 
-gfx::resourcelist raytrace::create_resources(gfx::deviceresources& deviceres)
+gfx::resourcelist raytrace::create_resources(gfx::renderer& renderer)
 {
     auto& globalres = gfx::globalresources::get();
 
@@ -52,7 +52,7 @@ gfx::resourcelist raytrace::create_resources(gfx::deviceresources& deviceres)
         rtshaders.tri_hitgrp.name = hitgroupname;
         rtshaders.tri_hitgrp.closesthit = closesthitshadername;
 
-        auto& raytracepipeline_objs = globalres.addraytracingpso("raytrace", "raytrace_rs.cso", rtshaders);
+        auto& raytracepipeline_objs = globalres.addraytracingpso("raytrace", "raytrace_rs.cso", rtshaders, 56, 2 * 4);
 
         gfx::model model("models/spot.obj", res);
         gfx::geometryopacity const opacity = gfx::geometryopacity::opaque;

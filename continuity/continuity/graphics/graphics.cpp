@@ -178,12 +178,20 @@ void raytrace::dispatchrays(shadertable const& raygen, shadertable const& miss, 
     // this function expects resources and state to be setup
     D3D12_DISPATCH_RAYS_DESC dispatchdesc = {};
 
-    dispatchdesc.HitGroupTable.StartAddress = hitgroup.gpuaddress();
-    dispatchdesc.HitGroupTable.SizeInBytes = hitgroup.d3dresource->GetDesc().Width;
-    dispatchdesc.HitGroupTable.StrideInBytes = UINT(hitgroup.recordsize());
-    dispatchdesc.MissShaderTable.StartAddress = miss.gpuaddress();
-    dispatchdesc.MissShaderTable.SizeInBytes = miss.d3dresource->GetDesc().Width;
-    dispatchdesc.MissShaderTable.StrideInBytes = UINT(miss.recordsize());
+    if (hitgroup.valid())
+    {
+        dispatchdesc.HitGroupTable.StartAddress = hitgroup.gpuaddress();
+        dispatchdesc.HitGroupTable.SizeInBytes = hitgroup.d3dresource->GetDesc().Width;
+        dispatchdesc.HitGroupTable.StrideInBytes = UINT(hitgroup.recordsize());
+    }
+
+    if (miss.valid())
+    {
+        dispatchdesc.MissShaderTable.StartAddress = miss.gpuaddress();
+        dispatchdesc.MissShaderTable.SizeInBytes = miss.d3dresource->GetDesc().Width;
+        dispatchdesc.MissShaderTable.StrideInBytes = UINT(miss.recordsize());
+    }
+
     dispatchdesc.RayGenerationShaderRecord.StartAddress = raygen.gpuaddress();
     dispatchdesc.RayGenerationShaderRecord.SizeInBytes = raygen.d3dresource->GetDesc().Width;
     dispatchdesc.Width = UINT(width);

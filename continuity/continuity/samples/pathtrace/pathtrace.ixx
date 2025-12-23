@@ -17,7 +17,7 @@ export class pathtrace : public sample_base
 public:
 	pathtrace(view_data const& viewdata);
 
-	gfx::resourcelist create_resources(gfx::deviceresources& deviceres) override;
+	gfx::resourcelist create_resources(gfx::renderer& renderer) override;
 	void render(float dt, gfx::renderer& renderer) override;
 	void on_key_up(unsigned key) override;
 
@@ -39,8 +39,6 @@ private:
 
 	gfx::triblas triblas;
 	gfx::tlas tlas;
-	gfx::shadertable missshadertable;
-	gfx::shadertable hitgroupshadertable;
 	gfx::shadertable raygenshadertable;
 	gfx::rtouttexture raytracingoutput;
 

@@ -66,7 +66,7 @@ export class sphgpu : public sample_base
 public:
 	sphgpu(view_data const& viewdata);
 
-	gfx::resourcelist create_resources(gfx::deviceresources& deviceres) override;
+	gfx::resourcelist create_resources(gfx::renderer& renderer) override;
 	void update(float dt) override;
 	void render(float dt, gfx::renderer&) override;
 

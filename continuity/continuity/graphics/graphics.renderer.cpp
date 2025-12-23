@@ -310,22 +310,8 @@ void renderer::init(HWND window, UINT w, UINT h)
 
     shadowmapsrv = shadowmap.createsrv(DXGI_FORMAT_R32_FLOAT);
 
-    stdx::vecui2 diffradianceidx = { diffuseradiancetex[0].ex(), diffuseradiancetex[1].ex() };
-    stdx::vecui2 specradianceidx = { specularradiancetex[0].ex(), specularradiancetex[1].ex() };
-    stdx::vecui2 normaldepthidx = { normaldepthtex[0].ex(), normaldepthtex[1].ex() };
-    stdx::vecui2 histlenddxyidx = { historylentex[0].ex(), historylentex[1].ex() };
-    stdx::vecui2 hitpositionidx = { hitposition[0].ex(), hitposition[1].ex() };
-
     accumparamsbuffer->create();
     accumparamsbuffer.ex() = accumparamsbuffer->createsrv().heapidx;
-    d3ddevres.hdrrtuavidx = hdrrendertarget.ex();
-    d3ddevres.normaldepthuavidx = normaldepthidx;
-    d3ddevres.historylenuavidx = histlenddxyidx;
-    d3ddevres.diffcoloruavidx = diffusecolortex.ex();
-    d3ddevres.specbrdfuavidx = specbrdftex.ex();
-    d3ddevres.diffradianceuavidx = diffradianceidx;
-    d3ddevres.specradianceuavidx = specradianceidx;
-    d3ddevres.hitposition = hitpositionidx;
 }
 
 void renderer::deinit()
