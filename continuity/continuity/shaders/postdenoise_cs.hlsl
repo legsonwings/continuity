@@ -30,5 +30,4 @@ void main(uint2 dtid : SV_DispatchThreadID)
 	colour = colour / (1.0 + colour);
 
 	dest[dtid] = float4(srgbcolour(colour), saturate(diffcolor[dtid].w));
-
 }

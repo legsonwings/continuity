@@ -13,7 +13,7 @@ export class raytrace : public sample_base
 public:
 	raytrace(view_data const& viewdata);
 
-	gfx::resourcelist create_resources(gfx::deviceresources& deviceres) override;
+	gfx::resourcelist create_resources(gfx::renderer& renderer) override;
 	void render(float dt, gfx::renderer&) override; 
 
 private:
