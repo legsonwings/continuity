@@ -25,7 +25,7 @@ export class basic_sample : public sample_base
 public:
 	basic_sample() : sample_base(view_data{}) {};
 
-	gfx::resourcelist create_resources(gfx::deviceresources&) override { return {}; };
+	gfx::resourcelist create_resources(gfx::renderer&) override { return {}; };
 	void update(float dt) override {};
 	void render(float dt, gfx::renderer&) override {};
 };

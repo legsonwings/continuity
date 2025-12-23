@@ -127,7 +127,7 @@ UINT dispatchsize(uint dimension_dispatch, uint dimension_threads_pergroup)
     return static_cast<UINT>((dimension_dispatch + dimension_threads_pergroup - 1) / dimension_threads_pergroup);
 }
 
-gfx::resourcelist sphgpu::create_resources(gfx::deviceresources& deviceres)
+gfx::resourcelist sphgpu::create_resources(gfx::renderer& renderer)
 {
     using geometry::cube;
     using gfx::bodyparams;
@@ -162,7 +162,7 @@ gfx::resourcelist sphgpu::create_resources(gfx::deviceresources& deviceres)
         rootconstants.containerextents[0] = rootconstants.containerextents[1] = rootconstants.containerextents[2] = roomextents;
 
         auto const& pipelineobjects = globalres.psomap().find("sphgpuinit")->second;
-        auto& cmdlist = *deviceres.cmdlist.Get();
+        auto& cmdlist = *renderer.deviceres().cmdlist.Get();
         cmdlist.SetPipelineState(pipelineobjects.pso.Get());
         cmdlist.SetComputeRootSignature(pipelineobjects.root_signature.Get());
         
@@ -188,7 +188,7 @@ gfx::resourcelist sphgpu::create_resources(gfx::deviceresources& deviceres)
         rtshaders.tri_hitgrp.name = trihitgroupname;
         rtshaders.tri_hitgrp.closesthit = triclosesthit;
 
-        auto& raytracepipeline_objs = globalres.addraytracingpso("sph_render", "sph_render_rs.cso", rtshaders);
+        auto& raytracepipeline_objs = globalres.addraytracingpso("sph_render", "sph_render_rs.cso", rtshaders, 56, 2 * 4);
 
         auto& device = globalres.device();
         auto& cmdlist = globalres.cmdlist();

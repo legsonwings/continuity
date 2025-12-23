@@ -29,12 +29,15 @@ void sample_base::updateview(float dt)
     gfx::globalresources::get().view().proj = camera.GetProjectionMatrix();
 }
 
-continuity::continuity(view_data const& data)
-    : m_width(data.width)
-    , m_height(data.height)
+continuity::continuity()
+    : m_width(2560)
+    , m_height(1440)
     , m_frameCounter(0)
 {
-    sample = sample_creator::create_instance<activesample>(data);
+    view_data vdata;
+    vdata.width = m_width;
+    vdata.height = m_height;
+    sample = sample_creator::create_instance<activesample>(vdata);
 }
 
 void continuity::OnInit()
@@ -42,7 +45,7 @@ void continuity::OnInit()
     renderer.init(GetHwnd(), m_width, m_height);
 
     // need to keep these alive till data is uploaded to gpu
-    std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources(renderer.deviceres());
+    std::vector<ComPtr<ID3D12Resource>> const gpu_resources = sample->create_resources(renderer);
 
     // this will block until resources are uploaded to the gpu
     renderer.createresources();
