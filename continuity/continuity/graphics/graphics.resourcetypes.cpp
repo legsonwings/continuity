@@ -10,7 +10,7 @@ module;
 
 module graphics:resourcetypes;
 
-import engine;
+import engineutils;
 import :globalresources;
 
 using Microsoft::WRL::ComPtr;

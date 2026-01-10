@@ -262,4 +262,6 @@ struct texture_dynamic
 	ComPtr<ID3D12Resource> _bufferupload;
 };
 
+using gputexandidx = stdx::ext<texture<accesstype::gpu>, uint32>;
+
 }

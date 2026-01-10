@@ -9,6 +9,7 @@ module raytrace;
 import stdx;
 import vec;
 import std;
+import engineutils;
 import activesample;
 
 namespace sample_creator
@@ -152,5 +153,5 @@ void raytrace::render(float dt, gfx::renderer& renderer)
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), 720, 720);
-    rt.copyoutputtorendertarget(cmdlist.Get(), raytracingoutput, renderer.rendertarget->d3dresource.Get());
+    rt.copyoutputtorendertarget(cmdlist.Get(), raytracingoutput, renderer.finalcolour->d3dresource.Get());
 }

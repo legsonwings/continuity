@@ -8,6 +8,7 @@ module playground;
 import stdx;
 import vec;
 import std;
+import engineutils;
 
 namespace sample_creator
 {
@@ -109,7 +110,7 @@ void playground::render(float dt, gfx::renderer& renderer)
     auto& cmdlist = renderer.deviceres().cmdlist;
 
     CD3DX12_RESOURCE_BARRIER transitions[2];
-    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(renderer.rendertarget->d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(renderer.finalcolour->d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RENDER_TARGET);
     transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(renderer.shadowmap.d3dresource.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
     cmdlist->ResourceBarrier(_countof(transitions), transitions);

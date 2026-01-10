@@ -1,9 +1,9 @@
 module;
 
 // there are three modes atm
-// reference : multiple spp, no denoising, simple temporal accumulation, unstable under motion
-// high quality : multiple spp, atrous wavelet denoising, simple temporal accumulation, unstable under motion
-// real time : single spp, svgf based temporal and spatial denoising, stable under motion
+// reference : single spp, no denoising, simple temporal accumulation, noisy under motion
+// high quality : single spp, spatio-temporal denoising
+// real time : single spp, spatio-temporal denoising
 
 #include "simplemath/simplemath.h"
 #include "thirdparty/d3dx12.h"
@@ -15,6 +15,7 @@ module pathtrace;
 import stdx;
 import vec;
 import std;
+import engineutils;
 import activesample;
 
 using matrix = DirectX::SimpleMath::Matrix;
@@ -113,32 +114,26 @@ gfx::resourcelist pathtrace::create_resources(gfx::renderer& r)
     raygenshadertable = gfx::shadertable(gfx::shadertable_recordsize<void>::size, 1);
     raygenshadertable.addrecord(raygenshaderid);
 
-	ptsettingsbuffer->create({ ptsettings });
-    ptsettingsbuffer.ex() = ptsettingsbuffer->createsrv().heapidx;
+    stdx::vecui2 dims = { viewdata.width, viewdata.height };
 
-    rt::dispatchparams dispatch_params;
-    dispatch_params.posbuffer = posbuffer.createsrv().heapidx;
-    dispatch_params.texcoordbuffer = texcoordbuffer.createsrv().heapidx;
-    dispatch_params.tbnbuffer = tbnbuffer.createsrv().heapidx;
-    dispatch_params.primitivematerialsbuffer = materialsbuffer.createsrv().heapidx;
-    dispatch_params.viewglobals = viewglobalsbuffer.ex();
-    dispatch_params.sceneglobals = sceneglobalsbuffer.ex();
-    dispatch_params.accelerationstruct = tlas.createsrv().heapidx;
-    dispatch_params.dims = { viewdata.width, viewdata.height };
-    dispatch_params.indexbuffer = indexbuffer.createsrv().heapidx;
-    dispatch_params.ptsettings = ptsettingsbuffer.ex();
-    dispatch_params.normaldepthtex = { r.normaldepthtex[0].ex(), r.normaldepthtex[1].ex() };
-    dispatch_params.historylentex = { r.historylentex[0].ex(), r.historylentex[1].ex() };
-    dispatch_params.diffcolortex = r.diffusecolortex.ex();
-    dispatch_params.specbrdftex = r.specbrdftex.ex();
-    dispatch_params.diffradiancetex = { r.diffuseradiancetex[0].ex(), r.diffuseradiancetex[1].ex() };
-    dispatch_params.specradiancetex = { r.specularradiancetex[0].ex(), r.specularradiancetex[1].ex() };
-    dispatch_params.rtoutput = r.hdrrendertarget.ex();
-    dispatch_params.hitposition = { r.hitposition[0].ex(), r.hitposition[1].ex() };
+    gfx::ptbuffers ptbuff
+    {
+        posbuffer.createsrv().heapidx, texcoordbuffer.createsrv().heapidx, tbnbuffer.createsrv().heapidx, indexbuffer.createsrv().heapidx,
+        materialsbuffer.createsrv().heapidx, tlas.createsrv().heapidx
+    };
 
-    dispatchparams.create({ dispatch_params });
+    ptres.create(ptsettings, dims, r.finalcolour.ex(), viewglobalsbuffer.ex(), sceneglobalsbuffer.ex());
 
-    rootdescs.rootdesc = dispatchparams.createsrv().heapidx;
+    gfx::pathtracepass ptpass(ptbuff, ptres, ptsettings.spp, raygenshadertable);
+    gfx::temporalaccumpass accumpass(ptres);
+    gfx::atrousdenoisepass denpass(ptres);
+
+	ptpipeline.passes.push_back(ptpass);
+    ptpipeline.passes.push_back(accumpass);
+
+    accumpassidx = uint32(ptpipeline.passes.size() - 1u);
+
+    ptpipeline.passes.push_back(denpass);
 
     return res;
 }
@@ -152,7 +147,7 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     if (accumdirty)
     {
         accumdirty = false;
-        renderer.clearaccumcount();
+        stdx::asserted(ptpipeline.passes[accumpassidx].target<gfx::temporalaccumpass>())->accumcount = 0;
     }
 
     auto lightdir = stdx::vec3{ -1.0f, -1.0f, -0.0f }.normalized();
@@ -167,7 +162,7 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     scenedata.seed = distuf(re);
     scenedata.aoradius = 50;
     scenedata.enableao = 0;
-    scenedata.envtex = renderer.envtexidx;
+    scenedata.envtex = renderer.environmenttex.ex();
 
     auto viewmat = matrix(camera.GetViewMatrix());
     auto viewproj = viewmat * matrix(camera.GetProjectionMatrix());
@@ -184,33 +179,9 @@ void pathtrace::render(float dt, gfx::renderer& renderer)
     viewglobalsbuffer->update({ camviewinfo }, 1);
     sceneglobalsbuffer->update({ scenedata });
 
-    auto& cmdlist = renderer.deviceres().cmdlist;
-    auto const& pipelineobjects = globalres.psomap().find("pathtrace")->second;
-
-    ID3D12DescriptorHeap* heaps[] = { renderer.resheap.d3dheap.Get(), renderer.sampheap.d3dheap.Get() };
-    cmdlist->SetDescriptorHeaps(_countof(heaps), heaps);
-    cmdlist->SetComputeRootSignature(pipelineobjects.root_signature.Get());
-    cmdlist->SetPipelineState1(pipelineobjects.pso_raytracing.Get());
-
-    gfx::raytrace rt;
-    for (auto i : stdx::range(ptsettings.spp))
-    {
-        rootdescs.sampleidx = i;
-        cmdlist->SetComputeRoot32BitConstants(0, 2, &rootdescs, 0);
-        rt.dispatchrays(raygenshadertable, {}, {}, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
-        gfx::uav_barrier(
-                        *cmdlist.Get(), renderer.hdrrendertarget, renderer.diffusecolortex, renderer.diffuseradiancetex[0], renderer.diffuseradiancetex[1], renderer.specularradiancetex[0], renderer.specularradiancetex[1],
-                        renderer.historylentex[0], renderer.historylentex[1], renderer.hitposition[0], renderer.hitposition[1]
-                        );
-    }
-
-    renderer.viewglobals = viewglobalsbuffer.ex();
-    renderer.sceneglobals = sceneglobalsbuffer.ex();
-	renderer.ptsettings = ptsettingsbuffer.ex();
-    renderer.spatialdenoise = !ptsettings.simpleaccum;
+    renderer.execute(ptpipeline);
 
     prevviewmatrix = currviewmatrix;
-
     framecount++;
 }
 

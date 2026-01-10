@@ -12,6 +12,7 @@ module sphgpu;
 import stdx;
 import vec;
 import std;
+import engineutils;
 
 namespace sample_creator
 {
@@ -405,5 +406,5 @@ void sphgpu::render(float dt, gfx::renderer& renderer)
 
     gfx::raytrace rt;
     rt.dispatchrays(raygenshadertable, missshadertable, hitgroupshadertable, pipelineobjects.pso_raytracing.Get(), viewdata.width, viewdata.height);
-    rt.copyoutputtorendertarget(&cmdlist, raytracingoutput, renderer.rendertarget->d3dresource.Get());
+    rt.copyoutputtorendertarget(&cmdlist, raytracingoutput, renderer.finalcolour->d3dresource.Get());
 }

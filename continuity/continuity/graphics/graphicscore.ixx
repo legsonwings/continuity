@@ -15,6 +15,7 @@ import stdxcore;
 import stdx;
 import vec;
 import std;
+import engineutils;
 
 using Microsoft::WRL::ComPtr;
 
@@ -83,6 +84,28 @@ struct color
     static constexpr auto black = stdx::vec4{ 0.f, 0.f, 0.f, 1.f };
     static constexpr auto white = stdx::vec4{ 1.f, 1.f, 1.f, 1.f };
 	static constexpr auto water = stdx::vec4{ 0.2f, 0.4f, 0.6f, 0.7f };
+};
+
+struct deviceresources
+{
+    ComPtr<device> dev;
+    ComPtr<gfxcmdlist> cmdlist;
+};
+
+struct rendertargets
+{
+    uint32 rtuavidx;
+    uint32 hdrrtuavidx;
+
+    ComPtr<ID3D12Resource> rt;
+    ComPtr<ID3D12Resource> hdrrt;
+};
+
+class renderpipeline
+{
+public:
+
+    std::vector<std::function<void(deviceresources&)>> passes;
 };
 
 struct shader
@@ -225,6 +248,13 @@ CD3DX12_RESOURCE_BARRIER reversetransition(CD3DX12_RESOURCE_BARRIER const& barri
     auto stateafter = d3d12barrier.Transition.StateBefore;
 
     return CD3DX12_RESOURCE_BARRIER::Transition(d3d12barrier.Transition.pResource, statebefore, stateafter);
+}
+
+auto createtexanduav(char const* name, auto& tex, auto const& desc)
+{
+    tex->create(desc, stdx::vec4::filled(0), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    tex->d3dresource->SetName(utils::strtowstr(name).c_str());
+    tex.ex() = tex->createuav().heapidx;
 }
 
 // ray trace stuff below

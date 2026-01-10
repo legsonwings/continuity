@@ -111,6 +111,7 @@ struct ext
 	constexpr b const& operator*() const { return base; }
 	constexpr b* operator->() { return &base; }
 	constexpr b const* operator->() const { return &base; }
+	constexpr auto&& operator[](int i) { return base[i]; }
 };
 
 // these allow iteration over multiple heterogenous containers

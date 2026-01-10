@@ -133,6 +133,13 @@ void cassert(bool const passed, std::string msg = "", std::source_location loc =
 #endif
 }
 
+template<typename t>
+t&& asserted(t&& v) requires std::convertible_to<t, bool>
+{
+	cassert(v);
+	return std::forward<t&&>(v);
+}
+
 constexpr bool ispowtwo(uint value);
 uint nextpowoftwomultiple(uint value, uint multipleof);
 constexpr int ceil(float value);

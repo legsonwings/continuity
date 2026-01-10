@@ -8,6 +8,8 @@ module engine;
 import activesample;
 import std;
 
+using Microsoft::WRL::ComPtr;
+
 sample_base::sample_base(view_data const& data) : viewdata(data)
 {
     camera.nearplane(data.nearplane);

@@ -26,7 +26,7 @@
     <ClCompile Include="engine\engine.steptimer.ixx" />
     <ClCompile Include="engine\engine.cpp" />
     <ClCompile Include="engine\engine.ixx" />
-    <ClCompile Include="engine\engine.utils.ixx" />
+    <ClCompile Include="engine\engineutils.ixx" />
     <ClCompile Include="engine\main.cpp" />
     <ClCompile Include="geometry\geometry.shapes.cpp" />
     <ClCompile Include="geometry\geometry.shapes.ixx" />
@@ -42,8 +42,12 @@
     <ClCompile Include="geometry\geometry.ixx" />
     <ClCompile Include="graphics\graphics.model.cpp" />
     <ClCompile Include="graphics\graphics.model.ixx" />
+    <ClCompile Include="graphics\graphics.pathtrace.cpp" />
+    <ClCompile Include="graphics\graphics.pathtrace.ixx" />
     <ClCompile Include="graphics\graphics.renderer.cpp" />
     <ClCompile Include="graphics\graphics.renderer.ixx" />
+    <ClCompile Include="graphics\graphics.renderpasses.cpp" />
+    <ClCompile Include="graphics\graphics.renderpasses.ixx" />
     <ClCompile Include="graphics\graphics.resourcetypes.cpp" />
     <ClCompile Include="graphics\graphics.resourcetypes.ixx" />
     <ClCompile Include="graphics\graphics.texture.cpp" />

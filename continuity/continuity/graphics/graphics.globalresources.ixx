@@ -25,12 +25,6 @@ using matmapref = std::unordered_map<std::string, stdx::ext<material, bool>> con
 using materialentry = stdx::ext<material, bool>;
 using materialcref = stdx::ext<material, bool> const&;
 
-struct deviceresources
-{
-	ComPtr<device> dev;
-	ComPtr<gfxcmdlist> cmdlist;
-};
-
 class globalresources
 {
 	viewinfo _view;
