@@ -9,7 +9,7 @@ module;
 module graphics;
 
 import vec;
-import engine;
+import engineutils;
 
 // seems like the declarations is not available across files
 using Microsoft::WRL::ComPtr;

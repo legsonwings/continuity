@@ -27,8 +27,6 @@ private:
 
 	gfx::model model;
 
-	stdx::ext<gfx::structuredbuffer<rt::ptsettings, gfx::accesstype::both>, uint32> ptsettingsbuffer;
-	gfx::structuredbuffer<rt::dispatchparams, gfx::accesstype::both> dispatchparams;
 	gfx::structuredbuffer<stdx::vec3, gfx::accesstype::both> posbuffer;
 	gfx::structuredbuffer<stdx::vec2, gfx::accesstype::both> texcoordbuffer;
 	gfx::structuredbuffer<gfx::tbn, gfx::accesstype::both> tbnbuffer;
@@ -40,13 +38,15 @@ private:
 	gfx::triblas triblas;
 	gfx::tlas tlas;
 	gfx::shadertable raygenshadertable;
-	gfx::rtouttexture raytracingoutput;
 
+	uint32 accumpassidx = stdx::invalid<uint32>;
 	uint32 framecount = 0;
 	rt::sceneglobals scenedata;
+	matrix prevviewmatrix;
+	bool accumdirty = false;
+
 	rt::ptsettings ptsettings = rt::ptmodesettings[rt::ptmode];
 
-	matrix prevviewmatrix;
-
-	bool accumdirty = false;
+	gfx::ptresources ptres;
+	gfx::renderpipeline ptpipeline;
 };

@@ -5,7 +5,7 @@ module;
 #include <wrl.h>
 #include "simplemath/simplemath.h"
 
-export module engine:utils;
+export module engineutils;
 
 import std;
 import stdxcore;

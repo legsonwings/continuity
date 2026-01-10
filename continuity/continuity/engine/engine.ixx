@@ -3,7 +3,6 @@ module;
 #include <windows.h>
 
 export module engine;
-export import :utils;
 export import :steptimer;
 export import :simplecamera;
 

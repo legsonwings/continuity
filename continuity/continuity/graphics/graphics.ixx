@@ -14,6 +14,8 @@ export import :texture;
 export import :resourcetypes;
 export import :globalresources;
 export import :renderer;
+export import :renderpasses;
+export import :pathtrace;
 
 import stdxcore;
 import stdx;
@@ -37,9 +39,7 @@ void uav_barrier(gfx::gfxcmdlist &cmdlist, args const&... resources)
 	constexpr int num_var_args = sizeof ... (args);
 	static_assert(num_var_args > 0);
 
-	// could have done this using tuple, but unfortunately tuple::get<i> is not constexpr so we need to allocate an array
-	// maybe use a custom tuple?
-	// auto tuple = std::tie(resources...);
+	// could have done this using tuple, but unfortunately tuple::get<i> doesn't work due to for loops not being constexpr friendly
 	resource resources_array[num_var_args] = { resources... };
 
 	std::array<CD3DX12_RESOURCE_BARRIER, num_var_args> barriers;

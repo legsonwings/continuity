@@ -6,7 +6,7 @@ module;
 module graphics:globalresources;
 
 //import vec;
-import engine;
+import engineutils;
 
 using Microsoft::WRL::ComPtr;
 
