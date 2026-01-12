@@ -61,6 +61,12 @@
     <Filter Include="samples\pathtrace\shaders">
       <UniqueIdentifier>{85c31298-70a2-4dd4-b692-a1ffdcba53e5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{acae6a64-a0ff-46c0-8991-57226a0cd4c5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="imgui\backends">
+      <UniqueIdentifier>{ceeeed4e-6059-48fc-b4f6-58c5015a4e4f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beziermaths\beziermaths.cpp">
@@ -207,6 +213,27 @@
     <ClCompile Include="graphics\graphics.pathtrace.cpp">
       <Filter>source\graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\imgui-1.92.5\imgui.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui-1.92.5\imgui_demo.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui-1.92.5\imgui_draw.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui-1.92.5\imgui_tables.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui-1.92.5\imgui_widgets.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui-1.92.5\backends\imgui_impl_dx12.cpp">
+      <Filter>imgui\backends</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui-1.92.5\backends\imgui_impl_win32.cpp">
+      <Filter>imgui\backends</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simplemath\simplemath.h">
@@ -238,6 +265,30 @@
     </ClInclude>
     <ClInclude Include="thirdparty\stb_image.h">
       <Filter>source\thirdparty</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui-1.92.5\imconfig.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui-1.92.5\imgui.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui-1.92.5\imgui_internal.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui-1.92.5\imstb_rectpack.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui-1.92.5\imstb_textedit.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui-1.92.5\imstb_truetype.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui-1.92.5\backends\imgui_impl_dx12.h">
+      <Filter>imgui\backends</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui-1.92.5\backends\imgui_impl_win32.h">
+      <Filter>imgui\backends</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

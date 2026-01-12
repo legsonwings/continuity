@@ -8,6 +8,11 @@ module;
 #include "thirdparty/dxhelpers.h"
 #include <shlobj.h>
 
+// todo : which of these are not needed?
+#include "imgui.h"
+#include "backends/imgui_impl_win32.h"
+#include "backends/imgui_impl_dx12.h"
+
 module graphics:renderer;
 
 import std;
@@ -229,8 +234,8 @@ void renderer::init(HWND window, UINT w, UINT h)
     auto& globalres = globalresources::get();
 
     // todo : temp
-    globalres.resourceheap() = resheap;
-    globalres.samplerheap() = sampheap;
+    globalres.resourceheap(resheap);
+    globalres.samplerheap(sampheap);
 
     auto rtdesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, UINT64(viewwidth), UINT(viewheight), 1, 1, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
     createtexanduav("finalcolour", finalcolour, rtdesc);
@@ -276,6 +281,41 @@ void renderer::init(HWND window, UINT w, UINT h)
     globalres.cmdlist() = d3ddevres.cmdlist;
 
     shadowmapsrv = shadowmap.createsrv(DXGI_FORMAT_R32_FLOAT);
+
+    // imgui init
+    {
+        // Setup Dear ImGui context
+        IMGUI_CHECKVERSION();
+        ImGui::SetCurrentContext(ImGui::CreateContext());
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+        // Setup Platform backend
+        ImGui_ImplWin32_Init(window);
+
+        // Setup Platform/Renderer backends
+        ImGui_ImplDX12_InitInfo init_info = {};
+        init_info.Device = d3ddevres.dev.Get();
+        init_info.CommandQueue = commandqueue.Get();
+        init_info.NumFramesInFlight = 1;
+        init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM; // Or your render target format.
+
+        static auto srvalloc = [this](D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle)
+        {
+            uint32 srvslot = resheap.reserveslot(false);
+            out_cpu_handle->ptr = resheap.cpuhandle(srvslot).ptr;
+            out_gpu_handle->ptr = resheap.gpuhandle(srvslot).ptr;
+        };
+
+        // Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks
+        init_info.SrvDescriptorHeap = resheap.d3dheap.Get();
+        init_info.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle) { srvalloc(out_cpu_handle, out_gpu_handle); };
+        init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) { };
+
+        // Setup renderer backend
+        ImGui_ImplDX12_Init(&init_info);
+    }
 }
 
 void renderer::deinit()
@@ -284,6 +324,13 @@ void renderer::deinit()
     waitforgpu();
 
     CloseHandle(fenceevent);
+
+    // imgui shutdown
+    {
+        ImGui_ImplDX12_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+    }
 }
 
 void renderer::createresources()
@@ -321,6 +368,15 @@ void renderer::update(float dt)
 
 void renderer::prerender()
 {
+    // Start the Dear ImGui frame
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+
+    bool showdemowind = false;
+    if(showdemowind)
+        ImGui::ShowDemoWindow(&showdemowind);
+
     // command allocators can only be reset when the associated 
     // command lists have finished execution on the gpu
     ThrowIfFailed(commandallocators[0]->Reset());
@@ -347,8 +403,20 @@ void renderer::postrender()
     auto rtbarrier = CD3DX12_RESOURCE_BARRIER::UAV(finalcolour->d3dresource.Get());
     d3ddevres.cmdlist->ResourceBarrier(1, &rtbarrier);
 
+    CD3DX12_RESOURCE_BARRIER rttransition = CD3DX12_RESOURCE_BARRIER::Transition(finalcolour->d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    d3ddevres.cmdlist->ResourceBarrier(1, &rttransition);
+
+    // imgui rendering
+    {
+        auto rthandle = rtheap.cpuhandle(rtview.heapidx);
+        d3ddevres.cmdlist->OMSetRenderTargets(1, &rthandle, FALSE, nullptr);
+
+        ImGui::Render();
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), d3ddevres.cmdlist.Get());
+    }
+
     CD3DX12_RESOURCE_BARRIER transitions[2];
-    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(finalcolour->d3dresource.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(finalcolour->d3dresource.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
     transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(backbuffers[frameidx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
 
     d3ddevres.cmdlist->ResourceBarrier(_countof(transitions), transitions);
@@ -356,8 +424,8 @@ void renderer::postrender()
     // copy from render target to back buffer
     d3ddevres.cmdlist->CopyResource(backbuffers[frameidx].Get(), finalcolour->d3dresource.Get());
 
-    for (auto& t : transitions)
-        t = reversetransition(t);
+    transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(finalcolour->d3dresource.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    transitions[1] = reversetransition(transitions[1]);
 
     d3ddevres.cmdlist->ResourceBarrier(_countof(transitions), transitions);
 
