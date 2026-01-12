@@ -206,10 +206,8 @@ samplerv samplerheap::addsampler(D3D12_SAMPLER_DESC samplerdesc)
     return { currslot++, samplerdesc };
 }
 
-srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resource* res, bool transient)
+uint32 resourceheap::reserveslot(bool transient)
 {
-    auto device = globalresources::get().device();
-
     uint32 slot;
     if (transient)
     {
@@ -222,6 +220,14 @@ srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resourc
         stdx::cassert(slot < (maxdescriptors - numtransient));
     }
 
+    return slot;
+}
+
+srv resourceheap::addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC viewdesc, ID3D12Resource* res, bool transient)
+{
+    auto device = globalresources::get().device();
+
+    uint32 const slot = reserveslot(transient);
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(slot * srvcbvuav_descincrementsize()));
     device->CreateShaderResourceView(res, &viewdesc, deschandle);
     return { slot, viewdesc };
@@ -231,18 +237,7 @@ uav resourceheap::adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC viewdesc, ID3D12Resour
 {
     auto device = globalresources::get().device();
 
-    uint32 slot;
-    if (transient)
-    {
-        slot = maxdescriptors - (numtransient++) - 1u;
-        stdx::cassert(slot > currslot, "transient slots should not overlap with non-transient slots");
-    }
-    else
-    {
-        slot = currslot++;
-        stdx::cassert(slot < (maxdescriptors - numtransient));
-    }
-
+    uint32 const slot = reserveslot(transient);
     CD3DX12_CPU_DESCRIPTOR_HANDLE deschandle(d3dheap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(slot* srvcbvuav_descincrementsize()));
     device->CreateUnorderedAccessView(res, nullptr, &viewdesc, deschandle);
     return { slot, viewdesc };

@@ -29,8 +29,8 @@ class globalresources
 {
 	viewinfo _view;
 	std::string _assetspath;
-	resourceheap _resourceheap;
-	samplerheap _samplerheap;
+	resourceheap* _resourceheap = nullptr;
+	samplerheap* _samplerheap;
 	ComPtr<ID3D12Device5> _device;
 
 	ComPtr<ID3D12Resource> _rendertarget;
@@ -60,7 +60,9 @@ public:
 	ComPtr<ID3D12Resource>& rendertarget();
 	ComPtr<ID3D12Device5>& device();
 	resourceheap& resourceheap();
+	void resourceheap(gfx::resourceheap& resheap);
 	samplerheap& samplerheap();
+	void samplerheap(gfx::samplerheap& sampheap);
 	ComPtr<ID3D12GraphicsCommandList6>& cmdlist();
 	uint dxgisize(DXGI_FORMAT format);
 	material& mat(uint32 matid);

@@ -3,6 +3,10 @@ module;
 #include <windows.h>
 #include <strsafe.h>
 
+#include "imgui.h"
+#include "backends/imgui_impl_win32.h"
+#include "backends/imgui_impl_dx12.h"
+
 module engine;
 
 import activesample;
@@ -110,7 +114,6 @@ int continuity::Run(continuity* pSample, HINSTANCE hInstance, int nCmdShow)
     // parse the command line parameters
     int argc;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    //pSample->ParseCommandLineArgs(argv, argc);
     LocalFree(argv);
 
     // Initialize the window class.
@@ -165,9 +168,14 @@ int continuity::Run(continuity* pSample, HINSTANCE hInstance, int nCmdShow)
     return static_cast<char>(msg.wParam);
 }
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 // main message handler for the sample.
 LRESULT CALLBACK continuity::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+        return true;
+
     continuity* pSample = reinterpret_cast<continuity*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
 
     switch (message)
@@ -181,19 +189,24 @@ LRESULT CALLBACK continuity::WindowProc(HWND hWnd, UINT message, WPARAM wParam, 
     return 0;
 
     case WM_KEYDOWN:
-        if (pSample)
+    {
+        ImGuiIO& imguiio = ImGui::GetIO();
+        if (pSample && !imguiio.WantCaptureKeyboard)
         {
             pSample->OnKeyDown(static_cast<UINT8>(wParam));
         }
         return 0;
-
+    }
     case WM_KEYUP:
-        if (pSample)
+    {
+        ImGuiIO& imguiio = ImGui::GetIO();
+        // this might create issues if it is possible for imgui to want to capture on keydown but not when key up or vice-versa
+        if (pSample && !imguiio.WantCaptureKeyboard)
         {
             pSample->OnKeyUp(static_cast<UINT8>(wParam));
         }
         return 0;
-
+    }
     case WM_PAINT:
         if (pSample)
         {

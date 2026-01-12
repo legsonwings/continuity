@@ -79,7 +79,7 @@ void globalresources::create_resources()
     samplerdesc.BorderColor[3] = 1.0f;
 
     // create a aniso sampler at 0 for now
-    auto samplerview = _samplerheap.addsampler(samplerdesc);
+    auto samplerview = _samplerheap->addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 0);
 
     samplerdesc.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
@@ -90,20 +90,20 @@ void globalresources::create_resources()
     samplerdesc.MaxAnisotropy = 0;
 
     // create a linear sampler at 1 for now
-    samplerview = _samplerheap.addsampler(samplerdesc);
+    samplerview = _samplerheap->addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 1);
 
     samplerdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 
     // create a point sampler at 2
-    samplerview = _samplerheap.addsampler(samplerdesc);
+    samplerview = _samplerheap->addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 2);
 
     samplerdesc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
     samplerdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS;
 
     // create a shadow map sampler at 3
-    samplerview = _samplerheap.addsampler(samplerdesc);
+    samplerview = _samplerheap->addsampler(samplerdesc);
     stdx::cassert(samplerview.heapidx == 3);
 }
 
@@ -113,8 +113,10 @@ psomapref globalresources::psomap() const { return _psos; }
 uint32 globalresources::materialsbuffer_idx() const { return _materialsbuffer_idx; }
 void globalresources::rendertarget(ComPtr<ID3D12Resource>& rendertarget) { _rendertarget = rendertarget; }
 ComPtr<ID3D12Resource>& globalresources::rendertarget() { return _rendertarget; }
-resourceheap& globalresources::resourceheap() { return _resourceheap; }
-samplerheap& globalresources::samplerheap() { return _samplerheap; }
+resourceheap& globalresources::resourceheap() { return *_resourceheap; }
+void globalresources::resourceheap(gfx::resourceheap& resheap) { _resourceheap = &resheap; }
+samplerheap& globalresources::samplerheap() { return *_samplerheap; }
+void globalresources::samplerheap(gfx::samplerheap& sampheap) { _samplerheap = &sampheap; }
 ComPtr<ID3D12Device5>& globalresources::device() { return _device; }
 ComPtr<ID3D12GraphicsCommandList6>& globalresources::cmdlist() { return _commandlist; }
 std::string globalresources::assetfullpath(std::string const& path) const { return _assetspath + path; }
