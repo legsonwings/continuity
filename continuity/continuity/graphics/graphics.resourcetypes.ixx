@@ -87,6 +87,8 @@ public:
 class resourceheap : public heap<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 10000>
 {
 public:
+	uint32 reserveslot(bool transient = false);
+
 	srv addsrv(D3D12_SHADER_RESOURCE_VIEW_DESC view, ID3D12Resource* res, bool transient = false);
 	uav adduav(D3D12_UNORDERED_ACCESS_VIEW_DESC view, ID3D12Resource* res, bool transient = false);
 

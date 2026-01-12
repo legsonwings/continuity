@@ -4,6 +4,7 @@ module;
 #include <wtypes.h>
 #include <DirectXMath.h>
 #include "simplemath/simplemath.h"
+#include "imgui.h"
 
 module engine:simplecamera;
 
@@ -71,8 +72,8 @@ void simplecamera::Update(float elapsedSeconds)
     stdx::vec2 clientsz = (botright - topleft).castas<float>();
     stdx::vec2 center = clientsz / 2;
 
-    // normalized cursor pos
-    cursorpos = (stdx::vec2{ float(pos.x), float(pos.y) } - center) / clientsz;
+    if(ImGuiIO& imguiio = ImGui::GetIO(); !imguiio.WantCaptureMouse)
+        cursorpos = (stdx::vec2{ float(pos.x), float(pos.y) } - center) / clientsz;     // normalized cursor pos
 
     auto deltacursor = (cursorpos - lastcursorpos) * 2.0f;
 

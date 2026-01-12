@@ -19,6 +19,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\imgui-1.92.5\backends\imgui_impl_dx12.cpp" />
+    <ClCompile Include="..\..\imgui-1.92.5\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="..\..\imgui-1.92.5\imgui.cpp" />
+    <ClCompile Include="..\..\imgui-1.92.5\imgui_demo.cpp" />
+    <ClCompile Include="..\..\imgui-1.92.5\imgui_draw.cpp" />
+    <ClCompile Include="..\..\imgui-1.92.5\imgui_tables.cpp" />
+    <ClCompile Include="..\..\imgui-1.92.5\imgui_widgets.cpp" />
     <ClCompile Include="beziermaths\beziermaths.cpp" />
     <ClCompile Include="beziermaths\beziermaths.ixx" />
     <ClCompile Include="engine\engine.simplecamera.cpp" />
@@ -71,6 +78,14 @@
     <ClCompile Include="sampleselection\activesample.ixx">
       <FileType>Document</FileType>
     </ClCompile>
+    <ClInclude Include="..\..\imgui-1.92.5\backends\imgui_impl_dx12.h" />
+    <ClInclude Include="..\..\imgui-1.92.5\backends\imgui_impl_win32.h" />
+    <ClInclude Include="..\..\imgui-1.92.5\imconfig.h" />
+    <ClInclude Include="..\..\imgui-1.92.5\imgui.h" />
+    <ClInclude Include="..\..\imgui-1.92.5\imgui_internal.h" />
+    <ClInclude Include="..\..\imgui-1.92.5\imstb_rectpack.h" />
+    <ClInclude Include="..\..\imgui-1.92.5\imstb_textedit.h" />
+    <ClInclude Include="..\..\imgui-1.92.5\imstb_truetype.h" />
     <ClInclude Include="shared\common.h" />
     <ClInclude Include="shared\raytracecommon.h" />
     <ClInclude Include="shared\sharedconstants.h" />
@@ -376,6 +391,7 @@
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
       <AdditionalOptions>/Zc:__cplusplus /w34996 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>..\..\imgui-1.92.5;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -413,6 +429,7 @@
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
       <AdditionalOptions>/Zc:__cplusplus /w34996 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>..\..\imgui-1.92.5;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -445,6 +462,7 @@
       <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\imgui-1.92.5;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -487,6 +505,7 @@ xcopy "$(ProjectDir)textures" "$(TargetDir)textures" /Y /I /E</Command>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\imgui-1.92.5;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
