@@ -95,7 +95,7 @@ gfx::resourcelist pathtrace::create_resources(gfx::renderer& r)
     currview = {};
     currview.view = currview.viewproj = currview.invviewproj = utils::to_matrix4x4(matrix::Identity);
 
-    // cannot use stdx::join because ComPtr is too smart for its own good
+    // todo : cannot use stdx::join because ComPtr has issues with it(assignment seems to release memory)
     for (auto r : triblas.build(instancedescs, opacity, posbuffer, posindexbuffer))
         res.push_back(r);
 

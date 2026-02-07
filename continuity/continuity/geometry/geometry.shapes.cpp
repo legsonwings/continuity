@@ -45,6 +45,8 @@ constexpr vector3 unitcube[8] =
 std::array<gfx::vertex, 4> transform_unitquad(const vector3(&verts)[4], const vector3(&tx)[3])
 {
     static vector3 unitquad_normal = { 0.f, 0.f, -1.f };
+    static vector3 unitquad_tangent = { -1.f, 0.f, 0.f };
+    static vector3 unitquad_bitangent = { 0.f, 1.f, 0.f };
     std::array<gfx::vertex, 4> transformed_points;
 
     auto const scale = tx[2];
@@ -53,12 +55,15 @@ std::array<gfx::vertex, 4> transform_unitquad(const vector3(&verts)[4], const ve
 
     for (uint i = 0; i < 4; ++i)
     {
-        vector3 normal;
-        vector3 pos = { verts[i].x * scale.x, verts[i].y * scale.y, verts[i].z * scale.z };
-        vector3::Transform(pos, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), pos);
+        vector3 normal, tangent, bitangent;
+        vector3 pos;
+        vector3::Transform(verts[i], DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), pos);
+        pos *= scale;
         vector3::Transform(unitquad_normal, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), normal);
+        vector3::Transform(unitquad_tangent, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), tangent);
+        vector3::Transform(unitquad_bitangent, DirectX::SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle), bitangent);
 
-        transformed_points[i] = { (pos + tx[1]), vector2{}, normal };
+        transformed_points[i] = { (pos + tx[1]), vector2{}, normal, tangent, bitangent };
     }
 
     return transformed_points;
@@ -69,12 +74,12 @@ std::vector<gfx::vertex> create_cube(vector3 const& center, vector3 const& exten
     auto const scale = vector3{ extents.x / 2.f, extents.y / 2.f, extents.z / 2.f };
     vector3 transformations[6][3] =
     {
-        {{0.f, 180.f, 0.f}, {0.f, 0.0f, scale.z}, {scale}},
-        {{0.f, 360.f, 0.f}, {0.f, 0.0f, -scale.z}, {scale}},
-        {{90.f, 0.f, 0.f}, {0.f, scale.y, 0.f}, {scale}},
-        {{-90.f, 0.f, 0.f}, {0.f, -scale.y, 0.f}, {scale}},
-        {{0.f, -90.f, 0.f}, {scale.x, 0.f, 0.f}, {scale}},
-        {{0.f, 90.f, 0.f}, {-scale.x, 0.0f, 0.f}, {scale}}
+        {{0.f, 180.f, 0.f}, {0.f, 0.0f, scale.z}, {scale[0], scale[1], 1}},
+        {{0.f, 360.f, 0.f}, {0.f, 0.0f, -scale.z}, {scale[0], scale[1], 1}},
+        {{90.f, 0.f, 0.f}, {0.f, scale.y, 0.f}, {scale[0], 1, scale[2]}},
+        {{-90.f, 0.f, 0.f}, {0.f, -scale.y, 0.f}, {scale[0], 1, scale[2]}},
+        {{0.f, -90.f, 0.f}, {scale.x, 0.f, 0.f}, {1, scale[1], scale[2]}},
+        {{0.f, 90.f, 0.f}, {-scale.x, 0.0f, 0.f}, {1, scale[1], scale[2]}}
     };
 
     std::vector<gfx::vertex> triangles;

@@ -12,7 +12,7 @@ import engine;
 namespace gfx
 {
 
-model::model(std::string const& objpath, gfx::resourcelist& transientres, modelloadparams loadparams)
+model::model(std::string const& objpath, resourcelist& transientres, modelloadparams loadparams)
 {
     rapidobj::Result result = rapidobj::ParseFile(std::filesystem::path(objpath), rapidobj::MaterialLibrary::Default(rapidobj::Load::Optional));
     stdx::cassert(!result.error);
@@ -227,6 +227,31 @@ model::model(std::string const& objpath, gfx::resourcelist& transientres, modell
     //    auto const& center = bounds.center();
     //    for (auto& v : _vertices) v.position -= center;
     //}
+}
+
+model::model(std::vector<vertex> const& verts, std::vector<uint32> const& indices)
+{
+    for (auto& v : verts)
+    {
+        _vertices.positions.push_back({ v.position[0], v.position[1], v.position[2] });
+        _vertices.texcoords.push_back({ v.texcoord[0], v.texcoord[1] });
+
+        tbn tbn;
+        tbn.normal = { v.normal[0], v.normal[1], v.normal[2] };
+        tbn.tangent = { v.tangent[0], v.tangent[1], v.tangent[2] };
+        tbn.bitangent = { v.bitangent[0], v.bitangent[1], v.bitangent[2] };
+
+        _vertices.tbns.push_back(tbn);
+    }
+
+    // same index buffer for all attributes for now
+    // todo : shapes should be updated to return vertices in new layout and this function can be updated after
+    for (auto& i : indices)
+        _indices.emplace_back(i, i, i);
+
+    auto mat = globalresources::get().addmat(material{});
+    for(auto i : stdx::range(verts.size() / 3))
+        _materials.emplace_back(mat);
 }
 
 std::vector<instance_data> model::instancedata() const { return { instance_data{ matrix::Identity } }; }

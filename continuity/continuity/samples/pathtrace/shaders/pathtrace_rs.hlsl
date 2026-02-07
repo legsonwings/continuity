@@ -455,8 +455,13 @@ shadingdata getshadingdata(hitdata trihit)
     // todo : bug with normal maps so use geometry normal(possibly sampling below hemisphere causing nans)
     float3 normal = trihit.normal;
 
-    float4 sampledcolour = difftex.SampleGrad(sampler, trihit.uv, trihit.duvxy[0], trihit.duvxy[1]);
-    float2 mr = roughnesstex.SampleGrad(sampler, trihit.uv, trihit.duvxy[0], trihit.duvxy[1]).bg;
+    float4 sampledcolour = m.colour;
+    if(m.diffusetex != ~0)
+        sampledcolour = difftex.SampleGrad(sampler, trihit.uv, trihit.duvxy[0], trihit.duvxy[1]);
+    
+    float2 mr = float2(m.metallic, m.roughness);
+    if (m.roughnesstex != ~0)
+        mr = roughnesstex.SampleGrad(sampler, trihit.uv, trihit.duvxy[0], trihit.duvxy[1]).bg;
 
     float3 const diffcolour = lerp(sampledcolour.rgb, 0.xxx, mr.x);
     float3 const speccolour = lerp(0.04.xxx, sampledcolour.rgb, mr.x);
@@ -653,15 +658,17 @@ float3 cameraraymiss(float3 raydir)
     RWTexture2D<float4> difftex = ResourceDescriptorHeap[params.diffcolortex];
     RWTexture2D<float4> historylendepthdxtex = ResourceDescriptorHeap[params.historylentex[idx]];
     RWTexture2D<float4> specbrdfesttex = ResourceDescriptorHeap[params.specbrdftex];
+    RWTexture2D<float4> normaldepthtex = ResourceDescriptorHeap[params.normaldepthtex[idx]];
 
     // write gbuffer on miss
     {
         // on miss set diffuse radiance to env map radiance and specular radiance to 0
         difftex[texel] = 1.xxxx;
         specbrdfesttex[texel] = 0.xxxx;
+        normaldepthtex[texel] = float4(0, 0, -1, 1e34);
 
         // set high motion on miss so that reprojection always fails
-        // we also don't need to clear hitposition and normal depth because they are only used if reprojection doesn't fail
+        // we also don't need to clear hitposition as it is only used if reprojection doesn't fail and it doesn't cause issues in spatial pass
         float2 motion = float2(1e34f, 1e34f);
         historylendepthdxtex[texel].yzw = float3(0, motion);
     }

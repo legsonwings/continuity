@@ -24,7 +24,11 @@ struct modelloadparams
 struct model
 {
 	model() = default;
-	model(std::string const& objpath, gfx::resourcelist& transientres, modelloadparams loadparams = {});
+	model(std::string const& objpath, resourcelist& transientres, modelloadparams loadparams = {});
+	model(std::vector<vertex> const& verts, std::vector<uint32> const& indices);
+
+	template<typename geo_t>
+	explicit model(geo_t&& geo) : model(geo.vertices(), geo.indices()) {}
 
 	vertexattribs const& vertices() const { return _vertices; }
 	std::vector<index> const& indices() const { return _indices; }

@@ -190,10 +190,10 @@ struct viewinfo
 
 struct material
 {
-    stdx::vec4 basecolour = stdx::vec4{ 1, 0, 0, 0 };
+    stdx::vec4 basecolour = stdx::vec4{ 1, 1, 1, 1 };
     float roughness = 0.25f;
     float reflectance = 0.5f;
-    float metallic = 0.0f;
+    float metallic = 0.2f;
 
     uint32 diffusetex = stdx::invalid<uint32>;
     uint32 roughnesstex = stdx::invalid<uint32>;
